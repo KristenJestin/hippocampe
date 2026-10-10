@@ -117,7 +117,9 @@ not give, may instead name the month in its title or summary) and part of, or li
 about. `session-journal` asks more since #199: the session is part of the Atlas server and of a
 dated type (one whose `dated_by` names its date field), dated today, so it is read under the server.
 Both fail when the agent asks the owner for a type and writes nothing, and when the body of an entry
-that existed before was grown.
+that existed before was grown. Since #203 these two, and `second-session-reuses-type`, also fail when
+an entry the run created cites as `seen_by` (what the writer did or saw itself) what the owner said:
+the agent only hears in these tasks.
 
 Two tasks measure the reading of what happened (#199). In both, the setup writes, as the bench's
 key, what earlier sessions would have: a dated type `work-session` and sessions under a subject.

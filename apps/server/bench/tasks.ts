@@ -157,6 +157,18 @@ const happenings = async (world: World, startedAt: string) => {
   return { created, grown: grown.map(({ entry }) => entry.slug) }
 }
 
+/**
+ * The reason, when an entry the run created cites as `seen_by` (what the writer did or saw itself)
+ * what the owner told it: in these tasks the agent only hears, it does no work of its own to cite.
+ */
+const toldAsSeen = (created: ReadonlyArray<Found>) => {
+  const wrong = created.filter(({ entry }) => entry.sources.some((source) => 'seen_by' in source))
+  return ok(
+    wrong.length === 0,
+    `what the owner said is cited as seen_by, which says the writer saw it itself: ${wrong.map(({ entry }) => entry.slug).join(', ')}`,
+  )
+}
+
 /** The March before the day of the run: its year and month, as a date begins with them. */
 export const lastMarch = (today: string) => {
   const year = Number(today.slice(0, 4))
@@ -894,6 +906,7 @@ export const TASKS: ReadonlyArray<Task> = [
           session.length > 0,
           'no entry of its own, of a dated type, dated today and part of the Atlas server, records the session',
         ),
+        ...toldAsSeen(created),
       ]
     },
   },
@@ -934,6 +947,7 @@ export const TASKS: ReadonlyArray<Task> = [
           dated(lastMarch(world.today)) || march,
           'no entry about the boiler is dated last March',
         ),
+        ...toldAsSeen(created),
       ]
     },
   },
@@ -1028,6 +1042,7 @@ export const TASKS: ReadonlyArray<Task> = [
           defined.length === 0,
           `another type was defined: ${defined.map(({ name }) => name).join(', ')}`,
         ),
+        ...toldAsSeen(created),
       ]
     },
   },
