@@ -32,6 +32,10 @@ const asOwner = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     'owner',
   )
 
+/** What a `said_by` that names no entry is told to do. */
+const TOLD_WAY_OUT =
+  'What was told is cited by the entry of the person who said it (`{ "said_by": "<slug of their entry>", "on": "2026-10-08" }`): create that entry first, a person the owner is or someone else, or write the value `inferred` without that source; never `seen_by`, which is for what this key did or saw itself.'
+
 const REQUIRED = (name: string, at = `fields.${name}`) =>
   `The field \`provenance.${name}\` is required with \`${at}\`: say \`extracted\` (known, read in a source), \`inferred\` (supposed by you) or \`ambiguous\` (sources disagree).`
 
@@ -277,7 +281,7 @@ describe('a source can name what a person said', () => {
           }),
         ),
       ),
-    ).toBe('The source `sources.0` names `nobody`, which is not an entry.')
+    ).toBe(`The source \`sources.0\` names \`nobody\`, which is not an entry. ${TOLD_WAY_OUT}`)
     expect(
       await run(
         refusalOf(
@@ -312,7 +316,7 @@ describe('a source can name what a person said', () => {
           }),
         ),
       ),
-    ).toBe('The source `sources.0` names `confidant`, which is not an entry.')
+    ).toBe(`The source \`sources.0\` names \`confidant\`, which is not an entry. ${TOLD_WAY_OUT}`)
     const seen = await as(['read'])(readEntry('told-in-private'))
     expect(seen.entry.sources).toEqual([
       { said_by: HIDDEN, slug: HIDDEN, title: HIDDEN, on: '2026-10-08' },
@@ -787,7 +791,7 @@ describe('a refused source is said once', () => {
       ),
     )
     expect(refusal).toBe(
-      'Entry 1 (`Told by nobody`): The source `sources.0` names `nobody`, which is not an entry.',
+      `Entry 1 (\`Told by nobody\`): The source \`sources.0\` names \`nobody\`, which is not an entry. ${TOLD_WAY_OUT}`,
     )
   })
 })
