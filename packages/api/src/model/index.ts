@@ -9,6 +9,7 @@ export {
   HIDDEN,
   Link,
   Medium,
+  OWNER,
   Place,
   PROVENANCES,
   Source,

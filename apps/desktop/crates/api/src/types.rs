@@ -913,12 +913,18 @@ pub struct SearchResults {
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum Source {
+    SaidByOwner(SourceSaidByOwner),
     Entry(SourceEntry),
     Said(SourceSaid),
     Seen(SourceSeen),
     Url(SourceUrl),
     Identifier(SourceIdentifier),
     Item(SourceItem),
+}
+impl ::std::convert::From<SourceSaidByOwner> for Source {
+    fn from(value: SourceSaidByOwner) -> Self {
+        Self::SaidByOwner(value)
+    }
 }
 impl ::std::convert::From<SourceEntry> for Source {
     fn from(value: SourceEntry) -> Self {
@@ -993,6 +999,62 @@ pub struct SourceSaid {
     pub said_by: ::std::string::String,
     pub slug: ::std::string::String,
     pub title: ::std::string::String,
+}
+#[doc = "`SourceSaidByOwner`"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct SourceSaidByOwner {
+    #[doc = "A few words on what this source gave."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub note: ::std::option::Option<::std::string::String>,
+    pub on: ::std::string::String,
+    pub said_by: SourceSaidByOwnerSaidBy,
+}
+#[doc = "`SourceSaidByOwnerSaidBy`"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum SourceSaidByOwnerSaidBy {
+    #[serde(rename = "owner")]
+    Owner,
+}
+impl ::std::fmt::Display for SourceSaidByOwnerSaidBy {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Owner => f.write_str("owner"),
+        }
+    }
+}
+impl ::std::str::FromStr for SourceSaidByOwnerSaidBy {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "owner" => Ok(Self::Owner),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for SourceSaidByOwnerSaidBy {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for SourceSaidByOwnerSaidBy {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
 }
 #[doc = "`SourceSeen`"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]

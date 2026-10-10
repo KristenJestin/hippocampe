@@ -284,7 +284,7 @@ describe('the parent says whether it is known or supposed, as a link does', () =
         ),
       ),
     ).toBe(
-      'The field `provenance.parent` is `extracted` but the entry has no source: give one in `sources` (what someone said is `{ "said_by": "<slug or id of a person>", "on": "2026-10-08" }`, what you did or saw yourself `{ "seen_by": "writer", "on": "2026-10-08" }`), or write it `inferred`.',
+      'The field `provenance.parent` is `extracted` but the entry has no source: give one in `sources` (what the user told you is `{ "said_by": "owner", "on": "2026-10-08" }`, what someone else said `{ "said_by": "<slug or id of their entry>", "on": "2026-10-08" }`, what you did or saw yourself `{ "seen_by": "writer", "on": "2026-10-08" }`), or write it `inferred`.',
     )
     expect(
       await run(
