@@ -242,6 +242,7 @@ describe('agents that may write learn how to write an entry', () => {
     expect(WRITING_STANDARD).toContain(
       '`extracted` is known, read in a source, and needs a source on the entry (`sources`); `inferred` is your supposition',
     )
+    expect(WRITING_STANDARD).toContain('{ "said_by": "owner", "on": "<day>" }')
     expect(WRITING_STANDARD).toContain('{ "said_by": "<slug of their entry>", "on": "<day>" }')
     expect(WRITING_STANDARD).toContain('write the value again as `extracted` with that source')
     expect(WRITING_STANDARD).toContain(
@@ -450,7 +451,7 @@ describe('agents keep each thing that happened at a time as an entry of its own'
     )
     expect(WRITING_STANDARD).toContain('What you conclude or guess from it is `inferred`.')
     expect(WRITING_STANDARD).toContain(
-      'What you were told is never `seen_by`: it is `said_by`, with the entry of the one who said it, or `inferred` when they have none.',
+      'What you were told is never `seen_by`: what the user told you is `said_by` "owner", what someone else said is `said_by` with their entry.',
     )
   })
 
