@@ -81,7 +81,8 @@ pub fn contract() -> EntryData {
                         { "url": "https://example.org/offres/fibre" },
                         { "identifier": "doc_4412", "label": "contrat scanné" },
                         { "source": "inbox", "item": "01a1-0000-item" },
-                        { "seen_by": "agent-bureau", "on": "2026-09-30", "note": "la box redémarrée" }
+                        { "seen_by": "agent-bureau", "on": "2026-09-30", "note": "la box redémarrée" },
+                        { "said_by": "owner", "on": "2026-10-01" }
                     ],
                     "body": BODY
                 }),
