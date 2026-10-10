@@ -4,6 +4,7 @@ import type { InstanceName } from '../core/instance.ts'
 import { Rights } from '../core/auth/index.ts'
 import { recentEntries } from '../core/entries/index.ts'
 import { Actor } from '../core/events/index.ts'
+import { ownerEntry } from '../core/owner.ts'
 import { instanceRulesText } from '../core/rules.ts'
 import { listTypes } from '../core/types/index.ts'
 
@@ -164,6 +165,13 @@ it when it is the same thing. When no type fits, ask the user rather than forcin
 things that happened at a time, for which you define a dated type yourself; a new type is defined
 with a description that says when to use it.`
 
+/** The entry that stands for the owner, as the instructions name it: its slug and its title. */
+type Owner = { readonly slug: string; readonly title: string }
+
+/** Who the owner is, said to the keys that read, after what the instance is. */
+const ownerSaid = ({ slug, title }: Owner) =>
+  `The owner of this instance is \`${slug}\` (${oneLine(title)}): read it when what you do depends on who they are.`
+
 /** How an agent recalls: said to the keys that read, after the types. */
 const RECALL = [
   'When the user mentions something Hippocampe may hold, search it before answering, without being asked. Before answering, read what the search found and follow its `neighbors` (and `read` with a `depth` of 2 or 3) as far as they help.',
@@ -193,8 +201,8 @@ const listed = (types: ReadonlyArray<Listed>) =>
 
 /**
  * What an agent is told when its session starts, what matters most first: what the instance is,
- * how to choose a type, the types of the instance with their descriptions (or only their names
- * when there are many); then its working memory (the key it uses, the entries changed most
+ * which entry stands for its owner (to a key that reads and may see it), how to choose a type, the
+ * types of the instance with their descriptions (or only their names when there are many); then its working memory (the key it uses, the entries changed most
  * recently) and how to find what the owner refers to, then how to recall when it may read; what
  * diagnostics ask of it when they are on,
  * the rules its owner set for every agent, if any, and, when it may write, how to write an entry
@@ -208,9 +216,11 @@ export const instructionsFor = (
   writes = false,
   reads = true,
   memory: WorkingMemory | null = null,
+  owner: Owner | null = null,
 ) =>
   [
     INSTANCE[instance.name],
+    ...(reads && owner !== null ? [ownerSaid(owner)] : []),
     HOW,
     listed(types),
     ...(memory === null ? [] : [workingMemory(memory, writes), FINDING]),
@@ -234,5 +244,6 @@ export const instructions = Effect.gen(function* () {
     (yield* Rights).includes('write'),
     (yield* Rights).includes('read'),
     key === undefined ? null : { key, recent: yield* recentEntries(RECENT_LIMIT) },
+    yield* ownerEntry,
   )
 })

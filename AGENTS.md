@@ -113,10 +113,11 @@ claude mcp add --transport http hippocampe http://localhost:3000/mcp \
 and links an agent only supposed (written `inferred` or `ambiguous`), the most recently changed
 entries first, with the entry, how it stands, the writer and when (50 at most, saying how many
 more); `--unstated` lists instead what was written before writers were asked. `supposed:confirm
-<entry> <field|body|summary> --as <person>` and `supposed:confirm <entry> <target> --link <relation>
-[--period <p>] [--field <f>] --as <person>` make a supposition known, as the owner (no key with `owner` is ever given to an MCP
+<entry> <field|body|summary> [--as <person>]` and `supposed:confirm <entry> <target> --link <relation>
+[--period <p>] [--field <f>] [--as <person>]` make a supposition known, as the owner (no key with `owner` is ever given to an MCP
 client): it becomes `extracted`, with the source "said by" the entry that stands for you, dated
-today, in one event. In the container: `docker compose exec hippocampe bun src/cli.ts supposed`.
+today, in one event. `owner:entry <slug or id>` names that entry (`--clear` none; alone, it prints
+it): what you said is then cited as said by it, and agents are told to read it. In the container: `docker compose exec hippocampe bun src/cli.ts supposed`.
 `inbox:add <folder> [--origin <name>] [--dry-run] [--again]` drops a folder
 into the inbox, one item per file, sub-folders included (hidden files and links are skipped), for
 agents to process (`inbox_take`, then `inbox_finish`); `--dry-run` says what it would add, and a file

@@ -20,6 +20,7 @@ import {
 import { addFileOnce, addToInbox, fileInInbox, inboxRefusalOf } from './core/inbox/index.ts'
 import { confirmLink, misfiledPeriods } from './core/links/index.ts'
 import { exportMarkdown } from './export/markdown.ts'
+import { ownerEntry, setOwnerEntry } from './core/owner.ts'
 import { instanceRulesText, setInstanceRules } from './core/rules.ts'
 import { changeField, changeType, confirmProposal, listProposals } from './core/types/index.ts'
 import { layer as database, migrate } from './core/database/index.ts'
@@ -278,8 +279,10 @@ const supposedConfirm = Command.make(
         'With --link: the date field of a link `fulfills`, when several are supposed.',
       ),
     ),
-    as: Flag.String('as').pipe(
-      Flag.withDescription('The slug or id of the entry of the person confirming: you.'),
+    as: optionalText('as').pipe(
+      Flag.withDescription(
+        'The slug or id of the entry of the person confirming; `owner`, or left out: you, by the entry named with `owner:entry`.',
+      ),
     ),
   },
   ({ entry, value, link, period, field, as }) =>
@@ -287,16 +290,16 @@ const supposedConfirm = Command.make(
       Option.isSome(link)
         ? Effect.as(
             asOwner(
-              confirmLink(entry, link.value, value, as, {
+              confirmLink(entry, link.value, value, given(as), {
                 period: given(period),
                 field: given(field),
               }),
             ),
-            `Confirmed: the link ${link.value} from ${entry} to ${value} is known, said by ${as}.`,
+            `Confirmed: the link ${link.value} from ${entry} to ${value} is known, said by ${Option.getOrElse(as, () => 'you')}.`,
           )
         : Effect.as(
-            asOwner(confirmValue(entry, value, as)),
-            `Confirmed: the ${value} of ${entry} is known, said by ${as}.`,
+            asOwner(confirmValue(entry, value, given(as))),
+            `Confirmed: the ${value} of ${entry} is known, said by ${Option.getOrElse(as, () => 'you')}.`,
           ),
     ),
 ).pipe(
@@ -502,6 +505,37 @@ const rulesSet = Command.make('rules:set', { file: Argument.String('file') }, ({
   ),
 ).pipe(Command.withDescription('Sets the rules every agent is given.'))
 
+/** What `owner:entry` says of the entry that stands for the owner, or of none. */
+const ownerSaid = (owner: { readonly slug: string; readonly title: string } | null) =>
+  owner === null
+    ? 'The owner has no entry: name the one that stands for you with `owner:entry <slug or id>`.'
+    : `The owner entry is ${owner.slug} (${owner.title}).`
+
+const ownerEntryCommand = Command.make(
+  'owner:entry',
+  {
+    entry: Argument.String('entry').pipe(
+      Argument.withDescription('The slug or id of the entry that stands for you.'),
+      Argument.optional,
+    ),
+    clear: Flag.Boolean('clear').pipe(Flag.withDefault(false)),
+  },
+  ({ entry, clear }) =>
+    onDatabase(
+      Option.isSome(entry) && clear
+        ? Effect.fail({ message: 'Give an entry or `--clear`, not both.' })
+        : Option.isSome(entry)
+          ? Effect.map(asOwner(Effect.andThen(setOwnerEntry(entry.value), ownerEntry)), ownerSaid)
+          : clear
+            ? Effect.as(asOwner(setOwnerEntry(null)), 'The owner has no entry now.')
+            : Effect.map(asOwner(ownerEntry), ownerSaid),
+    ),
+).pipe(
+  Command.withDescription(
+    'Names the entry that stands for you, the owner, or none with --clear; alone, prints it.',
+  ),
+)
+
 const rulesShow = Command.make('rules:show', {}, () =>
   onDatabase(
     Effect.map(instanceRulesText, (rules) =>
@@ -664,6 +698,7 @@ export const hippo = Command.make('hippo').pipe(
     linksPeriods,
     rulesSet,
     rulesShow,
+    ownerEntryCommand,
     exportMarkdownCommand,
     serveCommand,
     serviceCommand,
