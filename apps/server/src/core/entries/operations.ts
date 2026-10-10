@@ -99,6 +99,13 @@ const COLUMNS = {
 const named = (reference: string) =>
   or(eq(table.slug, reference), sql`${table.id}::text = ${reference}`)
 
+/** The name an agent gives the owner, though it names no entry: a key's name, not an entry's. */
+const OWNER = 'owner'
+
+/** What a `said_by` that names no entry is told to do, once, for every way it came to that. */
+const TOLD_WAY_OUT =
+  'What was told is cited by the entry of the person who said it (`{ "said_by": "<slug of their entry>", "on": "2026-10-08" }`): create that entry first, a person the owner is or someone else, or write the value `inferred` without that source; never `seen_by`, which is for what this key did or saw itself.'
+
 /** The entry a source names, if it names one: the entry it comes from, or who said it. */
 const namedBy = (source: SourceKept | SourceGiven) =>
   'entry' in source ? source.entry : 'said_by' in source ? source.said_by : undefined
@@ -1236,12 +1243,17 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
                 `The source ${at} names \`${who}\`, which this batch does not give to \`${other.title}\`: that entry takes the slug \`${other.slug}\`.`,
               )
             else if (id === undefined)
-              problems.push(`The source ${at} names \`${who}\`, which is not an entry.`)
+              problems.push(
+                'said_by' in source
+                  ? `The source ${at} names \`${who}\`, ${who === actor || who === OWNER ? 'the name of a key, not of an entry' : 'which is not an entry'}. ${TOLD_WAY_OUT}`
+                  : `The source ${at} names \`${who}\`, which is not an entry.`,
+              )
             else if ('said_by' in source) {
-              if (isDate(source.on)) sources.push({ ...source, said_by: id })
+              if (source.on !== undefined && isDate(source.on))
+                sources.push({ ...source, said_by: id, on: source.on })
               else
                 problems.push(
-                  `The source ${at} needs \`on\`, the day it was said, such as \`2026-10-08\`: \`${source.on}\` is not a date.`,
+                  `The source ${at} needs \`on\`, the day it was said, such as \`2026-10-08\`${source.on === undefined ? '' : `: \`${source.on}\` is not a date`}.`,
                 )
             } else if ('entry' in source) sources.push({ ...source, entry: id })
           } else if ('seen_by' in source) {
@@ -1280,7 +1292,10 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
             problems.push(
               `The source ${at} names the item \`${source.item}\`, which the inbox does not hold.`,
             )
-          } else sources.push(source)
+          } else if (!('said_by' in source)) {
+            // A source that says who said it was dealt with above, kept or refused.
+            sources.push(source)
+          }
         }
         sources.push(...unseenSources)
         // A source refused is said once: the entry is not told it has none besides.

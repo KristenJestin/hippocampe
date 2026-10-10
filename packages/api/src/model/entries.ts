@@ -69,6 +69,15 @@ const SaidBy = Schema.Struct({
   ...About,
 })
 
+/** What a person said, as a write gives it: the day is optional here so that a missing one is told plainly by the write. */
+const SaidGiven = Schema.Struct({
+  said_by: SaidBy.fields.said_by,
+  on: Schema.optionalKey(Schema.String).annotate({
+    description: 'The day it was said, such as `2026-10-08`.',
+  }),
+  ...About,
+})
+
 /**
  * What the writer did or saw itself, as it is kept and read: the name of the key that wrote it,
  * and the day.
@@ -89,7 +98,7 @@ const Seen = Schema.Struct({
  */
 export const SourceGiven = Schema.Union([
   FromEntry,
-  SaidBy,
+  SaidGiven,
   Schema.Struct({
     seen_by: Schema.String.annotate({
       description: `\`${WRITER}\`: what the key writing it did, ran, read or measured itself (never what it was told: that is \`said_by\`), kept with the name of that key.`,
