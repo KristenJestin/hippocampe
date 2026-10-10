@@ -7,7 +7,8 @@ import { Refused } from '../refused.ts'
 import { sensitivity } from '../sensitive.ts'
 import { Today } from '../time/index.ts'
 import { LATEST, LINK_NAME, VALUE_HELD, VALUE_NAMES } from './certainty.ts'
-import { findEntry, lockedEntry, visibleIdOf, writeEntry } from './operations.ts'
+import { OWNER } from '@hippocampe/api/model'
+import { findEntry, lockedEntry, ownerEntryId, visibleIdOf, writeEntry } from './operations.ts'
 
 /**
  * A value that is not known: a field by its name, `body`, `summary`, or a link as
@@ -165,9 +166,19 @@ export const supposedIn = Effect.fn('supposedIn')(function* (
 
 /**
  * The day of a confirmation and the person who confirms, as the source that goes with it: kept
- * once when the entry already has the same one.
+ * once when the entry already has the same one. The owner (`owner`, or no person named) is the
+ * entry that stands for them, or, as `owner`, no entry while they have named none.
  */
-export const saidOn = Effect.fn('saidOn')(function* (person: string) {
+export const saidOn = Effect.fn('saidOn')(function* (person?: string) {
+  if (person === undefined || person === OWNER) {
+    const owner = yield* ownerEntryId
+    if (owner === null && person === undefined)
+      return yield* new Refused({
+        message:
+          'Say who confirms with `--as <slug of your entry>`, or name the entry that stands for you once, with `owner:entry <slug or id>`; `--as owner` cites you with no entry.',
+      })
+    return { said_by: owner ?? OWNER, on: (yield* Today)() }
+  }
   const id = yield* visibleIdOf(person)
   if (id === undefined) {
     return yield* new Refused({
@@ -186,7 +197,7 @@ export const saidOn = Effect.fn('saidOn')(function* (person: string) {
 export const confirmValue = Effect.fn('confirmValue')(function* (
   reference: string,
   what: string,
-  person: string,
+  person?: string,
 ) {
   const client = yield* SqlClient.SqlClient
   if (!(yield* Rights).includes('owner')) {

@@ -536,6 +536,27 @@ export const instanceRules = pgTable(
 )
 
 /**
+ * The entry that stands for the owner of this instance: one row at most, named by the owner alone.
+ * What the owner said is cited as said by it, and the instructions name it.
+ */
+export const instanceOwner = pgTable(
+  'instance_owner',
+  {
+    id: integer().primaryKey().default(1),
+    entry_id: uuid().notNull(),
+    updated: timestamp(at).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: 'instance_owner_entry_id_fkey',
+      columns: [table.entry_id],
+      foreignColumns: [entries.id],
+    }),
+    check('instance_owner_one', sql`id = 1`),
+  ],
+)
+
+/**
  * The references of a body to a slug no entry has yet (`[[slug]]` before the entry is written):
  * kept until an entry takes that slug or alias, then turned into a link `mentions`.
  */

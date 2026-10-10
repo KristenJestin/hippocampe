@@ -155,6 +155,17 @@ export const visibleIdOf = Effect.fn('visibleIdOf')(function* (reference: string
   return (yield* visibleOf(reference))?.id
 })
 
+const ownerIds = rowsOf(Schema.Struct({ entry_id: Schema.String }))
+
+/** The id of the entry that stands for the owner, whoever asks, or none. */
+export const ownerEntryId = Effect.gen(function* () {
+  const db = yield* drizzle
+  const [row] = yield* ownerIds(
+    db.select({ entry_id: tables.instanceOwner.entry_id }).from(tables.instanceOwner),
+  )
+  return row?.entry_id ?? null
+})
+
 /** The id and the type of the entry named, if there is one the caller may see. */
 export const visibleOf = Effect.fn('visibleOf')(function* (reference: string) {
   const db = yield* drizzle
@@ -1243,10 +1254,19 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
             continue
           }
           if ('said_by' in source && source.said_by === OWNER) {
-            // The owner is no entry: the source is kept as given, with its day.
+            // The owner is their entry once named, and no entry before; a source the entry holds
+            // as the owner's already stays as it was written.
+            const held = existing?.sources.some(
+              (each) => 'said_by' in each && each.said_by === OWNER && each.on === source.on,
+            )
+            const ownerId = held === true ? null : yield* ownerEntryId
             if (source.on !== undefined && isDate(source.on))
-              sources.push({ ...source, said_by: OWNER, on: source.on })
+              sources.push({ ...source, said_by: ownerId ?? OWNER, on: source.on })
             else problems.push(needsDay(at, source.on))
+          } else if (who === HIDDEN) {
+            problems.push(
+              `The source ${at} names \`${HIDDEN}\`, the marker of an entry this key may not see, and this entry cites no such entry to put back: leave the source out, or cite one this key may see.`,
+            )
           } else if (who !== undefined) {
             // An entry it already cites stays cited, whether the caller may see it or not.
             const kept = existing?.sources.some((held) => namedBy(held) === who)

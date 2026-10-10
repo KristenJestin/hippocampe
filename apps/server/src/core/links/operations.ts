@@ -355,7 +355,7 @@ export const confirmLink = Effect.fn('confirmLink')(function* (
   sourceReference: string,
   relation: string,
   targetReference: string,
-  person: string,
+  person?: string,
   which: WhichLink = {},
 ) {
   const sql = yield* SqlClient.SqlClient
