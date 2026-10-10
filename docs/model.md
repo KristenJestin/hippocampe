@@ -19,7 +19,7 @@ bookmark, a folder-like area. All entries share the same base:
 | `part_of` | the entries it is part of, or was: links `part_of` with the dates they held (see "The tree"); not a column of the entry |
 | `fields` | the values of the type's fields, validated against the type |
 | `provenance` | whether each value is known or supposed, by field name, and `body` and `summary` for those two texts: `extracted` (known, read from a source), `inferred` (supposed by the writer), `ambiguous` (sources disagree), or `unstated` (written before writers were asked; never written by a new write). See "Known or supposed" |
-| `sources` | where the entry comes from, a list: another entry (`{ "entry": "<slug or id>" }`, kept as its id and read with its slug and title), what the owner of the instance told (`{ "said_by": "owner", "on": "2026-10-08" }`, no entry needed, kept and read as `owner`; an entry whose slug is `owner` is cited by its id), what someone else said (`{ "said_by": "<slug or id>", "on": "2026-10-08" }`, kept as the id of the entry that stands for them and read with its slug and title), what the writer did or saw itself (`{ "seen_by": "writer", "on": "2026-10-10" }`, kept and read with the name of the key that wrote it), a URL (`{ "url": "https://…" }`, http or https), an external identifier (`{ "identifier": "doc_…", "label": "…" }`), or an item of the inbox (`{ "source": "inbox", "item": "<id>" }`); each may carry a short `note`. An entry used as a source lists the entries that cite it (`cited_by`); search finds an entry by its URLs and identifiers |
+| `sources` | where the entry comes from, a list: another entry (`{ "entry": "<slug or id>" }`, kept as its id and read with its slug and title), what the owner of the instance told (`{ "said_by": "owner", "on": "2026-10-08" }`, kept as the owner's entry once they have named one, with `owner:entry`, and read with its slug and title; with no entry needed, kept and read as `owner`, before; an entry whose slug is `owner` is cited by its id), what someone else said (`{ "said_by": "<slug or id>", "on": "2026-10-08" }`, kept as the id of the entry that stands for them and read with its slug and title), what the writer did or saw itself (`{ "seen_by": "writer", "on": "2026-10-10" }`, kept and read with the name of the key that wrote it), a URL (`{ "url": "https://…" }`, http or https), an external identifier (`{ "identifier": "doc_…", "label": "…" }`), or an item of the inbox (`{ "source": "inbox", "item": "<id>" }`); each may carry a short `note`. An entry used as a source lists the entries that cite it (`cited_by`); search finds an entry by its URLs and identifiers |
 | `body` | free Markdown text, possibly empty |
 | `summary` | a short text written by the agent, searched first |
 | `created`, `updated` | when the entry came to be (the time of the write that created it, or the date a migrated note gives) and when Hippocampe last changed it (the time of the last write) |
@@ -102,7 +102,10 @@ disagree.
   the value is written `inferred`. What the owner told the writer, in a conversation written or
   spoken, is a source of its own: `{ "said_by": "owner", "on": "2026-10-08", "note": "…" }`, with no
   entry needed (`owner` always means the owner of the instance; an entry whose slug is `owner` is
-  cited by its id). What someone else said is cited the same way with their entry: `{ "said_by":
+  cited by its id). Once the owner has named the entry that stands for them (below), the source is
+  kept as said by that entry, and read with its slug and title, hidden from a key that may not see
+  it; before, it is kept as `owner`, and what was kept so stays so, written back as read included.
+  What someone else said is cited the same way with their entry: `{ "said_by":
   "<slug or id of a person>", "on": "2026-10-08", "note": "…" }`. That person is an entry the writer
   may see; the source is read with its slug and title, and the person's `cited_by` lists what they
   said. A `said_by` that names no entry, or only the writer's own key, is refused with the way out. What the writer did, ran,
@@ -117,8 +120,10 @@ disagree.
   `body` and `summary` are not. The `mentions`
   that come from a body take the provenance of the body.
 - **The owner confirms.** From the command line, `supposed:confirm` makes a value or a link known:
-  `extracted`, with the source "said by" the entry that stands for the owner (`--as`: Hippocampe knows
-  no entry for the owner itself), dated the day of confirmation, in one event of the entry. A link
+  `extracted`, with the source "said by" the entry that stands for the owner (the one named with
+  `owner:entry`; `--as <person>` names another, and `--as owner` cites the owner as `owner` while
+  they have named none; with neither, the refusal says how to name it), dated the day of
+  confirmation, in one event of the entry. A link
   `fulfills` supposed for several periods is confirmed with `--period` and `--field`, which the
   refusal lists; a `mentions` link follows its body: confirm the `body`. A correction is an ordinary write by the owner. Through MCP,
   an agent records what the owner said ("yes, it was Marie") as the value again, `extracted`, with
@@ -252,7 +257,7 @@ unknown key is refused.
 ### How agents learn an instance
 
 An agent connected over MCP receives instructions when its session starts, what matters most
-first: the instance paragraph, generic instructions, in the code, on how to choose a type (from
+first: the instance paragraph, the entry that stands for the owner (below), generic instructions, in the code, on how to choose a type (from
 its description, searching before creating, asking when none fits), and the types of the instance
 with their descriptions (their names only beyond 50, with `types` for the rest); then its
 working memory and how to find what the owner refers to without naming it (below), and, when they
@@ -309,6 +314,14 @@ verbatim after the types and the diagnostics paragraph; beyond 4000 characters, 
 opening (what comes before their first `##` section), with `types` and `rules: true` to read them whole
 (a part of `types`, not an MCP resource: clients use resources poorly).
 The code knows that an instance has rules for its agents, nothing of what they say.
+
+Most of what agents write was told by the owner, and much of what they need is about the owner.
+The owner names the **entry that stands for them**, from the command line only (`owner:entry
+<slug or id>`, `owner:entry --clear`; `owner:entry` alone prints it): a setting of the instance, as
+the rules are, recorded in the event log as an event `owner` of the entry it becomes and of the one
+it was. An entry that does not exist or is archived is refused. A key that reads is told, right
+after the instance paragraph, that entry's slug and title, and to read it when what it does depends
+on who the owner is; a key that may not see it (its type is sensitive) is told nothing of it.
 
 Every write of an entry is validated against its type. A refused write returns one sentence per
 problem, naming the field and what is expected (through `formatSchemaError`).
