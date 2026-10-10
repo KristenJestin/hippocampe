@@ -544,6 +544,24 @@ describe('the read API', () => {
     })
   })
 
+  test('a source said by the owner is read over the API as said by owner, with no entry', async () => {
+    const written = await connectStateless(`${base}/mcp`, bearer(writer)).call('write', {
+      type: 'note',
+      title: 'Told by the owner over the wire',
+      summary: 'The owner said so.',
+      provenance: { summary: 'extracted' },
+      sources: [{ said_by: 'owner', on: '2026-10-08', note: 'in passing' }],
+    })
+    expect(written).toMatchObject({
+      result: { entry: { slug: 'told-by-the-owner-over-the-wire' } },
+    })
+    const read = await get('/api/entries/told-by-the-owner-over-the-wire')
+    expect(read.status).toBe(200)
+    expect(read.body.entry.sources).toEqual([
+      { said_by: 'owner', on: '2026-10-08', note: 'in passing' },
+    ])
+  })
+
   test('without a key, 401; with a key that may not read, 403; an unknown entry, 404', async () => {
     const anonymous = await get('/api/entries/over-the-wire', {})
     expect(anonymous.status).toBe(401)

@@ -1,9 +1,11 @@
 import { Effect } from 'effect'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
-import { entriesFor, LINKS, seedInstance, SUPPOSED, TYPES } from '../../bench/fixture.ts'
+import { AGENT_KEY, entriesFor, LINKS, seedInstance, SUPPOSED, TYPES } from '../../bench/fixture.ts'
 import { migrated, runtimeOn } from '../../bench/runtime.ts'
 import { TASKS } from '../../bench/tasks.ts'
 import { worldOf } from '../../bench/world.ts'
+import { writeEntry } from '../../src/core/entries/index.ts'
+import { Actor } from '../../src/core/events/index.ts'
 import { TOOL_NAMES } from '../../src/mcp/tools.ts'
 import {
   createScratchDatabase,
@@ -150,6 +152,27 @@ describe('every task has a check that asks for something and a reference solutio
         const answer = await solutions.get(task.id)?.(world)
         expect(await task.check({ answer: answer ?? '', world, startedAt })).toEqual([])
       })
+
+      // What the owner said is not what the writer saw: citing it as `seen_by` fails the run.
+      if (['session-journal', 'boiler-serviced', 'second-session-reuses-type'].includes(task.id))
+        test('its check fails once what the owner said is cited as seen_by', async () => {
+          await world.arrange(
+            Effect.provideService(
+              writeEntry({
+                type: 'note',
+                title: 'Told as seen',
+                summary: 'What the owner said, cited as if the writer had seen it.',
+                provenance: { summary: 'extracted' },
+                sources: [{ seen_by: 'writer', on: TODAY }],
+              }),
+              Actor,
+              AGENT_KEY,
+            ),
+          )
+          expect(await task.check({ answer: '', world, startedAt })).toEqual([
+            'what the owner said is cited as seen_by, which says the writer saw it itself: told-as-seen',
+          ])
+        })
     })
   }
 })

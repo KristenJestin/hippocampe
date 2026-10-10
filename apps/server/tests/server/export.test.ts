@@ -477,6 +477,23 @@ describe('the export never pushes a sensitive value, and holds everything', () =
     })
   })
 
+  test('a source said by the owner is exported as said by owner', async () => {
+    await run(
+      writeEntry({
+        type: 'area',
+        title: 'Told by the owner',
+        summary: 'The owner said so.',
+        provenance: { summary: 'extracted' },
+        sources: [{ said_by: 'owner', on: '2026-10-08' }],
+      }),
+    )
+    const folder = join(scratch, 'owner-said')
+    expect(cli('export:markdown', folder).status).toBe(0)
+    expect(read(folder, 'told-by-the-owner.md').front).toMatchObject({
+      sources: [{ said_by: 'owner', on: '2026-10-08' }],
+    })
+  })
+
   test('an earlier export that does not say what it holds is refused, until the owner marks it', () => {
     const unmarked = join(scratch, 'unmarked')
     expect(cli('export:markdown', unmarked).status).toBe(0)

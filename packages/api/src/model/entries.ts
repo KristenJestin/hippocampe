@@ -10,6 +10,12 @@ export const HIDDEN = '[hidden]'
 export const WRITER = 'writer'
 
 /**
+ * What `said_by` names for what the owner of the instance told: no entry stands for the owner. It
+ * always means the owner; an entry whose slug is `owner` is cited by its id.
+ */
+export const OWNER = 'owner'
+
+/**
  * Whether a value is known or supposed, as a writer says it: `extracted` (known, read from a
  * source), `inferred` (supposed by the writer) or `ambiguous` (sources disagree).
  */
@@ -60,10 +66,21 @@ const FromEntry = Schema.Struct({
 
 const SaidBy = Schema.Struct({
   said_by: Schema.String.annotate({
-    description:
-      'The slug or id of the entry of the person who said it, written or spoken, in a conversation.',
+    description: `\`${OWNER}\` for what the user told you, the owner of this instance; for what someone else said, the slug or id of their entry (written or spoken, in a conversation).`,
   }),
   on: Schema.String.annotate({
+    description: 'The day it was said, such as `2026-10-08`.',
+  }),
+  ...About,
+})
+
+/**
+ * What a person said, as a write gives it: the owner as `owner` or someone else by their entry.
+ * The day is optional here so that a missing one is told plainly by the write.
+ */
+const SaidGiven = Schema.Struct({
+  said_by: SaidBy.fields.said_by,
+  on: Schema.optionalKey(Schema.String).annotate({
     description: 'The day it was said, such as `2026-10-08`.',
   }),
   ...About,
@@ -83,13 +100,14 @@ const Seen = Schema.Struct({
 
 /**
  * Where an entry comes from, as a write gives it: another entry (by slug or id), what a person
- * said (`said_by`, the slug or id of the entry that stands for them, and the day), what the writer
+ * said (`said_by`: `owner` for the owner of the instance, else the slug or id of the entry that
+ * stands for them; and the day), what the writer
  * did or saw itself (`seen_by` is `writer`, and the day), a URL, an external identifier with an
  * optional label, or an item of the inbox (`source` is `inbox`); each may say a short note.
  */
 export const SourceGiven = Schema.Union([
   FromEntry,
-  SaidBy,
+  SaidGiven,
   Schema.Struct({
     seen_by: Schema.String.annotate({
       description: `\`${WRITER}\`: what the key writing it did, ran, read or measured itself (never what it was told: that is \`said_by\`), kept with the name of that key.`,
@@ -113,6 +131,11 @@ export type SourceKept = typeof SourceKept.Type
  * that saw it.
  */
 export const Source = Schema.Union([
+  Schema.Struct({
+    said_by: Schema.Literal(OWNER),
+    on: Schema.String,
+    ...About,
+  }).annotate({ identifier: 'SourceSaidByOwner' }),
   Schema.Struct({
     entry: Schema.String,
     slug: Schema.String,
@@ -256,7 +279,7 @@ export const WriteEntryInput = Schema.Struct({
   }),
   sources: Schema.optionalKey(Schema.Array(SourceGiven)).annotate({
     description:
-      'Where the entry comes from: another entry, what a person said (`{ said_by, on, note }`, the person by slug or id), what you did or saw yourself (`{ seen_by: "writer", on, note }`), a URL, an external identifier or an inbox item. The list replaces the one stored. A value that is `extracted` needs at least one.',
+      'Where the entry comes from: another entry, what a person said (`{ said_by, on, note }`, the owner as "owner", someone else by the slug or id of their entry), what you did or saw yourself (`{ seen_by: "writer", on, note }`), a URL, an external identifier or an inbox item. The list replaces the one stored. A value that is `extracted` needs at least one.',
   }),
   body: Schema.optionalKey(Schema.String).annotate({
     description:

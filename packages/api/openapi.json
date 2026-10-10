@@ -1393,6 +1393,9 @@
       "Source": {
         "anyOf": [
           {
+            "$ref": "#/components/schemas/SourceSaidByOwner"
+          },
+          {
             "$ref": "#/components/schemas/SourceEntry"
           },
           {
@@ -1543,6 +1546,29 @@
           "entry",
           "slug",
           "title"
+        ],
+        "additionalProperties": false
+      },
+      "SourceSaidByOwner": {
+        "type": "object",
+        "properties": {
+          "said_by": {
+            "type": "string",
+            "enum": [
+              "owner"
+            ]
+          },
+          "on": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "description": "A few words on what this source gave."
+          }
+        },
+        "required": [
+          "said_by",
+          "on"
         ],
         "additionalProperties": false
       },

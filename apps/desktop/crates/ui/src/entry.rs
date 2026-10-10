@@ -1234,6 +1234,16 @@ fn sources(
                     },
                     cx,
                 ),
+                // The owner has no entry to open: the card says who, like the writer's own.
+                Source::SaidByOwner(said) => quiet_source(
+                    Card {
+                        icon: Icon::new(IconName::User),
+                        title: words::THE_OWNER.into(),
+                        detail: Some(words::said_on(&said.on, said.note.as_deref()).into()),
+                        relation: Some(words::SAID_BY.into()),
+                    },
+                    cx,
+                ),
                 Source::Said(said) => card(
                     id,
                     Card {
