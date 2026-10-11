@@ -215,7 +215,7 @@ fn answer(mut stream: std::net::TcpStream) {
                     json!({ "results": [{
                         "id": "plum-tart", "slug": "plum-tart", "type": "note", "title": "Plum tart",
                         "path": ["Kitchen"], "summary": "", "excerpt": "A <mark>plum</mark> tart.", "rank": 1.0
-                    }]}),
+                    }], "total": 1 }),
                 ),
                 _ => (
                     "404 Not Found",
