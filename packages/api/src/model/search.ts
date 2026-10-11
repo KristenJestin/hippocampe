@@ -31,8 +31,9 @@ export const SearchResult = Schema.Struct({
    * With a `query`, from 0 to 1, comparable from one search to another: the share of the
    * significant words of the query the entry holds, each weighed by how rare it is among the
    * entries and counted by the heaviest place it is in (1 in the title or aliases, 0.4 in the
-   * tags or summary, 0.2 in the body, fields or sources). 1 when every word is in the title or
-   * aliases. Absent without a query.
+   * tags or summary, 0.2 in the body, fields or sources); a word no entry holds counts its
+   * similarity to a word of the title, aliases or slug it is close to. 1 when every word is in the
+   * title or aliases. Absent without a query.
    */
   score: Schema.optionalKey(Schema.Finite),
   /** With the filter `supposed` or `unstated`: the values that made the entry match. */

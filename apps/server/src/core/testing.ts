@@ -4,6 +4,7 @@ import { SqlClient } from 'effect/sql'
 import { databaseUrl } from './database/client.ts'
 import { migrate } from './database/migrate.ts'
 import { rowsOf } from './database/rows.ts'
+import { startupParameters } from './search/near.ts'
 
 /** The database a suite was given: its name, and its URL for a program the suite starts. */
 export class ScratchDatabase extends Context.Service<
@@ -76,7 +77,7 @@ export const emptyScratchDatabase = Layer.unwrap(
         ).pipe(Effect.orDie),
     )
     server.pathname = `/${name}`
-    return PgClient.layer({ url: Redacted.make(server.toString()) }).pipe(
+    return PgClient.layer({ url: Redacted.make(server.toString()), startupParameters }).pipe(
       Layer.merge(Layer.succeed(ScratchDatabase, { name, url: server.toString() })),
     )
   }),

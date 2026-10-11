@@ -46,6 +46,13 @@ export const SEARCHABLE = `search
       || jsonb_path_query_array(sources, '$[*].identifier')
       || jsonb_path_query_array(sources, '$[*].label'), '["string"]'), 'C')`
 
+/**
+ * What an entry is named by, as one text: its slug, which holds its title without accents, its
+ * title and its aliases. A search compares a word no entry holds with it, by trigrams, through the
+ * names index built on this expression.
+ */
+export const NAMES = `slug || ' ' || title || ' ' || aliases::text`
+
 /** The types of entries, defined at run time; their field definitions are kept as JSON. */
 export const types = pgTable('types', {
   name: text().primaryKey(),
@@ -122,6 +129,7 @@ export const entries = pgTable(
     // The entries that have an alias, as the references of a body look them up (`?|`).
     index('entries_aliases').using('gin', table.aliases),
     index('entries_search').using('gin', sql.raw(`(${SEARCHABLE})`)),
+    index('entries_names').using('gin', sql.raw(`(${NAMES}) gin_trgm_ops`)),
     // A source given whole, and the entries of the types whose fields a caller may not see.
     index('entries_sources').using('gin', table.sources.op('jsonb_path_ops')),
     index('entries_type').on(table.type),

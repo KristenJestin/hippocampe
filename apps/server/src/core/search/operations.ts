@@ -1,7 +1,7 @@
 import { Effect, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 import { rowsOf } from '../database/rows.ts'
-import { SEARCHABLE } from '../database/schema.ts'
+import { NAMES, SEARCHABLE } from '../database/schema.ts'
 import { holding, wantedOf } from '../entries/certainty.ts'
 import { LAST_WRITER } from '../entries/last-writer.ts'
 import { datedOn } from '../entries/dated.ts'
@@ -171,30 +171,52 @@ export const search = Effect.fn('search')(function* (
   const matching = (text: string) => {
     const operators = OPERATOR.test(text)
     return sql`
-    WITH RECURSIVE words AS (
+    WITH RECURSIVE spoken AS (
       -- The significant words of the query, as the configuration keeps them (stop words left
       -- out, the others stemmed), quoted for a \`tsquery\`; a hyphenated word counts as its parts.
       -- Each is normalised whole by \`to_tsvector\`: \`ts_debug\` shows its first dictionary only.
-      SELECT coalesce(array_agg(DISTINCT
-        '''' || replace(replace(lexeme, '\\', '\\\\'), '''', '''''') || ''''), '{}') AS quoted
+      -- Beside it, the word as it was written, and whether it is made of letters only, as a name.
+      SELECT '''' || replace(replace(lexeme, '\\', '\\\\'), '''', '''''') || '''' AS word,
+        token.token AS said,
+        token.alias IN ('asciiword', 'word', 'hword_asciipart', 'hword_part') AS lettered
       FROM ts_debug(${configuration}::regconfig, ${operators ? text.replace(EXCLUDED, ' ') : text})
         AS token,
         unnest(tsvector_to_array(to_tsvector(${configuration}::regconfig, token.token))) AS lexeme
       WHERE token.alias NOT IN ('hword', 'asciihword', 'numhword')
+    ), words AS (
+      SELECT coalesce(array_agg(DISTINCT word), '{}') AS quoted FROM spoken
     ), seen AS MATERIALIZED (
       SELECT count(*) AS entries FROM entries x
       WHERE NOT (${JSON.stringify(hiddenTypes)}::jsonb ? x.type)
-    ), rarities AS MATERIALIZED (
-      -- How rare each word is among the entries the caller may see, as BM25 counts it: a word
-      -- most entries hold weighs almost nothing, a word none holds weighs most. One count per
-      -- word, which the search index answers.
-      SELECT word, ln(1 + (seen.entries - holding + 0.5) / (holding + 0.5)) AS rarity
+    ), counted AS MATERIALIZED (
+      -- How many of the entries the caller may see hold each word. One count per word, which the
+      -- search index answers.
+      SELECT word, seen.entries, holding
       FROM words, seen, unnest(words.quoted) AS word, LATERAL (
         SELECT count(*) AS holding FROM entries x
         WHERE ${sql.literal(SEARCHABLE)} @@ word::tsquery
           AND NOT (${JSON.stringify(hiddenTypes)}::jsonb ? x.type)
           AND (NOT ${ofTypesWithHiddenFields('x')} OR ${visibleWords('x')} @@ word::tsquery)
-      ) AS counted
+      ) AS holders
+    ), near AS MATERIALIZED (
+      -- A word of letters no entry holds, as a name heard or typed is often written otherwise:
+      -- the entries named close to it, in their title, aliases or slug, by trigrams, and how
+      -- close (\`NEAR\` at least, as the connection sets it); never their bodies. The names index
+      -- answers. With an operator, every word is exact.
+      SELECT x.id, counted.word, max(word_similarity(spoken.said, ${sql.literal(NAMES)})) AS closeness
+      FROM counted JOIN spoken USING (word), entries x
+      WHERE ${!operators} AND counted.holding = 0 AND spoken.lettered
+        AND spoken.said <% (${sql.literal(NAMES)})
+        AND NOT (${JSON.stringify(hiddenTypes)}::jsonb ? x.type)
+      GROUP BY x.id, counted.word
+    ), rarities AS MATERIALIZED (
+      -- How rare each word is among the entries the caller may see, as BM25 counts it: a word
+      -- most entries hold weighs almost nothing, a word none holds weighs most. A word found only
+      -- near names counts the entries named close to it.
+      SELECT word, ln(1 + (entries - holding - named + 0.5) / (holding + named + 0.5)) AS rarity
+      FROM counted, LATERAL (
+        SELECT count(*) AS named FROM near WHERE near.word = counted.word
+      ) AS close
     ), query AS MATERIALIZED (
       -- With an operator, a web search, every word required; otherwise any of the words. Each
       -- word also as found in a title or aliases (\`A\`), in tags or a summary (\`B\`), or anywhere.
@@ -207,7 +229,8 @@ export const search = Effect.fn('search')(function* (
         -- One pass, so that the arrays keep the words in the same order.
         SELECT array_agg((word || ':A')::tsquery) AS titled,
           array_agg((word || ':B')::tsquery) AS summarised,
-          array_agg(word::tsquery) AS anywhere, array_agg(rarity) AS rarity, sum(rarity) AS weight
+          array_agg(word::tsquery) AS anywhere, array_agg(rarity) AS rarity, sum(rarity) AS weight,
+          ARRAY(SELECT id FROM near) AS near
         FROM rarities
       ) AS each
     ), ${subtree}
@@ -224,11 +247,14 @@ export const search = Effect.fn('search')(function* (
       ts_rank(held.words, query.q)::float8 AS rank,
       -- Each significant word counts by its rarity, times the heaviest place the entry holds it
       -- in, as \`ts_rank\` weighs them: 1 in the title and aliases, 0.4 in the tags and summary,
-      -- 0.2 elsewhere; over what all the words would count in a title.
-      coalesce((SELECT sum(rarity * CASE WHEN held.words @@ titled THEN 1
+      -- 0.2 elsewhere; a word found near a name, its closeness to it. Over what all the words
+      -- would count in a title.
+      coalesce(((SELECT sum(rarity * CASE WHEN held.words @@ titled THEN 1
           WHEN held.words @@ summarised THEN 0.4 WHEN held.words @@ anywhere THEN 0.2 ELSE 0 END)
         FROM unnest(query.titled, query.summarised, query.anywhere, query.rarity)
-          AS word(titled, summarised, anywhere, rarity)
+          AS word(titled, summarised, anywhere, rarity))
+        + coalesce((SELECT sum(rarity * closeness) FROM near JOIN rarities USING (word)
+          WHERE near.id = e.id), 0)
       ) / nullif(query.weight, 0), 0)::float8 AS score, ${lastChange},
       -- A query that is the words of a slug, whole and in order, names that entry: those come
       -- first, the closest slug first.
@@ -236,13 +262,13 @@ export const search = Effect.fn('search')(function* (
         THEN ${slugOf(text).length}::float8 / length(e.slug) ELSE 0 END AS fit
     -- The words of each entry found, computed once rather than at every use.
     FROM found e, query, LATERAL (SELECT e.words OFFSET 0) AS held
-    WHERE (e.words @@ query.q
+    WHERE (e.words @@ query.q OR e.id = ANY(query.near)
         -- A URL or an identifier given whole is found as it is, whatever the parser makes of it.
         OR e.sources @> jsonb_build_array(jsonb_build_object('url', ${text}::text))
         OR e.sources @> jsonb_build_array(jsonb_build_object('identifier', ${text}::text)))
       -- What the indexes find: the same matches, every field counted, so PostgreSQL reads them
       -- instead of every entry; the condition above then sets the hidden fields aside.
-      AND (e.everything @@ query.q
+      AND (e.everything @@ query.q OR e.id = ANY(query.near)
         OR ${ofTypesWithHiddenFields('e')}
         OR e.sources @> jsonb_build_array(jsonb_build_object('url', ${text}::text))
         OR e.sources @> jsonb_build_array(jsonb_build_object('identifier', ${text}::text)))
