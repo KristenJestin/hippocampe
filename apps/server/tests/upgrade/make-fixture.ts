@@ -811,8 +811,51 @@ async function write(url: string) {
   // A heads-up of a coming deadline, told once a day.
   await kitchen.call('briefing', { from: '2027-01-20', to: '2027-02-20' })
 
+  if (version.localeCompare('0.7.0', 'en', { numeric: true }) >= 0) await write070(kitchen, url)
+
   kitchen.close()
   garden.close()
+}
+
+/**
+ * What 0.7.0 first wrote: a dated type and what happened to a subject, each an entry of its own;
+ * what the owner said, before and after they named the entry that stands for them; what the
+ * writer did or saw itself.
+ */
+async function write070(kitchen: Awaited<ReturnType<typeof agent>>, url: string) {
+  await kitchen.call('define_type', {
+    name: 'service',
+    label: 'Service',
+    description: 'Work done on a thing on a given day: a repair, a cleaning, a check.',
+    fields: [{ name: 'done_on', kind: 'date', required: true }],
+    dated_by: 'done_on',
+  })
+  await kitchen.call('write', {
+    type: 'service',
+    title: 'Roof felt replaced',
+    parent: 'garden-shed',
+    fields: { done_on: '2026-04-12' },
+    provenance: { done_on: 'extracted', parent: 'extracted' },
+    sources: [{ said_by: 'owner', on: '2026-04-12' }],
+  })
+  await kitchen.call('write', {
+    type: 'service',
+    title: 'Door repainted',
+    parent: 'garden-shed',
+    fields: { done_on: '2026-06-03' },
+    body: 'Two coats of green paint.',
+    provenance: { done_on: 'extracted', parent: 'extracted', body: 'extracted' },
+    sources: [{ seen_by: 'writer', on: '2026-06-03' }],
+  })
+  hippo(release, url, 'owner:entry', 'morgan-vale')
+  await kitchen.call('write', {
+    type: 'service',
+    title: 'Gutter cleared',
+    parent: 'garden-shed',
+    fields: { done_on: '2026-09-14' },
+    provenance: { done_on: 'extracted', parent: 'extracted' },
+    sources: [{ said_by: 'owner', on: '2026-09-15', note: 'on the phone' }],
+  })
 }
 
 await Effect.runPromise(
