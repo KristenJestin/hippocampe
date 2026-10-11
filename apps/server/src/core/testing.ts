@@ -1,12 +1,19 @@
 import { PgClient } from '@effect/sql-pg'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Context, Effect, Layer, Redacted, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
-import { databaseUrl } from './database/client.ts'
+import { databaseUrl, embedded } from './database/client.ts'
+import { embeddedSocket } from './database/embedded.ts'
 import { migrate } from './database/migrate.ts'
 import { rowsOf } from './database/rows.ts'
 import { startupParameters } from './search/near.ts'
 
-/** The database a suite was given: its name, and its URL for a program the suite starts. */
+/**
+ * The database a suite was given: its name, and its URL for a program the suite starts; embedded,
+ * its folder, as both.
+ */
 export class ScratchDatabase extends Context.Service<
   ScratchDatabase,
   { readonly name: string; readonly url: string }
@@ -57,13 +64,35 @@ export const dropScratchDatabase = (name: string) =>
     ),
   ).pipe(Effect.asVoid)
 
+/** Whether the suites run on embedded databases, the run that covers what PGlite changes. */
+export const onEmbeddedDatabases = process.env['TEST_DATABASE'] === 'embedded'
+
+/**
+ * An empty embedded database of a suite's own: a folder of its own, held by the suite, deleted
+ * when the layer is released.
+ */
+const emptyEmbeddedDatabase = Layer.unwrap(
+  Effect.gen(function* () {
+    const folder = yield* Effect.acquireRelease(
+      Effect.sync(() => mkdtempSync(join(tmpdir(), 'hippocampe-test-'))),
+      (made) => Effect.sync(() => rmSync(made, { recursive: true, force: true })),
+    )
+    const path = yield* embeddedSocket(join(folder, 'pglite'), { own: true, wait: 0 })
+    return PgClient.layer({ ...embedded(path), maxConnections: 1, startupParameters }).pipe(
+      Layer.merge(Layer.succeed(ScratchDatabase, { name: folder, url: folder })),
+    )
+  }),
+)
+
 /**
  * An empty database of a test suite's own, never one that holds real data: created with a unique
  * name on the server of `DATABASE_URL`, and dropped when the layer is released, whether the
- * suite passed or failed.
+ * suite passed or failed. With `TEST_DATABASE=embedded`, an embedded database in a folder of its
+ * own instead, for the run that covers what PGlite changes.
  */
 export const emptyScratchDatabase = Layer.unwrap(
   Effect.gen(function* () {
+    if (onEmbeddedDatabases) return emptyEmbeddedDatabase
     const server = new URL(Redacted.value(yield* databaseUrl))
     const name = `hippocampe_test_${crypto.randomUUID().replaceAll('-', '')}`
     yield* Effect.acquireRelease(

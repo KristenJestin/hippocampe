@@ -10,7 +10,7 @@
 import * as BunHttpServer from '@effect/platform-bun/BunHttpServer'
 import * as BunRuntime from '@effect/platform-bun/BunRuntime'
 import { Auth } from './core/auth/index.ts'
-import { awaitDatabase, layer as database, migrate } from './core/database/index.ts'
+import { awaitDatabase, migrate, serverLayer as database } from './core/database/index.ts'
 import { Instance, instanceFromEnvironment } from './core/instance.ts'
 import { refuseLegacyVariables } from './core/legacy-variables.ts'
 import { Effect, Layer } from 'effect'

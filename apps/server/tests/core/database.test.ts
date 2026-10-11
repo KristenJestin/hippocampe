@@ -1,6 +1,7 @@
 import { ConfigProvider, Context, Effect, Exit, Layer } from 'effect'
 import { describe, expect, test } from 'vitest'
 import {
+  DatabaseTwice,
   DatabaseUrlMissing,
   databaseReachable,
   latestVersion,
@@ -54,7 +55,22 @@ describe('without DATABASE_URL the error names the missing variable', () => {
     )
     expect(error).toBeInstanceOf(DatabaseUrlMissing)
     expect(error.message).toBe(
-      'The environment variable DATABASE_URL is missing: set it to the URL of the PostgreSQL database.',
+      'The environment variable DATABASE_URL is missing: set it to the URL of the PostgreSQL database, or set HIPPOCAMPE_DATABASE_DIR to a folder for the embedded database.',
+    )
+  })
+
+  test('with the folder of an embedded database too, the refusal names both', async () => {
+    const env = { DATABASE_URL: 'postgres://localhost/none', HIPPOCAMPE_DATABASE_DIR: '/nowhere' }
+    const error = await Effect.runPromise(
+      Effect.void.pipe(
+        Effect.provide(layer),
+        Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env }))),
+        Effect.flip,
+      ),
+    )
+    expect(error).toBeInstanceOf(DatabaseTwice)
+    expect(error.message).toBe(
+      'Both DATABASE_URL and HIPPOCAMPE_DATABASE_DIR are set: keep DATABASE_URL for a PostgreSQL server, or HIPPOCAMPE_DATABASE_DIR for the embedded database, not both.',
     )
   })
 })

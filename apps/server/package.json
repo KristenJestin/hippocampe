@@ -15,12 +15,14 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "oxlint -c ../../.oxlintrc.json .",
     "fmt:check": "oxfmt -c ../../.oxfmtrc.json --check .",
-    "test": "bun --bun vitest run --config ../../vitest.config.ts --dir ."
+    "test": "bun --bun vitest run --config ../../vitest.config.ts --dir . && bun run test:embedded",
+    "test:embedded": "TEST_DATABASE=embedded bun --bun vitest run --config ../../vitest.config.ts --dir . tests/core/embedded.test.ts tests/core/entries.test.ts tests/core/events.test.ts tests/core/search.test.ts tests/core/misspelled-names-search.test.ts"
   },
   "dependencies": {
     "@better-auth/api-key": "1.7.7",
     "@effect/platform-bun": "4.0.0",
     "@effect/sql-pg": "4.0.0",
+    "@electric-sql/pglite": "0.5.8",
     "@hippocampe/api": "workspace:*",
     "better-auth": "1.7.7",
     "drizzle-orm": "1.0.0-rc.5-5935859",

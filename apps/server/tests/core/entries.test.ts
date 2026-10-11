@@ -6,6 +6,7 @@ import { entryHistory } from '../../src/core/events/index.ts'
 import { Refused } from '../../src/core/refused.ts'
 import { attachMedia, describeMedia } from '../../src/core/media/index.ts'
 import { search } from '../../src/core/search/index.ts'
+import { onEmbeddedDatabases } from '../../src/core/testing.ts'
 import { defineType } from '../../src/core/types/index.ts'
 import { useScratchDatabase } from './scratch-database.ts'
 
@@ -476,67 +477,78 @@ describe('an import keeps when an entry was first written', () => {
   })
 })
 
+/*
+ * Embedded, PGlite has one session: two transactions never wait on each other's locks, they run
+ * one after the other. `tests/server/embedded.test.ts` proves that instead, through the server.
+ */
+
 describe('concurrent updates of different fields of one entry both survive', () => {
-  test('two updates that read the entry before either writes', async () => {
-    const entry = await run(writeEntry({ ...contract, slug: 'shared-contract' }))
-    const ended = await run(
-      whileLocked(execute('SELECT 1 FROM entries WHERE id = $1::uuid FOR UPDATE', entry.id), [
-        writeEntry({
-          entry: 'shared-contract',
-          fields: { renewal: 'manual' },
-          provenance: { renewal: 'inferred' },
-        }),
-        writeEntry({
-          entry: 'shared-contract',
-          fields: { seats: 3 },
-          provenance: { seats: 'inferred' },
-        }),
-      ]),
-    )
-    expect(ended.map(({ _tag }) => _tag)).toEqual(['Success', 'Success'])
-    expect((await run(readEntry('shared-contract'))).entry.fields).toEqual({
-      ...contract.fields,
-      renewal: 'manual',
-      seats: 3,
-    })
-  })
+  test.skipIf(onEmbeddedDatabases)(
+    'two updates that read the entry before either writes',
+    async () => {
+      const entry = await run(writeEntry({ ...contract, slug: 'shared-contract' }))
+      const ended = await run(
+        whileLocked(execute('SELECT 1 FROM entries WHERE id = $1::uuid FOR UPDATE', entry.id), [
+          writeEntry({
+            entry: 'shared-contract',
+            fields: { renewal: 'manual' },
+            provenance: { renewal: 'inferred' },
+          }),
+          writeEntry({
+            entry: 'shared-contract',
+            fields: { seats: 3 },
+            provenance: { seats: 'inferred' },
+          }),
+        ]),
+      )
+      expect(ended.map(({ _tag }) => _tag)).toEqual(['Success', 'Success'])
+      expect((await run(readEntry('shared-contract'))).entry.fields).toEqual({
+        ...contract.fields,
+        renewal: 'manual',
+        seats: 3,
+      })
+    },
+  )
 })
 
 describe('the tree never holds a cycle, and a cycle never hangs a read', () => {
-  test('two entries moved under each other at the same time', async () => {
-    const east = await run(writeEntry({ type: 'area', title: 'East wing', slug: 'east-wing' }))
-    const west = await run(writeEntry({ type: 'area', title: 'West wing', slug: 'west-wing' }))
-    const ended = await run(
-      whileLocked(
-        execute(
-          'SELECT 1 FROM entries WHERE id IN ($1::uuid, $2::uuid) FOR UPDATE',
-          east.id,
-          west.id,
+  test.skipIf(onEmbeddedDatabases)(
+    'two entries moved under each other at the same time',
+    async () => {
+      const east = await run(writeEntry({ type: 'area', title: 'East wing', slug: 'east-wing' }))
+      const west = await run(writeEntry({ type: 'area', title: 'West wing', slug: 'west-wing' }))
+      const ended = await run(
+        whileLocked(
+          execute(
+            'SELECT 1 FROM entries WHERE id IN ($1::uuid, $2::uuid) FOR UPDATE',
+            east.id,
+            west.id,
+          ),
+          [
+            writeEntry({
+              entry: 'east-wing',
+              parent: 'west-wing',
+              provenance: { parent: 'inferred' },
+            }),
+            writeEntry({
+              entry: 'west-wing',
+              parent: 'east-wing',
+              provenance: { parent: 'inferred' },
+            }),
+          ],
         ),
-        [
-          writeEntry({
-            entry: 'east-wing',
-            parent: 'west-wing',
-            provenance: { parent: 'inferred' },
-          }),
-          writeEntry({
-            entry: 'west-wing',
-            parent: 'east-wing',
-            provenance: { parent: 'inferred' },
-          }),
-        ],
-      ),
-    )
-    expect(ended.filter(Result.isSuccess)).toHaveLength(1)
-    expect(ended.filter(Result.isFailure).map(({ failure }) => failure instanceof Refused)).toEqual(
-      [true],
-    )
-    const places = [
-      (await run(readEntry('east-wing'))).part_of.map(({ id }) => id),
-      (await run(readEntry('west-wing'))).part_of.map(({ id }) => id),
-    ]
-    expect(places).not.toEqual([[west.id], [east.id]])
-  })
+      )
+      expect(ended.filter(Result.isSuccess)).toHaveLength(1)
+      expect(
+        ended.filter(Result.isFailure).map(({ failure }) => failure instanceof Refused),
+      ).toEqual([true])
+      const places = [
+        (await run(readEntry('east-wing'))).part_of.map(({ id }) => id),
+        (await run(readEntry('west-wing'))).part_of.map(({ id }) => id),
+      ]
+      expect(places).not.toEqual([[west.id], [east.id]])
+    },
+  )
 
   test('a cycle written around the rules, as a damaged database would hold', async () => {
     const upper = await run(writeEntry({ type: 'area', title: 'Loop upper', slug: 'loop-upper' }))
