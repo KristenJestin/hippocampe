@@ -4,6 +4,7 @@
  * (`tools/boundaries.ts` refuses any other module of this folder outside it).
  */
 export {
+  awaitDatabase,
   DatabaseUrlMissing,
   databaseReachable,
   databaseServices,

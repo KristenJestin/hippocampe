@@ -121,6 +121,7 @@ describe('Every access to the data goes through the core', () => {
     expect(Object.keys(wiring).toSorted()).toEqual([
       'DatabaseUrlMissing',
       'MigrationsBehind',
+      'awaitDatabase',
       'databaseReachable',
       'databaseServices',
       'databaseUrl',

@@ -1,6 +1,6 @@
 import { PgClient } from '@effect/sql-pg'
 import * as PgDrizzle from 'drizzle-orm/effect-postgres'
-import { Config, Context, Effect, Layer, Schema } from 'effect'
+import { Config, Context, Duration, Effect, Layer, Predicate, Schedule, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 import { startupParameters } from '../search/near.ts'
 
@@ -51,3 +51,33 @@ export const databaseReachable = Effect.gen(function* () {
  * run in the transaction of the fiber when there is one.
  */
 export const drizzle = PgDrizzle.makeWithDefaults()
+
+export class DatabaseNotReady extends Schema.TaggedError<DatabaseNotReady>()('DatabaseNotReady', {
+  waited: Schema.String,
+}) {
+  override get message() {
+    return `The database did not accept a connection within ${this.waited}: is PostgreSQL running, and is DATABASE_URL its address?`
+  }
+}
+
+/**
+ * Waits until the database accepts a connection: a PostgreSQL started a moment ago, such as the
+ * one `hippo service install` runs beside the server, refuses connections while it starts up.
+ * Tries again every half second for `wait`, then gives up in a sentence. What a connection
+ * cannot fix by waiting, such as a wrong password, is refused at once.
+ */
+export const awaitDatabase = (wait: Duration.Input = '15 seconds') =>
+  Effect.flatMap(SqlClient.SqlClient, (sql) => sql`SELECT 1`).pipe(
+    Effect.asVoid,
+    Effect.retry({
+      schedule: Schedule.spaced('500 millis'),
+      while: (error) => !Predicate.isTagged(error.reason, 'AuthenticationError'),
+    }),
+    Effect.timeoutOrElse({
+      duration: wait,
+      orElse: () =>
+        Effect.fail(
+          new DatabaseNotReady({ waited: Duration.format(Duration.fromInputUnsafe(wait)) }),
+        ),
+    }),
+  )
