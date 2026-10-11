@@ -12,6 +12,7 @@ import { findingsWithOccurrences } from '../../src/core/findings/index.ts'
 import { listInbox } from '../../src/core/inbox/index.ts'
 import { pendingReferences } from '../../src/core/links/index.ts'
 import { attachMedia, readMedia } from '../../src/core/media/index.ts'
+import { ownerEntry } from '../../src/core/owner.ts'
 import { instanceRulesText } from '../../src/core/rules.ts'
 import { search } from '../../src/core/search/index.ts'
 import { rowCounts, scratchDatabaseFrom } from '../../src/core/testing.ts'
@@ -21,9 +22,56 @@ import { listProposals, listTypes } from '../../src/core/types/index.ts'
  * The releases whose fixture `make-fixture.ts` made, each with that release's own code (0.5.0
  * writing first, as on an installation made before 0.6.0): the data of each must read the same
  * after the migrations of this version. The fixtures hold the same invented data, so the
- * expectations below are those of every one of them.
+ * expectations below are those of every one of them, but for what a release first wrote, checked
+ * for its fixture and the later ones alone. Each comes with the rows its tables hold: 0.7.0 also
+ * holds a dated type, its entries and the owner's entry.
  */
-const FIXTURES = ['0.6.0']
+const FIXTURES = [
+  {
+    version: '0.6.0',
+    rows: {
+      'public.auth_apikey': 5,
+      'public.auth_user': 1,
+      'public.entries': 23,
+      'public.events': 72,
+      'public.finding_occurrences': 3,
+      'public.findings': 2,
+      'public.heads_up': 2,
+      'public.inbox': 4,
+      'public.instance_owner': 0,
+      'public.instance_rules': 1,
+      'public.links': 18,
+      'public.media': 3,
+      'public.pending_references': 1,
+      'public.type_proposals': 2,
+      'public.types': 10,
+    },
+  },
+  {
+    version: '0.7.0',
+    rows: {
+      'public.auth_apikey': 5,
+      'public.auth_user': 1,
+      'public.entries': 26,
+      'public.events': 77,
+      'public.finding_occurrences': 3,
+      'public.findings': 2,
+      'public.heads_up': 2,
+      'public.inbox': 4,
+      'public.instance_owner': 1,
+      'public.instance_rules': 1,
+      'public.links': 21,
+      'public.media': 3,
+      'public.pending_references': 1,
+      'public.type_proposals': 2,
+      'public.types': 11,
+    },
+  },
+]
+
+/** Whether `version` is `release` or a later one. */
+const atLeast = (version: string, release: string) =>
+  version.localeCompare(release, 'en', { numeric: true }) >= 0
 
 /** The secret the fixtures' keys were made with, invented for them (see `make-fixture.ts`). */
 const AUTH_SECRET = 'fixture-secret-of-an-invented-database-0001'
@@ -56,8 +104,8 @@ const SLUGS = [
 ]
 
 describe.each(FIXTURES)(
-  'the data of Hippocampe %s, after the migrations of this version',
-  (version) => {
+  'the data of Hippocampe $version, after the migrations of this version',
+  ({ version, rows }) => {
     const folder = new URL(`${version}/`, import.meta.url).pathname
     const media = mkdtempSync(join(tmpdir(), 'hippocampe-upgrade-'))
     // The media are copied: a write of the suite never touches the fixture.
@@ -98,20 +146,7 @@ describe.each(FIXTURES)(
     test('every table keeps its rows', async () => {
       expect(await run(rowCounts)).toMatchObject({
         'drizzle.__drizzle_migrations': expect.any(Number),
-        'public.auth_apikey': 5,
-        'public.auth_user': 1,
-        'public.entries': 23,
-        'public.events': 72,
-        'public.finding_occurrences': 3,
-        'public.findings': 2,
-        'public.heads_up': 2,
-        'public.inbox': 4,
-        'public.instance_rules': 1,
-        'public.links': 18,
-        'public.media': 3,
-        'public.pending_references': 1,
-        'public.type_proposals': 2,
-        'public.types': 10,
+        ...rows,
       })
     })
 
@@ -590,7 +625,8 @@ describe.each(FIXTURES)(
       expect(await found('quillon')).toEqual(['alma-quillon'])
       expect(await found('riverbend')).toEqual(['atlas-of-rivers'])
       expect(await found('herb')).toEqual(['garden-plan'])
-      expect(await found('vegetable plan')).toEqual(['garden-plan'])
+      // Any of the words: the entry that holds both first.
+      expect(await found('vegetable plan')).toEqual(['garden-plan', 'garden-plan-2025'])
       expect(await found('hinges')).toEqual(['shed-door'])
       expect(await found('sketch')).toEqual(['garden-plan'])
       expect(await found('quiet')).toEqual(['journal-2026-09-30'])
@@ -623,7 +659,8 @@ describe.each(FIXTURES)(
     test('types, keys, inbox, proposals, findings and rules are kept', async () => {
       const fieldsOf = (fields: ReadonlyArray<{ readonly name: string }>) =>
         fields.map(({ name }) => name)
-      const types = await run(listTypes)
+      // The dated type of 0.7.0 is checked with its entries.
+      const types = (await run(listTypes)).filter(({ name }) => name !== 'service')
       expect(
         types.map(({ name, sensitive, read_in_parent, fields }) => [
           name,
@@ -824,6 +861,77 @@ describe.each(FIXTURES)(
       expect(await unstated()).not.toContainEqual(['atlas-of-rivers', 'pages', 'unstated'])
       expect(await unstated()).toHaveLength(8)
     })
+
+    const since070 = test.runIf(atLeast(version, '0.7.0'))
+
+    since070(
+      'read of a subject still gives its dated parts, newest first, apart from its children',
+      async () => {
+        const shed = await read('garden-shed')
+        const part = (slug: string, title: string, date: string) => ({
+          id: expect.any(String),
+          slug,
+          type: 'service',
+          title,
+          date,
+          summary: '',
+        })
+        expect(shed.dated).toEqual([
+          part('gutter-cleared', 'Gutter cleared', '2026-09-14'),
+          part('door-repainted', 'Door repainted', '2026-06-03'),
+          part('roof-felt-replaced', 'Roof felt replaced', '2026-04-12'),
+        ])
+        expect(shed.more_dated).toBe(0)
+        expect(shed.children.map(({ slug }) => slug)).toEqual(['lawn-mower', 'shed-door'])
+        expect((await run(listTypes)).find(({ name }) => name === 'service')).toMatchObject({
+          dated_by: 'done_on',
+          fields: [{ name: 'done_on', kind: 'date', required: true }],
+        })
+      },
+    )
+
+    since070('search sorted by date still gives what happened to a subject', async () => {
+      const happened = await run(search(undefined, { sort: 'dated', under: 'garden-shed' }))
+      expect(happened.map(({ slug, date }) => [slug, date])).toEqual([
+        ['gutter-cleared', '2026-09-14'],
+        ['door-repainted', '2026-06-03'],
+        ['roof-felt-replaced', '2026-04-12'],
+      ])
+    })
+
+    since070(
+      "the owner's entry is still named, and what the owner said reads as it was written",
+      async () => {
+        expect(await run(ownerEntry)).toEqual({ slug: 'morgan-vale', title: 'Morgan Vale' })
+        // Said by the owner before they named their entry: kept as `owner`.
+        expect((await read('roof-felt-replaced')).entry).toMatchObject({
+          fields: { done_on: '2026-04-12' },
+          provenance: { done_on: 'extracted' },
+          sources: [{ said_by: 'owner', on: '2026-04-12' }],
+        })
+        // Said by the owner once named: kept as their entry.
+        expect((await read('gutter-cleared')).entry).toMatchObject({
+          fields: { done_on: '2026-09-14' },
+          provenance: { done_on: 'extracted' },
+          sources: [
+            {
+              said_by: id('morgan-vale'),
+              on: '2026-09-15',
+              note: 'on the phone',
+              slug: 'morgan-vale',
+              title: 'Morgan Vale',
+            },
+          ],
+        })
+        // Seen by the agent that wrote it, an entry of its own for what happened.
+        expect((await read('door-repainted')).entry).toMatchObject({
+          fields: { done_on: '2026-06-03' },
+          provenance: { done_on: 'extracted', body: 'extracted' },
+          sources: [{ seen_by: 'agent-kitchen', on: '2026-06-03' }],
+          body: 'Two coats of green paint.',
+        })
+      },
+    )
 
     test('a write still works: a value changed, an entry a body awaited, a medium attached', async () => {
       await run(

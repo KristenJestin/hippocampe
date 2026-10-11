@@ -138,7 +138,13 @@ const entries = HttpApiGroup.make('entries')
 const search = HttpApiGroup.make('search')
   .add(
     HttpApiEndpoint.get('search', '/api/search', {
-      query: { q: Schema.String, ...SearchOptions.fields },
+      query: {
+        q: Schema.String.annotate({
+          description:
+            'A sentence or a few words, 600 characters at most: the entries that hold any of its significant words, the rarest and the heaviest first, each with its `score`. A word no entry holds, such as a misspelled name, finds the entries named close to it. A quoted phrase or a word excluded with a minus requires every word.',
+        }),
+        ...SearchOptions.fields,
+      },
       success: Schema.Struct({ results: Schema.Array(SearchResult) }).annotate({
         identifier: 'SearchResults',
       }),
