@@ -52,10 +52,25 @@ cannot say "a year ago", nothing can ask what happened on a day across entries, 
 provenance cannot be said of each event, and every update sends and keeps the whole text again.
 When the instance has no type for such entries, the agent defines one itself (`define_type`), with
 a required date field named by `dated_by` and a description that says when to use it, rather than
-growing a body, and later writers reuse it: the one exception to asking the owner when no type fits.
+growing a body, and later writers reuse it: a case of the general rule, below.
 The instructions of the MCP server and the description of `write` say so; the answer of `write`
 notices a body that accumulates (see "A body that accumulates"). No type, rule or code path names a
 kind of such entries: the agent names the types it defines.
+
+An agent that finds no type for what it must keep defines one (`define_type`) instead of asking:
+agents run alone, and the owner defines no type by hand. It does so for any kind of thing that may
+come again, not only a dated one, after reading `types` for a type that covers it under another
+name (it uses that one, or adds the fields it lacks), and never files a kind with fields of its own
+under a catch-all type. It tells the user, in one sentence, the type it defined and why; the owner
+may undo it with the proposals of `change_type` (`proposal:confirm`). It asks only when it cannot
+tell what the thing is.
+
+Likewise, an agent that can open what the user points to (a link, a name it can look up) does it
+before writing, without asking: it fills the entry with what it found, written `extracted` with
+the page as its source, and what it guesses from it `inferred`. What it found may name other things:
+it searches Hippocampe for each, links the entry to those that exist, and creates those a type's
+description says to keep. It asks only when it cannot reach it, and says what it could not read. The server fetches nothing and runs no AI: the agent uses its
+own tools.
 
 Two kinds of entries live side by side. Most say what something **is** (a project, an object, a
 contract): they are rewritten as the thing changes, and `valid_from` and `valid_until` say when they
@@ -276,7 +291,7 @@ unknown key is refused.
 
 An agent connected over MCP receives instructions when its session starts, what matters most
 first: the instance paragraph, the entry that stands for the owner (below), generic instructions, in the code, on how to choose a type (from
-its description, searching before creating, asking when none fits), and the types of the instance
+its description, searching before creating, defining a type when none fits), and the types of the instance
 with their descriptions (their names only beyond 50, with `types` for the rest); then its
 working memory and how to find what the owner refers to without naming it (below), and, when they
 apply, the diagnostics paragraph, the rules of the instance, the writing standard and the inbox

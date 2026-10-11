@@ -25,7 +25,7 @@ name is refused.
 | `write` | write | Creates or updates an entry, or up to 100 in one transaction (`entries`), or archives one (`archive`), after which a write to it is refused; a long body in parts. Every value, the body and the summary say their `provenance`: known (`extracted`, with a source) or supposed (`inferred`). Answers with the entries it names without linking (`unlinked`), and a `notice` when a body accumulates. |
 | `link` | write | Links two entries with a relation, its `provenance` (known or supposed), a note and the dates it held; `remove` removes the link. |
 | `attach_media` | write | Attaches an image, a video, a sound or a PDF to an entry; with `media` and `alt`, describes a medium already attached. |
-| `define_type` | write | Defines a type of entry and its fields, or adds fields to an existing type. |
+| `define_type` | write | Defines a type of entry and its fields, or adds fields to an existing type. An agent defines the type it lacks instead of asking the user. |
 | `change_type` | write | Changes the label, the description or the flags of a type, or one of its fields (`field`); `propose` proposes to delete it or merge it into another. |
 | `inbox_add` | write | Puts a text, a URL or a file in the inbox. |
 | `inbox_list` | read | Lists the items of the inbox, a page at a time; with an `id`, reads one item without taking it, and with `offset` the rest of its text. |
@@ -96,7 +96,7 @@ HIPPOCAMPE_ACTOR=agent-laptop HIPPOCAMPE_INSTANCE=local bun --env-file=.env apps
   to start without it.
 - `HIPPOCAMPE_INSTANCE` (required): `local`, `development` or `production`. The server announces
   itself as `hippocampe-local`, `hippocampe-dev` or `hippocampe`, and its instructions start by saying
-  what the instance holds. Then how to choose a type, and the types; then the key the session
+  what the instance holds. Then how to choose a type (to define one when none fits, and to open what the user points to before writing, instead of asking), and the types; then the key the session
   works as and the 10 entries changed most recently that it may see (its working memory, built
   for each session), with how to find what the owner refers to without naming it, then how to recall (for a key that
   reads).
