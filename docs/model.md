@@ -32,8 +32,12 @@ An archived entry is no longer written to: a `write` that names it (its body, `a
 `edits`, its summary, its fields, its title, anything) is refused, with the date and the reason of
 the archive, and where to write instead: the entry that supersedes it (`superseded_by`) when there
 is one, else an entry of its own, part of the same subject. The refusal comes with the other
-problems of the write, in one sentence. Archiving it again with a new reason still works; `write`
-has no way to bring an entry back, which is the owner's to decide. `read` says the archive in every
+problems of the write, in one sentence. Archiving it again with a new reason still works. A successor
+(`superseded_by`) is named before archiving, since an archive goes alone and a write cannot name it
+afterwards. `write` has no way to bring an entry back: the owner does it from the command line,
+`hippo entry:unarchive <slug or id>`, which clears `archived_at` and `archived_reason` in one event
+of the history (action `archive`, the two fields changed to `null`); an entry that is not archived
+is refused. `read` says the archive in every
 answer about an archived entry, `headings` and `section` included: `archived_at` and
 `archived_reason` come with them.
 
@@ -643,8 +647,12 @@ most, then tags and summary, then body. Its query is a sentence, as a person say
 words, the words the text search configuration keeps (its stop words left out, the others
 stemmed; with `simple`, every word counts), and a hyphenated word counts as its parts. A query
 with an operator, a quoted phrase or a word excluded with a minus, requires every word instead.
-A query made of the words of an entry's slug ranks that entry first; then come the entries with
-the highest `score`, then the highest rank. The `score`, from 0 to 1, is the share of the
+A query made of the words of an entry's slug ranks that entry first, and so does a sentence that
+says an entry's name whole: a run of its words is the entry's title, an alias or its slug, case and
+accents aside (the name that covers more of the query first). The words of such a name weigh as
+the rarest, as if no entry held them, however many do: the name of a project, repeated by
+everything filed under it, outweighs a rare filler word of the sentence, and the score says so.
+Then come the entries with the highest `score`, then the highest rank. The `score`, from 0 to 1, is the share of the
 significant words of the query the entry holds, each weighed by how rare it is and counted by
 the heaviest place the entry holds it in: 1 in the title or aliases, 0.4 in the tags or summary,
 0.2 in the body, the fields or the sources (the weights `A`, `B` and `C` of the rank). A word's

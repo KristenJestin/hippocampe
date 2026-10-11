@@ -117,7 +117,9 @@ more); `--unstated` lists instead what was written before writers were asked. `s
 [--period <p>] [--field <f>] [--as <person>]` make a supposition known, as the owner (no key with `owner` is ever given to an MCP
 client): it becomes `extracted`, with the source "said by" the entry that stands for you, dated
 today, in one event. `owner:entry <slug or id>` names that entry (`--clear` none; alone, it prints
-it): what you said is then cited as said by it, and agents are told to read it. In the container: `docker compose exec hippocampe bun src/cli.ts supposed`.
+it): what you said is then cited as said by it, and agents are told to read it. `entry:unarchive <slug or id>`
+brings an archived entry back, as the owner: it is written to and listed again, in one event of its
+history (an agent's `write` cannot). In the container: `docker compose exec hippocampe bun src/cli.ts supposed`.
 `inbox:add <folder> [--origin <name>] [--dry-run] [--again]` drops a folder
 into the inbox, one item per file, sub-folders included (hidden files and links are skipped), for
 agents to process (`inbox_take`, then `inbox_finish`); `--dry-run` says what it would add, and a file

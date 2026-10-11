@@ -6,6 +6,7 @@ export {
   listEntries,
   readEntry,
   slugOf,
+  unarchiveEntry,
   writeEntries,
   writeEntry,
 } from './operations.ts'

@@ -6,6 +6,7 @@ import { migrate } from '../../src/core/database/index.ts'
 import { writeEntry } from '../../src/core/entries/index.ts'
 import { search } from '../../src/core/search/index.ts'
 import { defineType } from '../../src/core/types/index.ts'
+import { computesWordsOnce, planOfSearch } from './search-plan.ts'
 import { useScratchDatabase } from './scratch-database.ts'
 
 const inLanguage =
@@ -339,6 +340,19 @@ describe('a sentence over a few thousand entries', () => {
     ),
   )
 
+  test('the plan of a sentence reads the index, and computes the words of an entry once', async () => {
+    const plan = await run(
+      planOfSearch(
+        search("Tu te souviens de ce qu'on avait noté sur le concert et le piano ?"),
+      ).pipe(inFrench),
+    )
+    // The entries come from the full-text index, not from a pass over all of them, and the words
+    // of each are computed in one node, not again for each word of the query.
+    expect(plan.some((line) => line.includes('Bitmap Index Scan on entries_search'))).toBe(true)
+    expect(plan.some((line) => /Seq Scan on public\.entries e$/.test(line))).toBe(false)
+    expect(computesWordsOnce(plan)).toBe(true)
+  })
+
   test('a sentence costs about what one word costs, over the same entries', async () => {
     const sentence = "Tu te souviens de ce qu'on avait noté sur le concert et le piano ?"
     // The first search creates the configuration and warms the caches: it is not measured.
@@ -352,22 +366,23 @@ describe('a sentence over a few thousand entries', () => {
       })
     // Turn about, one after the other, so that a load on the machine weighs on both alike.
     const rounds = await run(
-      Effect.forEach(Array.from({ length: 7 }), () =>
+      Effect.forEach(Array.from({ length: 15 }), () =>
         Effect.all({ long: timed(sentence), short: timed('note') }),
       ).pipe(inFrench),
     )
-    const median = (times: ReadonlyArray<number>) =>
-      [...times].sort((a, b) => a - b)[Math.floor(times.length / 2)] ?? Infinity
     expect(rounds.flatMap(({ long, short }) => [long.found, short.found])).toEqual(
-      Array.from({ length: 14 }, () => 20),
+      Array.from({ length: 30 }, () => 20),
     )
     // Every entry holds a word of the sentence, and the word: the worst case. Alone, the sentence
-    // took about 50 ms and the word 39 ms (counting how rare each word is costs about 1 ms a
-    // word); a search that computed the words of an entry again for each word of the query was
-    // 1.8 times the word. The time of a search varies forty-fold with the load of the machine
-    // (over a second in a full check), not this ratio.
-    expect(median(rounds.map(({ long }) => long.time))).toBeLessThan(
-      median(rounds.map(({ short }) => short.time)) * 1.5,
+    // took about 50 ms and the word 39 ms. The time of a search varies forty-fold with the load of
+    // the machine (over a second in a full check), and the ratio itself from 1.3 to 1.55 when it is
+    // heavy: a bound tight enough to see the words computed again for each word of the query (1.7
+    // to 1.8 times the word) failed pull requests that did not touch the search. So the plan
+    // proves that (see the test above), and the fastest round of each, which a load touches
+    // least, is only held to a bound a real blow-up crosses: a cost that grows with every word.
+    const fastest = (times: ReadonlyArray<number>) => Math.min(...times)
+    expect(fastest(rounds.map(({ long }) => long.time))).toBeLessThan(
+      fastest(rounds.map(({ short }) => short.time)) * 2.5,
     )
   })
 })
