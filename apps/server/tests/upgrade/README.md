@@ -38,6 +38,11 @@ two steps, the way a real installation came to be:
 The fixture is still the fixture **of the release**: the state that release leaves an installation
 in, whatever wrote it first. Step 1 stays 0.5.0 for every later fixture.
 
+From 0.7.0 on, step 2 also writes what 0.7.0 first could: a dated type (`dated_by`) and three
+entries of it under a subject, each an entry of its own for what happened; a source said by the
+owner before they named their entry (`owner:entry`), and one after; a source seen by the writer.
+The test checks those for the fixtures of 0.7.0 and later alone.
+
 With the local PostgreSQL of `docker-compose.yml` up and `.env` in place, from the root of the
 repository:
 
@@ -54,14 +59,14 @@ git worktree remove ../hippocampe-0.5.0
 
 It creates a scratch database, writes into it, dumps it with `pg_dump` from the `postgres:18.0`
 image (`PG_DUMP` names another command), and drops it. Then add `<version>` to `FIXTURES` in
-`upgrade.test.ts`.
+`upgrade.test.ts`, with the rows its tables hold.
 
 **A release that changed the migrations adds the fixture of the version it replaces**, made this
 way, in the pull request that prepares it. When the script learns to write something new (a
 feature the older release lacked), the expectations of what only the newer fixtures hold are
 checked for those alone.
 
-## What the fixture of 0.6.0 does not hold
+## What the fixtures do not hold
 
 - Unexpected server errors recorded as findings (`origin: server`): the release records one only
   when it fails, which the script cannot make it do. The findings here are reports of agents.
