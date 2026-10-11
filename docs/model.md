@@ -32,8 +32,12 @@ An archived entry is no longer written to: a `write` that names it (its body, `a
 `edits`, its summary, its fields, its title, anything) is refused, with the date and the reason of
 the archive, and where to write instead: the entry that supersedes it (`superseded_by`) when there
 is one, else an entry of its own, part of the same subject. The refusal comes with the other
-problems of the write, in one sentence. Archiving it again with a new reason still works; `write`
-has no way to bring an entry back, which is the owner's to decide. `read` says the archive in every
+problems of the write, in one sentence. Archiving it again with a new reason still works. A successor
+(`superseded_by`) is named before archiving, since an archive goes alone and a write cannot name it
+afterwards. `write` has no way to bring an entry back: the owner does it from the command line,
+`hippo entry:unarchive <slug or id>`, which clears `archived_at` and `archived_reason` in one event
+of the history (action `archive`, the two fields changed to `null`); an entry that is not archived
+is refused. `read` says the archive in every
 answer about an archived entry, `headings` and `section` included: `archived_at` and
 `archived_reason` come with them.
 
