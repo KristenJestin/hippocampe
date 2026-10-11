@@ -222,7 +222,7 @@ A **type** has a name, a label, a description and a list of field definitions:
   "label": "Contract",
   "description": "A contract followed over time.",
   "fields": [
-    { "name": "provider", "kind": "text", "required": true },
+    { "name": "provider", "kind": "text", "required": true, "description": "The company that sells it." },
     { "name": "start", "kind": "date", "required": true },
     { "name": "end", "kind": "date", "due": { "notice": "P60D" } },
     { "name": "renewal", "kind": "enum", "values": ["tacit", "manual", "none"] },
@@ -231,6 +231,11 @@ A **type** has a name, a label, a description and a list of field definitions:
   ]
 }
 ```
+
+A field may carry a `description`: one short sentence (300 characters at most) saying what it
+holds, which the agent that fills it reads in `types` (and the read API, and the export) before
+writing a value. A field whose name does not say it all gets one, so that every agent fills it the
+same way. The instructions of a session list the descriptions of the types, not of their fields.
 
 Field kinds: `text`, `integer`, `number`, `boolean`, `date`, `datetime`, `duration`, `enum`,
 `money`, `url`, `entry` (a reference to another entry). A field may be `required`, may list
@@ -365,6 +370,7 @@ problem, naming the field and what is expected (through `formatSchemaError`).
 |---|---|
 | Create a type, add an optional field | allowed to any writer; the server requires a description and warns about types with a similar name |
 | Change the label or the description of a type | allowed to any writer; neither may be empty |
+| Set or replace the description of a field | allowed to any writer; not empty, 300 characters at most; no value changes |
 | Make a field required, change its kind, remove an allowed value | refused while existing entries would become invalid; the refusal names them; allowed with a default value that repairs them |
 | Delete or merge types | never through an agent alone: proposed, then confirmed by the owner |
 
@@ -375,7 +381,8 @@ Every change of a type is recorded in the event log like any other write.
 agents when to use the type, so it is sharpened as its use becomes clearer: `types` and the
 instructions of the next session give the new one, and the event holds the values before and after.
 
-How the server does it: `change_type` with a `field` makes a field required (or optional), changes its kind (a
+How the server does it: `change_type` with a `field` sets or replaces its `description` (the
+`description` then is the field's, not the type's), makes a field required (or optional), changes its kind (a
 field that stops being a date loses its `due` and `recurs`, one that stops being an entry its
 `types`), renames it (its values and their provenance move with it) or changes its allowed values.
 It changes the `types` an entry field accepts (`null` accepts any): the stored values are kept as

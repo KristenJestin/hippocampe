@@ -12,6 +12,9 @@ const Notice = Schema.String.check(
 
 const Text = Schema.String.check(Schema.isNonEmpty({ expected: 'text that is not empty' }))
 
+/** The longest description of a field: a few words, not a paragraph. */
+const FIELD_DESCRIPTION_MAX = 300
+
 export const FIELD_KINDS = [
   'text',
   'integer',
@@ -36,6 +39,19 @@ export const FieldDefinition = Schema.Struct({
   kind: Schema.Literals(FIELD_KINDS).annotate({
     description:
       'What the field holds. `enum` needs its `values`; `entry` points to other entries (see `types`); `date` may carry `due` or `recurs`.',
+  }),
+  description: Schema.optionalKey(
+    Schema.String.check(
+      Schema.isNonEmpty({
+        expected: 'a short sentence saying what the field holds, not empty text',
+      }),
+      Schema.isMaxLength(FIELD_DESCRIPTION_MAX, {
+        expected: `text of ${FIELD_DESCRIPTION_MAX} characters at most: a short sentence`,
+      }),
+    ),
+  ).annotate({
+    description:
+      'What the field holds, in one short sentence the agent that fills it reads first. A field whose name does not say it all gets one.',
   }),
   required: Schema.optionalKey(Schema.Boolean).annotate({
     description: 'A write must give a value for the field (at least one when it is `many`).',

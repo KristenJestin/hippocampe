@@ -39,6 +39,9 @@ export const ChangeFieldInput = Schema.Struct({
   rename: Schema.optionalKey(Schema.String).annotate({
     description: 'The new name of the field, in snake_case.',
   }),
+  description: Schema.optionalKey(Schema.String).annotate({
+    description: 'Set or replace what the field holds, in one short sentence; not empty.',
+  }),
   values: Schema.optionalKey(Schema.Array(Schema.String)).annotate({
     description: 'For an `enum` field: the new list of allowed values.',
   }),
@@ -301,6 +304,7 @@ export const changeField = Effect.fn('changeField')(
     const field = Object.fromEntries(
       Object.entries({
         ...carried,
+        description: input.description ?? old.description,
         name,
         kind,
         required: required || undefined,

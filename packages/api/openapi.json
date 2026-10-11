@@ -1861,6 +1861,12 @@
             ],
             "description": "What the field holds. `enum` needs its `values`; `entry` points to other entries (see `types`); `date` may carry `due` or `recurs`."
           },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "What the field holds, in one short sentence the agent that fills it reads first. A field whose name does not say it all gets one."
+          },
           "required": {
             "type": "boolean",
             "description": "A write must give a value for the field (at least one when it is `many`)."
