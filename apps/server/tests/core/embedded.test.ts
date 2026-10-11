@@ -8,7 +8,7 @@ import { Deferred, Effect, Fiber, Layer, Schema, type Scope } from 'effect'
 import { SqlClient } from 'effect/sql'
 import { afterAll, describe, expect, test } from 'vitest'
 import { embedded } from '../../src/core/database/client.ts'
-import { embeddedSocket } from '../../src/core/database/embedded.ts'
+import { embeddedSocket, POSTGRES_MAJOR } from '../../src/core/database/embedded.ts'
 import { latestVersion, migrate, schemaVersion } from '../../src/core/database/index.ts'
 import { rowsOf } from '../../src/core/database/rows.ts'
 
@@ -123,6 +123,17 @@ describe('the embedded database', () => {
       }),
     )
     expect(left).toBe(0)
+  })
+
+  test('the major version a backup records is the one of the PostgreSQL inside PGlite', async () => {
+    const version = await holding(freshFolder(), (path) =>
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        rowsOf(Schema.Struct({ number: Schema.Number }))(
+          sql`SELECT current_setting('server_version_num')::int AS number`,
+        ),
+      ).pipe(Effect.provide(client(path))),
+    )
+    expect(Math.floor((version[0]?.number ?? 0) / 10_000)).toBe(POSTGRES_MAJOR)
   })
 
   test('a folder left held by a process that ended is taken over', async () => {
