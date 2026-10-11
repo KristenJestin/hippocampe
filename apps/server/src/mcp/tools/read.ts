@@ -94,7 +94,7 @@ const partsOf = (read: Read, parts: ReadonlyArray<Part>) => {
 
 export const readTool = defineTool({
   name: 'read',
-  description: `Reads an entry with its place in the tree (\`path\`, through the oldest place it is part of today, and \`part_of\`, every place it is or was part of, with its dates and whether it is known or supposed), its children (apart from them, \`dated\`: the parts that happened at a time, their type dated by \`dated_by\`, the ${DATED_READ} most recent first with their date, and \`more_dated\`, how many more, read with \`search\`, \`under\` and \`sort: "dated"\`) and its links both ways, each link with its relation, whether it is known or supposed (\`provenance\`), its note and its dates (\`valid_from\`, \`valid_until\`), but without its body: ask for it with \`parts: ["body"]\`. The successor is given by slug (\`superseded_by\`) with its id beside (\`superseded_by_id\`); \`titles\` gives the titles of the entries its \`entry\` fields name, by slug with their id. \`parts: ["history"]\` gives its history instead, newest first, a page at a time (\`limit\`, 20 by default and 100 at most; then \`cursor\` with the \`next_cursor\` given): a long text, such as a body, comes as its size and an excerpt, and \`field\` reads the changes of that one field whole. A long entry is read in parts: \`parts\` to have only some of it, \`headings\` for the headings of its body, then \`section\` for the text under one of them. \`depth\` 2 or 3 adds a \`graph\`: the entries within that many edges (places, links, \`entry\` fields) with the edges between them, at most ${GRAPH_CAP} entries, nearest first, \`cut: true\` when there were more. Follow it as far as it helps.`,
+  description: `Reads an entry with its place in the tree (\`path\`, through the oldest place it is part of today, and \`part_of\`, every place it is or was part of, with its dates and whether it is known or supposed), its children (apart from them, \`dated\`: the parts that happened at a time, their type dated by \`dated_by\`, the ${DATED_READ} most recent first with their date, and \`more_dated\`, how many more, read with \`search\`, \`under\` and \`sort: "dated"\`) and its links both ways, each link with its relation, whether it is known or supposed (\`provenance\`), its note and its dates (\`valid_from\`, \`valid_until\`), but without its body: ask for it with \`parts: ["body"]\`. The successor is given by slug (\`superseded_by\`) with its id beside (\`superseded_by_id\`); \`titles\` gives the titles of the entries its \`entry\` fields name, by slug with their id. \`parts: ["history"]\` gives its history instead, newest first, a page at a time (\`limit\`, 20 by default and 100 at most; then \`cursor\` with the \`next_cursor\` given): a long text, such as a body, comes as its size and an excerpt, and \`field\` reads the changes of that one field whole. A long entry is read in parts: \`parts\` to have only some of it, \`headings\` for the headings of its body, then \`section\` for the text under one of them. Whatever part is read of an archived entry, \`archived_at\` and \`archived_reason\` come with it, \`headings\` and \`section\` included. \`depth\` 2 or 3 adds a \`graph\`: the entries within that many edges (places, links, \`entry\` fields) with the edges between them, at most ${GRAPH_CAP} entries, nearest first, \`cut: true\` when there were more. Follow it as far as it helps.`,
   input: Schema.Struct({
     entry: Reference,
     headings: Schema.optionalKey(Schema.Boolean).annotate({
@@ -137,6 +137,11 @@ export const readTool = defineTool({
         })
       }
       const read = yield* readEntry(entry)
+      // Whatever part of an archived entry is read, the archive comes with it.
+      const archive =
+        read.entry.archived_at === null
+          ? {}
+          : { archived_at: read.entry.archived_at, archived_reason: read.entry.archived_reason }
       if (section !== undefined) {
         const found = sectionOf(read.entry.body, section)
         if (found === undefined) {
@@ -144,9 +149,9 @@ export const readTool = defineTool({
             message: `The entry \`${entry}\` has no heading \`${section}\`: read its headings first.`,
           })
         }
-        return { section: found }
+        return { section: found, ...archive }
       }
-      if (headings === true) return { headings: headingsOf(read.entry.body) }
+      if (headings === true) return { headings: headingsOf(read.entry.body), ...archive }
       const answer = partsOf(yield* namedBySlug(read), wanted)
       const withHistory = wanted.includes('history')
         ? {

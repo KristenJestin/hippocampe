@@ -28,6 +28,15 @@ bookmark, a folder-like area. All entries share the same base:
 
 An entry is never deleted by an agent; it is archived.
 
+An archived entry is no longer written to: a `write` that names it (its body, `append`, `prepend`,
+`edits`, its summary, its fields, its title, anything) is refused, with the date and the reason of
+the archive, and where to write instead: the entry that supersedes it (`superseded_by`) when there
+is one, else an entry of its own, part of the same subject. The refusal comes with the other
+problems of the write, in one sentence. Archiving it again with a new reason still works; `write`
+has no way to bring an entry back, which is the owner's to decide. `read` says the archive in every
+answer about an archived entry, `headings` and `section` included: `archived_at` and
+`archived_reason` come with them.
+
 ### Things that happened at a time
 
 Something that happened at a time (a session of work, a measurement, a meeting, a repair, a

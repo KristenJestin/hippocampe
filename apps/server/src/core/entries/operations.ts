@@ -45,6 +45,7 @@ import { refusingContention } from './contention.ts'
 import { holding, wantedOf } from './certainty.ts'
 import { DateText, fieldsOf, isDate, Provenance, Slug, Text } from './values.ts'
 import { DATED_READ, datedOn } from './dated.ts'
+import { slugsOf } from './slugs.ts'
 
 const Row = Schema.Struct({
   ...Entry.fields,
@@ -1054,6 +1055,23 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
           )
         }
         problems.push(...edited.problems)
+        // What is written to an archived entry sits where no one reads: the session is told where
+        // to write instead. `write` has no way back, so a return is the owner's to decide.
+        if (existing !== undefined && existing.archived_at !== null) {
+          // The successor as the caller may see it: one it may not see is not named.
+          const { superseded_by: successorId } = yield* masked(existing)
+          const successor =
+            successorId === null
+              ? null
+              : ((yield* slugsOf([successorId]))[successorId] ?? successorId)
+          problems.push(
+            `The entry \`${existing.slug}\` was archived on ${existing.archived_at.slice(0, 10)}${existing.archived_reason === null ? '' : ` ("${existing.archived_reason}")`}, so it is no longer written to: what is added there is read by no one. ${
+              successor === null
+                ? 'Write what you have in an entry of its own, part of the same subject (`parent`), or of a dated type if it happened at a time. If this entry is really to come back, tell the owner: `write` cannot unarchive it.'
+                : `It is superseded by \`${successor}\`: write there instead.`
+            }`,
+          )
+        }
         const instants = { created, updated }
         for (const [field, value] of Object.entries(instants)) {
           if (value === undefined) continue

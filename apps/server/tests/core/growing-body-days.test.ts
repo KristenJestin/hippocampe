@@ -86,3 +86,31 @@ describe('a body grown at an end on several days is noticed', () => {
     expect(await part('shed-plan', ' Then fix the lock.', 'append')).toBeUndefined()
   })
 })
+
+describe('dated sections appended to a body that grew on earlier days are noticed', () => {
+  test('on the third day of growth the notice says to write an entry of a dated type under the subject', async () => {
+    await run(
+      writeEntry({
+        type: 'thing',
+        title: 'Roof repairs',
+        body: '## 2026-10-08\n\nChecked the ridge.\n',
+        provenance: { body: 'inferred' },
+      }),
+    )
+    // The day it was created is not a day it grew: the first part added comes after it.
+    await aDayPasses('roof-repairs')
+    expect(
+      await part('roof-repairs', '\n## 2026-10-09\n\nReplaced two tiles.\n', 'append'),
+    ).toBeUndefined()
+    await aDayPasses('roof-repairs')
+    expect(
+      await part('roof-repairs', '\n## 2026-10-10\n\nSealed the gutter.\n', 'append'),
+    ).toBeUndefined()
+    await aDayPasses('roof-repairs')
+    const third = await part('roof-repairs', '\n## 2026-10-11\n\nPainted the sill.\n', 'append')
+    expect(third).toContain('3 days')
+    expect(third).toContain(GROWING_BODY)
+    expect(GROWING_BODY).toContain('of a dated type')
+    expect(GROWING_BODY).toContain('part of what it is about (`parent`)')
+  })
+})
