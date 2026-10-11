@@ -624,11 +624,22 @@ enters its notice period: with nothing to tell, the key is absent.
 ## Search
 
 A search looks first in what identifies an entry, then in its body: title and aliases weigh
-most, then tags and summary, then body. It filters by type, by ancestor (`under`: only the entries that are part of an entry, at any depth, through the places
+most, then tags and summary, then body. Its query is a sentence, as a person says or writes it
+(600 characters at most), or a few words: it finds the entries that hold any of its significant
+words, the words the text search configuration keeps (its stop words left out, the others
+stemmed; with `simple`, every word counts), and a hyphenated word counts as its parts. A query
+with an operator, a quoted phrase or a word excluded with a minus, requires every word instead.
+A query made of the words of an entry's slug ranks that entry first; then come the entries with
+the highest `score`, then the highest rank. The `score`, from 0 to 1, is the share of the
+significant words of the query the entry holds, each counted by the heaviest place it holds it
+in: 1 in the title or aliases, 0.4 in the tags or summary, 0.2 in the body, the fields or the
+sources (the weights `A`, `B` and `C` of the rank). It is 1 when every word is in the title or
+aliases, does not depend on the other entries, and so compares from one search to another; a
+listing without a query has none. It filters by type, by ancestor (`under`: only the entries that are part of an entry, at any depth, through the places
 that hold today), by what is supposed (`supposed`, and `unstated`, see "Known or supposed") and leaves
 archived entries out unless asked. Each result carries the id, slug, type,
-title, summary, the path of ancestors, an excerpt with the matched words in `<mark>` tags, and
-its rank; 20 results by default. The language comes from `SEARCH_LANGUAGE` (a PostgreSQL text
+title, summary, the path of ancestors, an excerpt with the matched words in `<mark>` tags, its
+rank and its score; 20 results by default. The language comes from `SEARCH_LANGUAGE` (a PostgreSQL text
 search configuration, `simple` by default) and accents never matter.
 
 Without a query, a search lists the entries by most recent change (`sort` `updated`, the default
