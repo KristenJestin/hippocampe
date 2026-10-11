@@ -910,6 +910,8 @@ impl ::std::convert::TryFrom<::std::string::String> for SearchResultSummaryProve
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 pub struct SearchResults {
     pub results: ::std::vec::Vec<SearchResult>,
+    #[doc = "How many entries the search finds in all, the filters applied, whatever the `limit`."]
+    pub total: i64,
 }
 #[doc = "`Source`"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]

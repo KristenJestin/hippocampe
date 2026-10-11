@@ -122,9 +122,11 @@ fn types_and_search_results_read() {
         r#"{ "results": [{ "id": "01a1-entry", "slug": "plum-tart", "type": "recipe", "title": "Plum tart",
              "summary": "", "summary_provenance": "ambiguous", "path": ["Kitchen"],
              "excerpt": "<mark>plum</mark> tart", "rank": 0.6,
-             "supposed": [{ "what": "summary", "provenance": "ambiguous", "by": "agent-laptop", "when": "2026-10-08T09:00:00Z" }] }] }"#,
+             "supposed": [{ "what": "summary", "provenance": "ambiguous", "by": "agent-laptop", "when": "2026-10-08T09:00:00Z" }] }],
+             "total": 7 }"#,
     )
     .expect("search results as the API returns them");
+    assert_eq!(found.total, 7);
     assert_eq!(found.results[0].rank, 0.6);
     assert_eq!(found.results[0].supposed[0].what, "summary");
 }

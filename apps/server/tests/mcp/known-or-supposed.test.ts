@@ -170,7 +170,10 @@ describe('verified is gone', () => {
 
 describe('what was written before is unstated, and listed apart', () => {
   test('search with unstated lists none of what was written with a provenance', async () => {
-    expect(await answerOf('search', { unstated: true, neighbors: 0 })).toEqual({ results: [] })
+    expect(await answerOf('search', { unstated: true, neighbors: 0 })).toEqual({
+      results: [],
+      total: 0,
+    })
   })
 })
 
