@@ -6,6 +6,15 @@ import { Schema } from 'effect'
  */
 export const HIDDEN = '[hidden]'
 
+/** What a write gives as `seen_by` for what its key did or saw itself: kept as the key's name. */
+export const WRITER = 'writer'
+
+/**
+ * What `said_by` names for what the owner of the instance told: no entry stands for the owner. It
+ * always means the owner; an entry whose slug is `owner` is cited by its id.
+ */
+export const OWNER = 'owner'
+
 /**
  * Whether a value is known or supposed, as a writer says it: `extracted` (known, read from a
  * source), `inferred` (supposed by the writer) or `ambiguous` (sources disagree).
@@ -50,24 +59,62 @@ const Elsewhere = [
   }),
 ] as const
 
+const FromEntry = Schema.Struct({
+  entry: Schema.String.annotate({ description: 'The slug or id of the entry it comes from.' }),
+  ...About,
+})
+
+const SaidBy = Schema.Struct({
+  said_by: Schema.String.annotate({
+    description: `\`${OWNER}\` for what the user told you, the owner of this instance; for what someone else said, the slug or id of their entry (written or spoken, in a conversation).`,
+  }),
+  on: Schema.String.annotate({
+    description: 'The day it was said, such as `2026-10-08`.',
+  }),
+  ...About,
+})
+
+/**
+ * What a person said, as a write gives it: the owner as `owner` or someone else by their entry.
+ * The day is optional here so that a missing one is told plainly by the write.
+ */
+const SaidGiven = Schema.Struct({
+  said_by: SaidBy.fields.said_by,
+  on: Schema.optionalKey(Schema.String).annotate({
+    description: 'The day it was said, such as `2026-10-08`.',
+  }),
+  ...About,
+})
+
+/**
+ * What the writer did or saw itself, as it is kept and read: the name of the key that wrote it,
+ * and the day.
+ */
+const Seen = Schema.Struct({
+  seen_by: Schema.String.annotate({
+    description: 'The name of the key that wrote it: what that key did or saw itself.',
+  }),
+  on: Schema.String.annotate({ description: 'The day the writer did or saw it.' }),
+  ...About,
+}).annotate({ identifier: 'SourceSeen' })
+
 /**
  * Where an entry comes from, as a write gives it: another entry (by slug or id), what a person
- * said (`said_by`, the slug or id of the entry that stands for them, and the day), a URL, an
- * external identifier with an optional label, or an item of the inbox (`source` is `inbox`); each
- * may say a short note.
+ * said (`said_by`: `owner` for the owner of the instance, else the slug or id of the entry that
+ * stands for them; and the day), what the writer
+ * did or saw itself (`seen_by` is `writer`, and the day), a URL, an external identifier with an
+ * optional label, or an item of the inbox (`source` is `inbox`); each may say a short note.
  */
 export const SourceGiven = Schema.Union([
+  FromEntry,
+  SaidGiven,
   Schema.Struct({
-    entry: Schema.String.annotate({ description: 'The slug or id of the entry it comes from.' }),
-    ...About,
-  }),
-  Schema.Struct({
-    said_by: Schema.String.annotate({
-      description:
-        'The slug or id of the entry of the person who said it, written or spoken, in a conversation.',
+    seen_by: Schema.String.annotate({
+      description: `\`${WRITER}\`: what the key writing it did, ran, read or measured itself (never what it was told: that is \`said_by\`), kept with the name of that key.`,
     }),
-    on: Schema.String.annotate({
-      description: 'The day it was said, such as `2026-10-08`.',
+    // Optional here so that a missing day is told plainly by the write, not as a mismatch.
+    on: Schema.optionalKey(Schema.String).annotate({
+      description: 'The day the writer did or saw it, such as `2026-10-08`.',
     }),
     ...About,
   }),
@@ -75,12 +122,20 @@ export const SourceGiven = Schema.Union([
 ])
 export type SourceGiven = typeof SourceGiven.Type
 
-/** A source as it is kept: an entry, or the person who said it, by id. */
-export const SourceKept = SourceGiven
+/** A source as it is kept: an entry, or the person who said it, by id; the key that saw it. */
+export const SourceKept = Schema.Union([FromEntry, SaidBy, Seen, ...Elsewhere])
 export type SourceKept = typeof SourceKept.Type
 
-/** A source as it is read: an entry, or the person who said it, with its slug and title. */
+/**
+ * A source as it is read: an entry, or the person who said it, with its slug and title; the key
+ * that saw it.
+ */
 export const Source = Schema.Union([
+  Schema.Struct({
+    said_by: Schema.Literal(OWNER),
+    on: Schema.String,
+    ...About,
+  }).annotate({ identifier: 'SourceSaidByOwner' }),
   Schema.Struct({
     entry: Schema.String,
     slug: Schema.String,
@@ -94,6 +149,7 @@ export const Source = Schema.Union([
     on: Schema.String,
     ...About,
   }).annotate({ identifier: 'SourceSaid' }),
+  Seen,
   ...Elsewhere,
 ]).annotate({ identifier: 'Source' })
 export type Source = typeof Source.Type
@@ -137,6 +193,20 @@ export const Child = Schema.Struct({
 }).annotate({ identifier: 'Child' })
 export type Child = typeof Child.Type
 
+/**
+ * An entry part of another that says what happened at a time: its type is dated (`dated_by`), and
+ * `date` is the day it happened.
+ */
+export const DatedPart = Schema.Struct({
+  id: Schema.String,
+  slug: Schema.String,
+  type: Schema.String,
+  title: Schema.String,
+  date: Schema.String,
+  summary: Schema.String,
+}).annotate({ identifier: 'DatedPart' })
+export type DatedPart = typeof DatedPart.Type
+
 /** A place an entry is part of today, as the tree lists it. */
 export const TreePlace = Schema.Struct({
   id: Schema.String,
@@ -166,8 +236,8 @@ export type TreeEntry = typeof TreeEntry.Type
  * entry is created, or on an update while the entry has not changed since its creation. `updated`
  * is the time of the write, unless the write gives it too when it creates the entry. With `append`, the
  * `body` given is added at the end of the entry's body: a body too long for one call is written in
- * parts, each part one write. With `prepend`, it goes at the top, one blank line before the body,
- * for a journal kept newest first. With `edits`, a few words of the body change in place: each `find`
+ * parts, each part one write. With `prepend`, it goes at the top, one blank line before the body.
+ * With `edits`, a few words of the body change in place: each `find`
  * must match the body exactly once, and the edits apply in order, in one write. The rules are checked by the write, not by this schema, so that every problem is
  * reported at once.
  */
@@ -209,7 +279,7 @@ export const WriteEntryInput = Schema.Struct({
   }),
   sources: Schema.optionalKey(Schema.Array(SourceGiven)).annotate({
     description:
-      'Where the entry comes from: another entry, what a person said (`{ said_by, on, note }`, the person by slug or id), a URL, an external identifier or an inbox item. The list replaces the one stored. A value that is `extracted` needs at least one.',
+      'Where the entry comes from: another entry, what a person said (`{ said_by, on, note }`, the owner as "owner", someone else by the slug or id of their entry), what you did or saw yourself (`{ seen_by: "writer", on, note }`), a URL, an external identifier or an inbox item. The list replaces the one stored. A value that is `extracted` needs at least one.',
   }),
   body: Schema.optionalKey(Schema.String).annotate({
     description:
@@ -221,7 +291,7 @@ export const WriteEntryInput = Schema.Struct({
   }),
   prepend: Schema.optionalKey(Schema.Boolean).annotate({
     description:
-      'Add `body` at the top of the body stored, one blank line before it: a journal kept newest first.',
+      'Add `body` at the top of the body stored, one blank line before it. Not for a series of things that happened at a time: each is an entry of its own.',
   }),
   edits: Schema.optionalKey(
     Schema.Array(
@@ -326,7 +396,8 @@ export type Medium = typeof Medium.Type
 /**
  * An entry as `read` returns it: the titles of its ancestors from the root (`path`, through the
  * oldest place it is part of), every place it is or was part of with its dates (`part_of`, oldest
- * first), its links both ways, its media, and its children that are not archived.
+ * first), its links both ways, its media, its children that are not archived, and apart from them
+ * the most recent of its parts that happened at a time (`dated`), with how many more there are.
  */
 export const EntryRead = Schema.Struct({
   entry: Entry,
@@ -352,8 +423,13 @@ export const EntryRead = Schema.Struct({
   backlinks: Schema.Array(Link),
   /** The titles of the entries its fields of kind `entry` name, by id, as a reader shows them. */
   titles: Schema.Record(Schema.String, Schema.String),
+  /** Its parts that are not dated, or whose date the key may not see. */
   children: Schema.Array(Child),
   hidden_children: Schema.Int,
+  /** Its parts whose type is dated, not archived, the most recent first: the first few. */
+  dated: Schema.Array(DatedPart),
+  /** How many more of them there are, read with `search` and `sort: "dated"`. */
+  more_dated: Schema.Int,
   cited_by: Schema.Array(
     Schema.Struct({ id: Schema.String, slug: Schema.String, title: Schema.String }),
   ),

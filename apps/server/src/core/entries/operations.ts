@@ -29,12 +29,22 @@ import { formatSchemaError } from '@hippocampe/api/schema'
 import { mediaOf } from '../media/store.ts'
 import { searchConfiguration } from '../search/language.ts'
 import { findType } from '../types/operations.ts'
-import { Child, Entry, HIDDEN, SourceGiven, SourceKept, TreeEntry } from '@hippocampe/api/model'
-import type { Source, TypeDefinition, WriteEntryInput } from '@hippocampe/api/model'
+import {
+  Child,
+  Entry,
+  HIDDEN,
+  SourceGiven,
+  SourceKept,
+  TreeEntry,
+  OWNER,
+  WRITER,
+} from '@hippocampe/api/model'
+import type { DatedPart, Source, TypeDefinition, WriteEntryInput } from '@hippocampe/api/model'
 import { INBOX, inboxHolds } from '../inbox/store.ts'
 import { refusingContention } from './contention.ts'
 import { holding, wantedOf } from './certainty.ts'
 import { DateText, fieldsOf, isDate, Provenance, Slug, Text } from './values.ts'
+import { DATED_READ, datedOn } from './dated.ts'
 
 const Row = Schema.Struct({
   ...Entry.fields,
@@ -49,6 +59,7 @@ const kids = rowsOf(
   Schema.Struct({
     ...Struct.omit(Child.fields, ['fields']),
     fields: Schema.Record(Schema.String, Schema.Json),
+    date: Schema.NullOr(Schema.String),
   }),
 )
 const listed = rowsOf(TreeEntry)
@@ -89,9 +100,24 @@ const COLUMNS = {
 const named = (reference: string) =>
   or(eq(table.slug, reference), sql`${table.id}::text = ${reference}`)
 
-/** The entry a source names, if it names one: the entry it comes from, or who said it. */
+/** The refusal of a `said_by` without a day, or with one that is not a date. */
+const needsDay = (at: string, on: string | undefined) =>
+  `The source ${at} needs \`on\`, the day it was said, such as \`2026-10-08\`${on === undefined ? '' : `: \`${on}\` is not a date`}.`
+
+/** What a `said_by` that names no entry is told to do, once, for every way it came to that. */
+const TOLD_WAY_OUT =
+  'What was told is cited by who said it: `{ "said_by": "owner", "on": "2026-10-08" }` for what the owner said, or `{ "said_by": "<slug of their entry>", "on": "2026-10-08" }` for what someone else said, whose entry is created first if there is none; or write the value `inferred` without that source. Never `seen_by`, which is for what this key did or saw itself.'
+
+/**
+ * The entry a source names, if it names one: the entry it comes from, or who said it. The owner
+ * is no entry.
+ */
 const namedBy = (source: SourceKept | SourceGiven) =>
-  'entry' in source ? source.entry : 'said_by' in source ? source.said_by : undefined
+  'entry' in source
+    ? source.entry
+    : 'said_by' in source && source.said_by !== OWNER
+      ? source.said_by
+      : undefined
 
 /** An entry as it is kept: its sources name entries by id only. */
 type Kept = Omit<Entry, 'sources'> & { readonly sources: ReadonlyArray<SourceKept> }
@@ -127,6 +153,17 @@ const typed = rowsOf(Schema.Struct({ id: Schema.String, type: Schema.String }))
  */
 export const visibleIdOf = Effect.fn('visibleIdOf')(function* (reference: string) {
   return (yield* visibleOf(reference))?.id
+})
+
+const ownerIds = rowsOf(Schema.Struct({ entry_id: Schema.String }))
+
+/** The id of the entry that stands for the owner, whoever asks, or none. */
+export const ownerEntryId = Effect.gen(function* () {
+  const db = yield* drizzle
+  const [row] = yield* ownerIds(
+    db.select({ entry_id: tables.instanceOwner.entry_id }).from(tables.instanceOwner),
+  )
+  return row?.entry_id ?? null
 })
 
 /** The id and the type of the entry named, if there is one the caller may see. */
@@ -241,6 +278,7 @@ const masked = Effect.fn('masked')(function* (entry: Kept) {
         title: hidden ? HIDDEN : other.title,
       }
     }
+    if ('said_by' in source && source.said_by === OWNER) return { ...source, said_by: OWNER }
     if ('said_by' in source) {
       const other = found.find(({ id }) => id === source.said_by)
       const hidden = other === undefined || hidesType(other.type)
@@ -353,7 +391,8 @@ export const lineageOf = Effect.fn('lineageOf')(function* (id: string) {
 /**
  * An entry, the titles of its ancestors from the root (through the oldest place it is part of),
  * every place it is or was part of, and the entries that are part of it today and are not
- * archived, by title.
+ * archived: by title, apart from those that happened at a time, the most recent first (the first
+ * `DATED_READ`, and how many more).
  */
 export const readEntry = Effect.fn('readEntry')(function* (reference: string) {
   const db = yield* drizzle
@@ -364,7 +403,8 @@ export const readEntry = Effect.fn('readEntry')(function* (reference: string) {
   const all = yield* kids(client`
     SELECT e.id::text AS id, e.slug, e.type, e.title, e.summary, e.fields,
       e.type = ${entry.type} AND EXISTS (SELECT 1 FROM types t
-        WHERE t.name = e.type AND t.read_in_parent) AS in_parent
+        WHERE t.name = e.type AND t.read_in_parent) AS in_parent,
+      ${yield* datedOn} AS date
     FROM entries e
     WHERE EXISTS (SELECT 1 FROM links l WHERE l.source_id = e.id
         AND l.target_id = ${entry.id}::uuid AND l.relation = ${PART_OF} AND ${heldToday})
@@ -393,8 +433,14 @@ export const readEntry = Effect.fn('readEntry')(function* (reference: string) {
           .map(({ id, title }) => [id, title] as const),
   )
   const shown: Array<Child> = []
-  for (const { fields, ...child } of all) {
+  const dated: Array<DatedPart> = []
+  for (const { fields, date, ...child } of all) {
     if (hiddenTypes.includes(child.type)) continue
+    if (date !== null) {
+      const { id, slug, type, title, summary } = child
+      dated.push({ id, slug, type, title, date, summary })
+      continue
+    }
     if (!child.in_parent) {
       shown.push(child)
       continue
@@ -437,7 +483,12 @@ export const readEntry = Effect.fn('readEntry')(function* (reference: string) {
       ownIds.flatMap((id) => (titles[id] === undefined ? [] : [[id, titles[id]]])),
     ),
     children: shown,
-    hidden_children: all.length - shown.length,
+    hidden_children: all.length - shown.length - dated.length,
+    // The most recent first; of one day, by title.
+    dated: dated
+      .toSorted((left, right) => right.date.localeCompare(left.date))
+      .slice(0, DATED_READ),
+    more_dated: Math.max(dated.length - DATED_READ, 0),
     cited_by: citing
       .filter(({ type }) => !hiddenTypes.includes(type))
       .map(({ id, slug, title }) => ({ id, slug, title })),
@@ -1202,7 +1253,21 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
             sources.push(unseen)
             continue
           }
-          if (who !== undefined) {
+          if ('said_by' in source && source.said_by === OWNER) {
+            // The owner is their entry once named, and no entry before; a source the entry holds
+            // as the owner's already stays as it was written.
+            const held = existing?.sources.some(
+              (each) => 'said_by' in each && each.said_by === OWNER && each.on === source.on,
+            )
+            const ownerId = held === true ? null : yield* ownerEntryId
+            if (source.on !== undefined && isDate(source.on))
+              sources.push({ ...source, said_by: ownerId ?? OWNER, on: source.on })
+            else problems.push(needsDay(at, source.on))
+          } else if (who === HIDDEN) {
+            problems.push(
+              `The source ${at} names \`${HIDDEN}\`, the marker of an entry this key may not see, and this entry cites no such entry to put back: leave the source out, or cite one this key may see.`,
+            )
+          } else if (who !== undefined) {
             // An entry it already cites stays cited, whether the caller may see it or not.
             const kept = existing?.sources.some((held) => namedBy(held) === who)
             const id = kept === true ? who : yield* visibleIdOf(who)
@@ -1213,14 +1278,37 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
                 `The source ${at} names \`${who}\`, which this batch does not give to \`${other.title}\`: that entry takes the slug \`${other.slug}\`.`,
               )
             else if (id === undefined)
-              problems.push(`The source ${at} names \`${who}\`, which is not an entry.`)
+              problems.push(
+                'said_by' in source
+                  ? `The source ${at} names \`${who}\`, ${who === actor ? 'the name of a key, not of an entry' : 'which is not an entry'}. ${TOLD_WAY_OUT}`
+                  : `The source ${at} names \`${who}\`, which is not an entry.`,
+              )
             else if ('said_by' in source) {
-              if (isDate(source.on)) sources.push({ ...source, said_by: id })
-              else
-                problems.push(
-                  `The source ${at} needs \`on\`, the day it was said, such as \`2026-10-08\`: \`${source.on}\` is not a date.`,
-                )
+              if (source.on !== undefined && isDate(source.on))
+                sources.push({ ...source, said_by: id, on: source.on })
+              else problems.push(needsDay(at, source.on))
             } else if ('entry' in source) sources.push({ ...source, entry: id })
+          } else if ('seen_by' in source) {
+            // The writer's own account, kept with the name of its key; written back as read, it
+            // keeps the key that wrote it.
+            const held = existing?.sources.some(
+              (each) =>
+                'seen_by' in each && each.seen_by === source.seen_by && each.on === source.on,
+            )
+            if (source.seen_by !== WRITER && held !== true)
+              problems.push(
+                `The source ${at} is seen by \`${source.seen_by}\`: write \`"seen_by": "${WRITER}"\` for what this key did or saw itself, kept with its name; what a person said is \`said_by\`.`,
+              )
+            else if (source.on === undefined || !isDate(source.on))
+              problems.push(
+                `The source ${at} needs \`on\`, the day the writer did or saw it, such as \`2026-10-08\`${source.on === undefined ? '' : `: \`${source.on}\` is not a date`}.`,
+              )
+            else
+              sources.push({
+                ...source,
+                seen_by: source.seen_by === WRITER ? actor : source.seen_by,
+                on: source.on,
+              })
           } else if (
             'url' in source &&
             !(/^https?:\/\//.test(source.url) && URL.canParse(source.url))
@@ -1236,7 +1324,10 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
             problems.push(
               `The source ${at} names the item \`${source.item}\`, which the inbox does not hold.`,
             )
-          } else sources.push(source)
+          } else if (!('said_by' in source)) {
+            // A source that says who said it was dealt with above, kept or refused.
+            sources.push(source)
+          }
         }
         sources.push(...unseenSources)
         // A source refused is said once: the entry is not told it has none besides.
@@ -1275,7 +1366,7 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
         // The place is known when it is read in a source, which the entry then has.
         if (placeProvenance === 'extracted' && sources.length === 0 && !sourcesRefused) {
           problems.push(
-            'The field `provenance.parent` is `extracted` but the entry has no source: give one in `sources` (what someone said is `{ "said_by": "<slug or id of a person>", "on": "2026-10-08" }`), or write it `inferred`.',
+            'The field `provenance.parent` is `extracted` but the entry has no source: give one in `sources` (what the user told you is `{ "said_by": "owner", "on": "2026-10-08" }`, what someone else said `{ "said_by": "<slug or id of their entry>", "on": "2026-10-08" }`, what you did or saw yourself `{ "seen_by": "writer", "on": "2026-10-08" }`), or write it `inferred`.',
           )
         }
         for (const [name, value] of Object.entries(provenance)) {
@@ -1295,7 +1386,7 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
           for (const name of Object.keys(asked)) {
             if (state.provenance[name] === 'extracted') {
               problems.push(
-                `The field \`provenance.${name}\` is \`extracted\` but the entry has no source: give one in \`sources\` (what someone said is \`{ "said_by": "<slug or id of a person>", "on": "2026-10-08" }\`), or write it \`inferred\`.`,
+                `The field \`provenance.${name}\` is \`extracted\` but the entry has no source: give one in \`sources\` (what the user told you is \`{ "said_by": "owner", "on": "2026-10-08" }\`, what someone else said \`{ "said_by": "<slug or id of their entry>", "on": "2026-10-08" }\`, what you did or saw yourself \`{ "seen_by": "writer", "on": "2026-10-08" }\`), or write it \`inferred\`.`,
               )
             }
           }

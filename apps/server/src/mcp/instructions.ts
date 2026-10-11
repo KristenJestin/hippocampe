@@ -4,6 +4,7 @@ import type { InstanceName } from '../core/instance.ts'
 import { Rights } from '../core/auth/index.ts'
 import { recentEntries } from '../core/entries/index.ts'
 import { Actor } from '../core/events/index.ts'
+import { ownerEntry } from '../core/owner.ts'
 import { instanceRulesText } from '../core/rules.ts'
 import { listTypes } from '../core/types/index.ts'
 
@@ -48,11 +49,14 @@ export const WRITING_STANDARD = [
   'How to write an entry, whatever it comes from:',
   '- Search before creating, and update the existing entry when it is the same subject: never make a second entry for it.',
   '- Make one entry per subject that would be searched or followed on its own.',
+  '- Something that happened at a time (a session of work, a measurement, a meeting, a repair, a decision) is an entry of its own, written once: of a dated type (its `dated_by` names the required date field that holds the day it happened, so the day is never only in its title), part of what it is about (`parent`), with its own sources and provenance. A day you do not know is never invented: give the first day of what you know (the month, the year), write it `inferred`, and say in the body what is known of the date. What stands today about a subject belongs to the entry of that subject (its summary, its fields), never at the top of a growing body: a body says what an entry is, not the list of what happened to it. When no dated type fits such entries, define one (`define_type` with a required date field, named by `dated_by`), with a description that says when to use it, rather than adding to a body; later writers reuse it.',
+  '- When a session of work ends or something happens, write it as such an entry under its subject: what was done, decided or refused, and what comes next. A lasting fact learned on the way also goes into the entry it is about: the dated entry keeps the story, the subject keeps the fact.',
   '- Link the entry to every existing entry it concerns: the things, people, places and subjects it is about. Cite them as `[[slug]]` in the body, never by their title in plain text (the link is kept and follows renames), or use `link`. The answer of a write lists, as `unlinked`, existing entries whose title or alias appears in what you wrote without being linked: Hippocampe finds them by their names only, so read them and link those that are really meant.',
   '- Give a `parent` only when the entry is part of it (a component of a machine, a section of a document), and leave the entry at the root otherwise: an entry at the root is fine when it is linked to what it concerns. A `parent` is a link `part_of`, said known or supposed in `provenance.parent`. An entry may be part of several places and was part of others before: add one with `link` and `part_of`, with the dates it held (`valid_from`, `valid_until`); changing the `parent` ends the former place today and starts the new one.',
   '- Write a summary that stands alone: what the entry is, about what or whom, and when, readable by an agent that knows nothing of the conversation or the item it comes from.',
   "- Fill the type's fields from what you are given; never invent a value. Say for each value you write whether it is known or supposed, with its `provenance` (a field, the `body`, the `summary`, the `parent`) or, for a link, with the `provenance` of `link`: `extracted` is known, read in a source, and needs a source on the entry (`sources`); `inferred` is your supposition; `ambiguous` is when sources disagree.",
-  '- What someone said in a conversation (the owner, or anyone else) is a source: `{ "said_by": "<slug of their entry>", "on": "<day>" }`. When the owner confirms a supposition ("yes, it was Marie"), write the value again as `extracted` with that source.',
+  '- What the user told you is a source: `{ "said_by": "owner", "on": "<day>" }`, with no entry needed. What someone else said is a source with the entry of the one who said it: `{ "said_by": "<slug of their entry>", "on": "<day>" }`. When the owner confirms a supposition ("yes, it was Marie"), write the value again as `extracted` with that source.',
+  '- What you did or saw yourself (what you ran, read, measured or changed) is a source too: `{ "seen_by": "writer", "on": "<day>" }`, kept with the name of your key, and what it backs may be `extracted`. What you conclude or guess from it is `inferred`. What you were told is never `seen_by`: what the user told you is `said_by` "owner", what someone else said is `said_by` with their entry.',
   '- A body that mixes known facts and suppositions is `inferred`, and states its suppositions as such in its text ("probably", "supposed from…"). Write a supposition, rather than leave it out when it is worth keeping, and never as a fact.',
   '- Rewrite what you are given clean, but keep every fact: names, dates, numbers, commands, reasons, options set aside and why. Make it shorter only by removing repetition.',
   '- An entry says only what its source says. A fact taken from another entry is added with that entry in `sources`; an interpretation is written as one.',
@@ -157,14 +161,31 @@ when to use it, is written in its description.
 
 Before writing, look at the types. Choose the type whose description matches what the user says,
 even when they do not name it. Before creating an entry, search for an existing one, and update
-it when it is the same thing. When no type fits, ask the user rather than forcing one; a new type
-is defined with a description that says when to use it.`
+it when it is the same thing. When no type fits, ask the user rather than forcing one, except for
+things that happened at a time, for which you define a dated type yourself; a new type is defined
+with a description that says when to use it.`
+
+/** The entry that stands for the owner, as the instructions name it: its slug and its title. */
+type Owner = { readonly slug: string; readonly title: string }
+
+/** Who the owner is, said to the keys that read, after what the instance is. */
+const ownerSaid = ({ slug, title }: Owner) =>
+  `The owner of this instance is \`${slug}\` (${oneLine(title)}): read it when what you do depends on who they are.`
 
 /** How an agent recalls: said to the keys that read, after the types. */
-const RECALL =
-  'When the user mentions something Hippocampe may hold, search it before answering, without being asked. Before answering, read what the search found and follow its `neighbors` (and `read` with a `depth` of 2 or 3) as far as they help.'
+const RECALL = [
+  'When the user mentions something Hippocampe may hold, search it before answering, without being asked. Before answering, read what the search found and follow its `neighbors` (and `read` with a `depth` of 2 or 3) as far as they help.',
+  'When you start work on a subject, read what happened to it first: `read` gives its most recent dated entries (`dated`), and `search` with `under` and `sort: "dated"` goes further back.',
+].join(' ')
 
-const listed = (types: ReadonlyArray<{ readonly name: string; readonly description: string }>) =>
+/** A type as the instructions list it: its name, what dates it when it is dated, its description. */
+type Listed = {
+  readonly name: string
+  readonly description: string
+  readonly dated_by?: string | undefined
+}
+
+const listed = (types: ReadonlyArray<Listed>) =>
   types.length === 0
     ? 'There is no type yet.'
     : types.length > LISTED
@@ -172,13 +193,16 @@ const listed = (types: ReadonlyArray<{ readonly name: string; readonly descripti
           .map(({ name }) => `\`${name}\``)
           .join(', ')}.`
       : `The types:\n${types
-          .map(({ name, description }) => `- \`${name}\`: ${description}`)
+          .map(
+            ({ name, description, dated_by }) =>
+              `- \`${name}\`${dated_by === undefined ? '' : ` (dated by \`${dated_by}\`)`}: ${description}`,
+          )
           .join('\n')}`
 
 /**
  * What an agent is told when its session starts, what matters most first: what the instance is,
- * how to choose a type, the types of the instance with their descriptions (or only their names
- * when there are many); then its working memory (the key it uses, the entries changed most
+ * which entry stands for its owner (to a key that reads and may see it), how to choose a type, the
+ * types of the instance with their descriptions (or only their names when there are many); then its working memory (the key it uses, the entries changed most
  * recently) and how to find what the owner refers to, then how to recall when it may read; what
  * diagnostics ask of it when they are on,
  * the rules its owner set for every agent, if any, and, when it may write, how to write an entry
@@ -186,15 +210,17 @@ const listed = (types: ReadonlyArray<{ readonly name: string; readonly descripti
  * the later parts are the ones it can lose.
  */
 export const instructionsFor = (
-  types: ReadonlyArray<{ readonly name: string; readonly description: string }>,
+  types: ReadonlyArray<Listed>,
   instance: { readonly name: InstanceName; readonly diagnostics: boolean },
   rules: string | null = null,
   writes = false,
   reads = true,
   memory: WorkingMemory | null = null,
+  owner: Owner | null = null,
 ) =>
   [
     INSTANCE[instance.name],
+    ...(reads && owner !== null ? [ownerSaid(owner)] : []),
     HOW,
     listed(types),
     ...(memory === null ? [] : [workingMemory(memory, writes), FINDING]),
@@ -218,5 +244,6 @@ export const instructions = Effect.gen(function* () {
     (yield* Rights).includes('write'),
     (yield* Rights).includes('read'),
     key === undefined ? null : { key, recent: yield* recentEntries(RECENT_LIMIT) },
+    yield* ownerEntry,
   )
 })

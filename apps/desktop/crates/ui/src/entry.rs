@@ -1234,6 +1234,16 @@ fn sources(
                     },
                     cx,
                 ),
+                // The owner has no entry to open: the card says who, like the writer's own.
+                Source::SaidByOwner(said) => quiet_source(
+                    Card {
+                        icon: Icon::new(IconName::User),
+                        title: words::THE_OWNER.into(),
+                        detail: Some(words::said_on(&said.on, said.note.as_deref()).into()),
+                        relation: Some(words::SAID_BY.into()),
+                    },
+                    cx,
+                ),
                 Source::Said(said) => card(
                     id,
                     Card {
@@ -1244,6 +1254,15 @@ fn sources(
                     },
                     opener(on_intent, said.slug.clone()),
                     window,
+                    cx,
+                ),
+                Source::Seen(seen) => quiet_source(
+                    Card {
+                        icon: Icon::new(IconName::Eye),
+                        title: seen.seen_by.clone().into(),
+                        detail: Some(words::said_on(&seen.on, seen.note.as_deref()).into()),
+                        relation: Some(words::SEEN_BY.into()),
+                    },
                     cx,
                 ),
                 Source::Url(url) => card(
@@ -1538,7 +1557,8 @@ mod tests {
                 "archived_at": null, "archived_reason": null
             },
             "path": [], "part_of": [], "references": [], "ancestors": [], "links": [], "media": [],
-            "backlinks": [], "titles": {}, "children": [], "hidden_children": 0, "cited_by": []
+            "backlinks": [], "titles": {}, "children": [], "hidden_children": 0, "dated": [],
+            "more_dated": 0, "cited_by": []
         }))
         .expect("a read");
         read.links = links;

@@ -19,7 +19,7 @@ bookmark, a folder-like area. All entries share the same base:
 | `part_of` | the entries it is part of, or was: links `part_of` with the dates they held (see "The tree"); not a column of the entry |
 | `fields` | the values of the type's fields, validated against the type |
 | `provenance` | whether each value is known or supposed, by field name, and `body` and `summary` for those two texts: `extracted` (known, read from a source), `inferred` (supposed by the writer), `ambiguous` (sources disagree), or `unstated` (written before writers were asked; never written by a new write). See "Known or supposed" |
-| `sources` | where the entry comes from, a list: another entry (`{ "entry": "<slug or id>" }`, kept as its id and read with its slug and title), what a person said (`{ "said_by": "<slug or id>", "on": "2026-10-08" }`, kept as the id of the entry that stands for them and read with its slug and title), a URL (`{ "url": "https://…" }`, http or https), an external identifier (`{ "identifier": "doc_…", "label": "…" }`), or an item of the inbox (`{ "source": "inbox", "item": "<id>" }`); each may carry a short `note`. An entry used as a source lists the entries that cite it (`cited_by`); search finds an entry by its URLs and identifiers |
+| `sources` | where the entry comes from, a list: another entry (`{ "entry": "<slug or id>" }`, kept as its id and read with its slug and title), what the owner of the instance told (`{ "said_by": "owner", "on": "2026-10-08" }`, kept as the owner's entry once they have named one, with `owner:entry`, and read with its slug and title; with no entry needed, kept and read as `owner`, before; an entry whose slug is `owner` is cited by its id), what someone else said (`{ "said_by": "<slug or id>", "on": "2026-10-08" }`, kept as the id of the entry that stands for them and read with its slug and title), what the writer did or saw itself (`{ "seen_by": "writer", "on": "2026-10-10" }`, kept and read with the name of the key that wrote it), a URL (`{ "url": "https://…" }`, http or https), an external identifier (`{ "identifier": "doc_…", "label": "…" }`), or an item of the inbox (`{ "source": "inbox", "item": "<id>" }`); each may carry a short `note`. An entry used as a source lists the entries that cite it (`cited_by`); search finds an entry by its URLs and identifiers |
 | `body` | free Markdown text, possibly empty |
 | `summary` | a short text written by the agent, searched first |
 | `created`, `updated` | when the entry came to be (the time of the write that created it, or the date a migrated note gives) and when Hippocampe last changed it (the time of the last write) |
@@ -27,6 +27,56 @@ bookmark, a folder-like area. All entries share the same base:
 | `archived_at` | set when the entry is archived: it stays in place and leaves the default views |
 
 An entry is never deleted by an agent; it is archived.
+
+### Things that happened at a time
+
+Something that happened at a time (a session of work, a measurement, a meeting, a repair, a
+decision) is an entry of its own, written once: of a dated type, part of what it is about
+(`parent`), with its own sources and provenance. What stands today about a subject
+belongs to the entry of that subject, in its summary and its fields. A body says what an entry is,
+not the list of what happened to it: inside one body, the dates are only headings, so `briefing`
+cannot say "a year ago", nothing can ask what happened on a day across entries, links and
+provenance cannot be said of each event, and every update sends and keeps the whole text again.
+When the instance has no type for such entries, the agent defines one itself (`define_type`), with
+a required date field named by `dated_by` and a description that says when to use it, rather than
+growing a body, and later writers reuse it: the one exception to asking the owner when no type fits.
+The instructions of the MCP server and the description of `write` say so; the answer of `write`
+notices a body that accumulates (see "A body that accumulates"). No type, rule or code path names a
+kind of such entries: the agent names the types it defines.
+
+Two kinds of entries live side by side. Most say what something **is** (a project, an object, a
+contract): they are rewritten as the thing changes, and `valid_from` and `valid_until` say when they
+were true. Some say what **happened** at a moment: written once, they belong to the past, and their
+date is a day. What tells them apart is the type: a type is **dated** when its `dated_by` names one
+of its fields, a required `date` that holds one date (not `many`), the day each of its entries
+happened (`define_type` and `change_type` set it, `null` takes it away; a field made optional, of
+another kind or a list while it dates its type is refused, and a renamed one is followed). The
+server knows no name of such a type; it only reads, from the definition, which field says when.
+
+The field is required, so an entry whose day is not known still has one: the agent gives the first
+day of what it knows (the month, the year), writes that date `inferred`, and says in the body what is
+known of it, as the instructions ask. A day is never invented as known, and every dated entry can be
+ordered.
+
+Read in the order of time, newest first, the dated entries of a subject are its "where were we":
+
+- `read` of an entry gives, apart from its `children`, its parts that are dated and not archived
+  (`dated`: the 5 most recent, each with its slug, title, type, date and summary, the most recent
+  first, those of one day by title) and how many more there are (`more_dated`). The read API
+  (`/api/entries/{slug}`) gives the same.
+- `search` with `sort: "dated"` keeps only the dated entries, the most recent first: with `under`, a
+  subject's story further back. Every result of a dated type carries its `date`.
+- "A year ago" in `briefing` lists the entries that happened on the same days a year earlier
+  (`dated`), beside the entries created and the occurrences.
+- A write that changes the body or the fields of a dated entry more than 7 days after its date is
+  answered with a `notice`, never a refusal: what happened is not rewritten; a mistake is
+  corrected, and what happened since is a new entry. A new entry, a link, a source, a medium, a
+  summary, a place or an archive gets none.
+
+A key without the right `sensitive` sees none of this for an entry of a sensitive type: it is
+counted in `hidden_children`, and absent from `search` and `briefing`. An entry whose dated field
+is sensitive is, for that key, not dated: it is one of the `children`, has no `date` in a search,
+is not in `dated`, `sort: "dated"` or "a year ago", and a late rewrite of it is not noticed.
 
 ### Known or supposed
 
@@ -49,10 +99,20 @@ disagree.
   a database where a type has one, naming the type and the field, until it is renamed.
 - **A known value has a source.** An entry that holds an `extracted` value (a field, the body, the
   summary, a link) has at least one source, given by the same write or already there; without one,
-  the value is written `inferred`. What a person said, the owner or anyone else, in a conversation
-  written or spoken, is a source of its own: `{ "said_by": "<slug or id of a person>", "on":
-  "2026-10-08", "note": "…" }`. The person is an entry the writer may see; the source is read with
-  its slug and title, and the person's `cited_by` lists what they said.
+  the value is written `inferred`. What the owner told the writer, in a conversation written or
+  spoken, is a source of its own: `{ "said_by": "owner", "on": "2026-10-08", "note": "…" }`, with no
+  entry needed (`owner` always means the owner of the instance; an entry whose slug is `owner` is
+  cited by its id). Once the owner has named the entry that stands for them (below), the source is
+  kept as said by that entry, and read with its slug and title, hidden from a key that may not see
+  it; before, it is kept as `owner`, and what was kept so stays so, written back as read included.
+  What someone else said is cited the same way with their entry: `{ "said_by":
+  "<slug or id of a person>", "on": "2026-10-08", "note": "…" }`. That person is an entry the writer
+  may see; the source is read with its slug and title, and the person's `cited_by` lists what they
+  said. A `said_by` that names no entry, or only the writer's own key, is refused with the way out. What the writer did, ran,
+  read or measured itself is one too: `{ "seen_by": "writer", "on": "2026-10-10", "note": "…" }`,
+  kept and read with the name of the key that writes it (written back as read, by any key, it
+  keeps that name), and refused without a day. A value or a body it backs may be `extracted`; what
+  the writer concludes or guesses from it stays `inferred`, and what it was told is `said_by`, never `seen_by`.
 - **Links carry theirs.** `link` gives `provenance` (`extracted` or `inferred`), kept on the link
   and read on links and backlinks; an `extracted` link needs a source on its entry. The `parent` of
   a write is a link `part_of`, and says its own in `provenance.parent`, `extracted` or `inferred`
@@ -60,8 +120,10 @@ disagree.
   `body` and `summary` are not. The `mentions`
   that come from a body take the provenance of the body.
 - **The owner confirms.** From the command line, `supposed:confirm` makes a value or a link known:
-  `extracted`, with the source "said by" the entry that stands for the owner (`--as`: Hippocampe knows
-  no entry for the owner itself), dated the day of confirmation, in one event of the entry. A link
+  `extracted`, with the source "said by" the entry that stands for the owner (the one named with
+  `owner:entry`; `--as <person>` names another, and `--as owner` cites the owner as `owner` while
+  they have named none; with neither, the refusal says how to name it), dated the day of
+  confirmation, in one event of the entry. A link
   `fulfills` supposed for several periods is confirmed with `--period` and `--field`, which the
   refusal lists; a `mentions` link follows its body: confirm the `body`. A correction is an ordinary write by the owner. Through MCP,
   an agent records what the owner said ("yes, it was Marie") as the value again, `extracted`, with
@@ -106,11 +168,12 @@ kept as its id; `read` gives the titles of the entries the fields name, by id, i
 write names the
 entry it is part of (`parent`) and `superseded_by` by id or slug. An update changes only the keys it gives;
 `fields` and `provenance` are merged key by key, and `null` removes a key. With `append: true`,
-the `body` given is added at the end of the current body: a body too long for one call (a
-journal of several hundred kilobytes) is written in parts, each part one write, so a reader always
+the `body` given is added at the end of the current body: a body too long for one call (a manual
+of several hundred kilobytes, imported) is written in parts, each part one write, so a reader always
 sees a whole number of parts. With `prepend: true`, the `body` given goes at the top, one blank
-line before the current body, in one write: a journal kept newest first, or a "Resume here" that
-comes before the rest; `append` and `prepend` together, or either with `edits`, are refused, and
+line before the current body, in one write. Neither is the way to keep things that happened at
+different times (see "Things that happened at a time"); `append` and `prepend` together, or either
+with `edits`, are refused, and
 so is a part made only of whitespace. With `edits: [{ find, replace }]`, a few words of the body
 change in place: each `find` must match the body, as the edits before it left it, exactly once,
 or the write is refused naming each edit that matches twice or never; all apply in one write and
@@ -194,7 +257,7 @@ unknown key is refused.
 ### How agents learn an instance
 
 An agent connected over MCP receives instructions when its session starts, what matters most
-first: the instance paragraph, generic instructions, in the code, on how to choose a type (from
+first: the instance paragraph, the entry that stands for the owner (below), generic instructions, in the code, on how to choose a type (from
 its description, searching before creating, asking when none fits), and the types of the instance
 with their descriptions (their names only beyond 50, with `types` for the rest); then its
 working memory and how to find what the owner refers to without naming it (below), and, when they
@@ -252,6 +315,14 @@ opening (what comes before their first `##` section), with `types` and `rules: t
 (a part of `types`, not an MCP resource: clients use resources poorly).
 The code knows that an instance has rules for its agents, nothing of what they say.
 
+Most of what agents write was told by the owner, and much of what they need is about the owner.
+The owner names the **entry that stands for them**, from the command line only (`owner:entry
+<slug or id>`, `owner:entry --clear`; `owner:entry` alone prints it): a setting of the instance, as
+the rules are, recorded in the event log as an event `owner` of the entry it becomes and of the one
+it was. An entry that does not exist or is archived is refused. A key that reads is told, right
+after the instance paragraph, that entry's slug and title, and to read it when what it does depends
+on who the owner is; a key that may not see it (its type is sensitive) is told nothing of it.
+
 Every write of an entry is validated against its type. A refused write returns one sentence per
 problem, naming the field and what is expected (through `formatSchemaError`).
 
@@ -266,8 +337,8 @@ problem, naming the field and what is expected (through `formatSchemaError`).
 
 Every change of a type is recorded in the event log like any other write.
 
-`change_type` replaces the label or the description of a type, alone or with `sensitive` and
-`read_in_parent`, and nothing else of it; an empty one is refused. The description is what tells
+`change_type` replaces the label or the description of a type, alone or with `sensitive`,
+`read_in_parent` and `dated_by`, and nothing else of it; an empty one is refused. The description is what tells
 agents when to use the type, so it is sharpened as its use becomes clearer: `types` and the
 instructions of the next session give the new one, and the event holds the values before and after.
 
@@ -297,7 +368,7 @@ because of another one at the same moment is refused with one sentence: try the 
 ## The tree
 
 The tree is the links `part_of` that hold today. An entry is **part of** another: a component in a
-machine, a note in a project, a section of a journal. It may be part of several entries at once (a
+machine, a note in a project, a repair of the thing repaired. It may be part of several entries at once (a
 monitor shared by two computers), and it may have been part of others before. There is no folder
 object: any entry may have children, the entries that are part of it today. A project entry is both
 the project's record and the container of its notes and decisions. An area (an entry whose type
@@ -344,7 +415,8 @@ place that holds today as the entry's parent, and a place that is over among its
   entry part of two places is under both. The tree of the read API and of the viewer shows an entry
   under each of its places; one with none is at the top.
 - **`read`** gives the `path`, `part_of` (every place it is or was part of, the oldest first, each
-  with its `period`, `provenance`, `note`, `valid_from` and `valid_until`), and its `children`. The links
+  with its `period`, `provenance`, `note`, `valid_from` and `valid_until`), and its `children`, apart
+  from those of a dated type, given as `dated` (see "Things that happened at a time"). The links
   `part_of` are given there and not among `links` and `backlinks`, but for the entries that were
   part of it and are no more, which stay among the `backlinks` with their dates.
 - **The export** keeps one file per entry, in the folder of its oldest place (see
@@ -399,6 +471,16 @@ without AI: the agent decides whether an entry is really meant, and links it (or
 database narrows the names to those contained in the text (`unaccent` and `lower` on both
 sides) in one query for the whole write, the code confirms the word boundaries; the cost is one
 pass over the titles and aliases of the store per write, not one query per candidate.
+
+**A body that accumulates.** The answer of `write`, and that of each entry of a `write` with
+`entries`, carries a `notice` (never a refusal) when the body it leaves is longer than 20,000
+characters (a write that gives a `body`, a part or `edits`), or when it adds a part at the top or
+the end of a body that grew so on two other days before today (three days in all, read from the
+event log: a write whose body after begins or ends with the whole body before). The notice says
+why, and that things that happened at different times are found and read better as entries of
+their own, dated, part of what they are about. A long text written in parts on one day gets
+none. The threshold, the days and the wording are in `src/core/entries/growing.ts`; `notice` is
+absent otherwise.
 
 A reference may carry a text or a heading (`[[slug|text]]`, `[[slug#heading]]`); the link
 points to the slug either way. The references of a body are kept as links of relation
@@ -514,7 +596,8 @@ occurrences without knowing what they mean:
 - the answers of the MCP tools carry a `heads_up` list when an occurrence enters its notice
   period, once a day per key;
 - the `briefing` of a period (or of `from` and `to`) gathers the occurrences, the overdue deadlines,
-  the past ("a year ago") and what waits (the suppositions to confirm, the references without an entry);
+  the past ("a year ago": the entries created, the occurrences, and the entries of a dated type
+  that happened, on the same days a year earlier) and what waits (the suppositions to confirm, the references without an entry);
   an agent picks what matters and says it.
 
 An occurrence is closed when an entry linked to it by `fulfills`, for that date field and that
@@ -550,7 +633,9 @@ search configuration, `simple` by default) and accents never matter.
 
 Without a query, a search lists the entries by most recent change (`sort` `updated`, the default
 then; with a query the default stays `relevance`), bounded by `since` and `until`, and by `by`,
-the key that changed an entry last. When and by whom come from the event log (the actor of the
+the key that changed an entry last. `sort` `dated` keeps only the entries of a dated type, the
+most recent date first, and every result of a dated type carries its `date` (see "Things that
+happened at a time"). When and by whom come from the event log (the actor of the
 latest event that moved the entry's `updated`: created, updated, archived, or its body rewritten by
 a rename; a link, a medium or a `[[reference]]` that resolved by itself leaves it alone), not from
 a column of the entry. Over MCP each result also carries these two and its
@@ -560,7 +645,7 @@ updated first among equals, each with how it is joined and never its body. `read
 out the body unless asked, and with `depth` 2 or 3 returns the graph around the entry (capped at 50
 entries, `cut` when it was). What a key without the right `sensitive` may not see has no
 neighbor and no place in a graph, and archived entries are left out. The read API (`/api/search`)
-does not take or give any of this.
+does not take or give any of this, but the `date` of a result of a dated type.
 
 ## MCP tools
 

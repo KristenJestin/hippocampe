@@ -27,7 +27,8 @@ fn entry(id: &str, title: &str, type_name: &str, extra: Value) -> Value {
 fn around(entry: Value, extra: Value) -> Value {
     let mut base = json!({
         "entry": entry, "path": [], "part_of": [], "ancestors": [], "references": [], "links": [], "media": [], "backlinks": [],
-        "children": [], "hidden_children": 0, "cited_by": [], "titles": {}
+        "children": [], "hidden_children": 0, "dated": [], "more_dated": 0, "cited_by": [],
+        "titles": {}
     });
     if let (Value::Object(base), Value::Object(extra)) = (&mut base, extra) {
         base.extend(extra);
@@ -79,7 +80,9 @@ pub fn contract() -> EntryData {
                         { "entry": "classeur-papiers", "slug": "classeur-papiers", "title": "Classeur des papiers", "note": "la copie signée" },
                         { "url": "https://example.org/offres/fibre" },
                         { "identifier": "doc_4412", "label": "contrat scanné" },
-                        { "source": "inbox", "item": "01a1-0000-item" }
+                        { "source": "inbox", "item": "01a1-0000-item" },
+                        { "seen_by": "agent-bureau", "on": "2026-09-30", "note": "la box redémarrée" },
+                        { "said_by": "owner", "on": "2026-10-01" }
                     ],
                     "body": BODY
                 }),

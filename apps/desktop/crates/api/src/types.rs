@@ -86,6 +86,17 @@ pub struct Child {
     #[serde(rename = "type")]
     pub type_: ::std::string::String,
 }
+#[doc = "`DatedPart`"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct DatedPart {
+    pub date: ::std::string::String,
+    pub id: ::std::string::String,
+    pub slug: ::std::string::String,
+    pub summary: ::std::string::String,
+    pub title: ::std::string::String,
+    #[serde(rename = "type")]
+    pub type_: ::std::string::String,
+}
 #[doc = "`Entry`"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 pub struct Entry {
@@ -187,10 +198,12 @@ pub struct EntryRead {
     pub backlinks: ::std::vec::Vec<Link>,
     pub children: ::std::vec::Vec<Child>,
     pub cited_by: ::std::vec::Vec<EntryReadCitedByItem>,
+    pub dated: ::std::vec::Vec<DatedPart>,
     pub entry: Entry,
     pub hidden_children: i64,
     pub links: ::std::vec::Vec<Link>,
     pub media: ::std::vec::Vec<Medium>,
+    pub more_dated: i64,
     pub part_of: ::std::vec::Vec<Place>,
     pub path: ::std::vec::Vec<::std::string::String>,
     pub references: ::std::vec::Vec<EntryReadReferencesItem>,
@@ -824,6 +837,8 @@ impl ::std::convert::TryFrom<::std::string::String> for PlaceProvenance {
 #[doc = "`SearchResult`"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 pub struct SearchResult {
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub date: ::std::option::Option<::std::string::String>,
     pub excerpt: ::std::string::String,
     pub id: ::std::string::String,
     pub path: ::std::vec::Vec<::std::string::String>,
@@ -898,11 +913,18 @@ pub struct SearchResults {
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum Source {
+    SaidByOwner(SourceSaidByOwner),
     Entry(SourceEntry),
     Said(SourceSaid),
+    Seen(SourceSeen),
     Url(SourceUrl),
     Identifier(SourceIdentifier),
     Item(SourceItem),
+}
+impl ::std::convert::From<SourceSaidByOwner> for Source {
+    fn from(value: SourceSaidByOwner) -> Self {
+        Self::SaidByOwner(value)
+    }
 }
 impl ::std::convert::From<SourceEntry> for Source {
     fn from(value: SourceEntry) -> Self {
@@ -912,6 +934,11 @@ impl ::std::convert::From<SourceEntry> for Source {
 impl ::std::convert::From<SourceSaid> for Source {
     fn from(value: SourceSaid) -> Self {
         Self::Said(value)
+    }
+}
+impl ::std::convert::From<SourceSeen> for Source {
+    fn from(value: SourceSeen) -> Self {
+        Self::Seen(value)
     }
 }
 impl ::std::convert::From<SourceUrl> for Source {
@@ -972,6 +999,73 @@ pub struct SourceSaid {
     pub said_by: ::std::string::String,
     pub slug: ::std::string::String,
     pub title: ::std::string::String,
+}
+#[doc = "`SourceSaidByOwner`"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct SourceSaidByOwner {
+    #[doc = "A few words on what this source gave."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub note: ::std::option::Option<::std::string::String>,
+    pub on: ::std::string::String,
+    pub said_by: SourceSaidByOwnerSaidBy,
+}
+#[doc = "`SourceSaidByOwnerSaidBy`"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum SourceSaidByOwnerSaidBy {
+    #[serde(rename = "owner")]
+    Owner,
+}
+impl ::std::fmt::Display for SourceSaidByOwnerSaidBy {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Owner => f.write_str("owner"),
+        }
+    }
+}
+impl ::std::str::FromStr for SourceSaidByOwnerSaidBy {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "owner" => Ok(Self::Owner),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for SourceSaidByOwnerSaidBy {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for SourceSaidByOwnerSaidBy {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`SourceSeen`"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct SourceSeen {
+    #[doc = "A few words on what this source gave."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub note: ::std::option::Option<::std::string::String>,
+    #[doc = "The day the writer did or saw it."]
+    pub on: ::std::string::String,
+    #[doc = "The name of the key that wrote it: what that key did or saw itself."]
+    pub seen_by: ::std::string::String,
 }
 #[doc = "`SourceUrl`"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
@@ -1066,6 +1160,9 @@ pub struct TreePlace {
 #[doc = "`TypeDefinition`"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 pub struct TypeDefinition {
+    #[doc = "Its entries are things that happened at a time, and this field, a required `date`, is the day each happened: they are read under what they are part of, newest first."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub dated_by: ::std::option::Option<::std::string::String>,
     #[doc = "What the type is and when to use it, in the words a user would say: agents choose a type from it."]
     pub description: TypeDefinitionDescription,
     #[doc = "The fields of the type; none is a type with a title and a body only."]

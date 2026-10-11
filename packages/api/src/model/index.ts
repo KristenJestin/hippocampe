@@ -3,11 +3,13 @@ export { About, INSTANCES } from './about.ts'
 export { ISO_DURATION, FIELD_KINDS, FieldDefinition, TypeDefinition } from './types.ts'
 export {
   Child,
+  DatedPart,
   Entry,
   EntryRead,
   HIDDEN,
   Link,
   Medium,
+  OWNER,
   Place,
   PROVENANCES,
   Source,
@@ -17,6 +19,7 @@ export {
   TreeEntry,
   TreePlace,
   WriteEntryInput,
+  WRITER,
 } from './entries.ts'
 export {
   HistoryEvent,

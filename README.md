@@ -13,6 +13,13 @@ the SIL Open Font License 1.1, Open Sauce Sans and Peace Sans: see
 `npm i -g @netsirk/hippocampe`, then `hippo service install`: Hippocampe runs as a service of your
 session on Linux, with a database of its own, on `127.0.0.1` only. Install, update, uninstall and
 where the data is: [`docs/install.md`](docs/install.md). `hippo --help` lists every command.
+What a version promises: [`docs/versions.md`](docs/versions.md).
+
+## Hippocampe with Docker
+
+Server and database in one `docker compose up -d`, on a machine or on a server: start, configure,
+save, update, in [`docs/docker.md`](docs/docker.md). (`docs/install.md` is the npm package as a
+service; it is not the page of a Docker installation.)
 
 ## The desktop viewer
 

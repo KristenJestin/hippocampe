@@ -37,6 +37,8 @@ export type Action =
   | 'delete'
   | 'merge'
   | 'attach'
+  // The entry that stands for the owner named, or no longer.
+  | 'owner'
 
 /**
  * Records a write. It runs in the transaction of the write it describes, so neither exists

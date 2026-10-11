@@ -113,10 +113,11 @@ claude mcp add --transport http hippocampe http://localhost:3000/mcp \
 and links an agent only supposed (written `inferred` or `ambiguous`), the most recently changed
 entries first, with the entry, how it stands, the writer and when (50 at most, saying how many
 more); `--unstated` lists instead what was written before writers were asked. `supposed:confirm
-<entry> <field|body|summary> --as <person>` and `supposed:confirm <entry> <target> --link <relation>
-[--period <p>] [--field <f>] --as <person>` make a supposition known, as the owner (no key with `owner` is ever given to an MCP
+<entry> <field|body|summary> [--as <person>]` and `supposed:confirm <entry> <target> --link <relation>
+[--period <p>] [--field <f>] [--as <person>]` make a supposition known, as the owner (no key with `owner` is ever given to an MCP
 client): it becomes `extracted`, with the source "said by" the entry that stands for you, dated
-today, in one event. In the container: `docker compose exec hippocampe bun src/cli.ts supposed`.
+today, in one event. `owner:entry <slug or id>` names that entry (`--clear` none; alone, it prints
+it): what you said is then cited as said by it, and agents are told to read it. In the container: `docker compose exec hippocampe bun src/cli.ts supposed`.
 `inbox:add <folder> [--origin <name>] [--dry-run] [--again]` drops a folder
 into the inbox, one item per file, sub-folders included (hidden files and links are skipped), for
 agents to process (`inbox_take`, then `inbox_finish`); `--dry-run` says what it would add, and a file
@@ -135,13 +136,13 @@ everything as Markdown into a git repository and commits what changed; the serve
 night when `EXPORT_DIR` is set (see `src/export/README.md`). The other
 entry point of `apps/server`: `bun run mcp` (the MCP tools over stdio, see `src/mcp/README.md`).
 The command line is built with `effect/cli` (`bun run hippo --help`); `hippo serve` runs the
-server, and `hippo service install|uninstall|start|stop|status|logs` and `hippo backup` run
-Hippocampe as a systemd user service with its own PostgreSQL (see `docs/install.md`, and
-`scripts/pack.ts` for the npm packages).
+server, and `hippo service install|uninstall|start|stop|status|logs`, `hippo backup` and
+`hippo restore <file>` run Hippocampe as a systemd user service with its own PostgreSQL (see
+`docs/install.md`, and `scripts/pack.ts` for the npm packages).
 
-Hippocampe with Docker, server and database in one command (the image is built from
-`apps/server/Dockerfile` on the official Bun image, runs as the `bun` user, migrates the database
-before it listens, and keeps data in the `postgres` and `media` volumes):
+Hippocampe with Docker, server and database in one command (`docs/docker.md` has the rest: the
+variables, the ports and volumes, saving and restoring, updating, moving from the name Grenier;
+`docs/install.md` is the npm package as a systemd service, not Docker):
 
 ```
 cp .env.production.example .env.production        # then set BETTER_AUTH_SECRET in it
@@ -149,12 +150,7 @@ docker compose up -d                              # a local instance; HIPPOCAMPE
                                                   # docker compose up -d for the real one
 docker compose exec hippocampe bun src/cli.ts key:create --name local --rights read,write \
   --owner owner@example.org                       # prints the key, once
-claude mcp add --transport http hippocampe http://localhost:3000/mcp \
-  --header "Authorization: Bearer <the key printed above>"
 ```
-
-`HIPPOCAMPE_PORT` and `POSTGRES_PORT` change the published ports; `HIPPOCAMPE_BIND=0.0.0.0` publishes
-the server to the network.
 
 Each Hippocampe knows which instance it is, from three variables read at start-up by the server and
 by the stdio MCP server:
@@ -176,8 +172,8 @@ by the stdio MCP server:
 Hippocampe was named Grenier before 1.0. A `GRENIER_*` variable still set is refused by the server,
 the command line and the stdio MCP server, at start-up, in one sentence naming the `HIPPOCAMPE_*`
 variable to use; it is never read silently. `docs/install.md` says how to move an installation made
-under the old name (`hippo service install` does it for the service, and the page gives the steps for
-Docker); the old name is written nowhere else in the repository but in the code and the tests that
+under the old name (`hippo service install` does it for the service), and `docs/docker.md` gives the
+steps for Docker; the old name is written nowhere else in the repository but in the code and the tests that
 do that moving, in the migrations and in the history.
 
 The server speaks plain HTTP: published on a network, every key crosses it in clear, in the
@@ -319,6 +315,8 @@ nothing else: no GitHub account, no pull request, no CI. Then:
 - **Pull requests into `dev` are merged by squash, and by squash only.** A release merges `dev`
   into `main` with a merge commit (never a squash), so both branches keep one history. The rules
   live in `.github/rulesets/` and are applied with `bun tools/apply-rulesets.ts`.
+- A release that changed the migrations first adds the fixture of the version it replaces, as
+  [`apps/server/tests/upgrade/README.md`](apps/server/tests/upgrade/README.md) says.
 - **About squash merges into `dev`:** The squash commit takes the pull
   request's title, so the title is a plain Angular subject: semantic-release reads those
   subjects to decide the version. The description ends with `Closes #<n>`.
@@ -330,6 +328,11 @@ nothing else: no GitHub account, no pull request, no CI. Then:
 
 BREAKING CHANGE: <description — only if a schema or a public API changes>
 ```
+
+- A change that breaks one of the promises of [`docs/versions.md`](docs/versions.md) (the data
+  from 0.6.0 on, the MCP tools, the `hippo` command line) carries a `BREAKING CHANGE:` footer
+  that names which promise. A change of the read API (`/api/*`, its OpenAPI document) never does:
+  it is experimental.
 
 - `scope`: `repo`, `tools`, `ci`, `docs`, or the name of a package or a domain (`core`, `mcp`,
   `server`, `import`, `types`, `entries`, `search`…).

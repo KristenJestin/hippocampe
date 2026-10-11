@@ -57,6 +57,8 @@ export const types = pgTable('types', {
   deleted_at: timestamp(at),
   sensitive: boolean().notNull().default(false),
   read_in_parent: boolean().notNull().default(false),
+  // The required date field that says when each entry of the type happened, when it is one.
+  dated_by: text(),
 })
 
 /**
@@ -531,6 +533,27 @@ export const instanceRules = pgTable(
     updated: timestamp(at).notNull().defaultNow(),
   },
   () => [check('instance_rules_one', sql`id = 1`)],
+)
+
+/**
+ * The entry that stands for the owner of this instance: one row at most, named by the owner alone.
+ * What the owner said is cited as said by it, and the instructions name it.
+ */
+export const instanceOwner = pgTable(
+  'instance_owner',
+  {
+    id: integer().primaryKey().default(1),
+    entry_id: uuid().notNull(),
+    updated: timestamp(at).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: 'instance_owner_entry_id_fkey',
+      columns: [table.entry_id],
+      foreignColumns: [entries.id],
+    }),
+    check('instance_owner_one', sql`id = 1`),
+  ],
 )
 
 /**

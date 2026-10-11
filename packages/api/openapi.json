@@ -2,7 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Hippocampe",
-    "version": "0.0.0"
+    "version": "0.0.0",
+    "description": "The read API of Hippocampe is experimental: only the desktop viewer uses it, it still moves, and changing it is never a breaking change."
   },
   "paths": {
     "/api/about": {
@@ -676,6 +677,9 @@
               "ambiguous"
             ]
           },
+          "date": {
+            "type": "string"
+          },
           "path": {
             "type": "array",
             "items": {
@@ -883,6 +887,15 @@
           "hidden_children": {
             "type": "integer"
           },
+          "dated": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DatedPart"
+            }
+          },
+          "more_dated": {
+            "type": "integer"
+          },
           "cited_by": {
             "type": "array",
             "items": {
@@ -919,7 +932,41 @@
           "titles",
           "children",
           "hidden_children",
+          "dated",
+          "more_dated",
           "cited_by"
+        ],
+        "additionalProperties": false
+      },
+      "DatedPart": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "type",
+          "title",
+          "date",
+          "summary"
         ],
         "additionalProperties": false
       },
@@ -1346,10 +1393,16 @@
       "Source": {
         "anyOf": [
           {
+            "$ref": "#/components/schemas/SourceSaidByOwner"
+          },
+          {
             "$ref": "#/components/schemas/SourceEntry"
           },
           {
             "$ref": "#/components/schemas/SourceSaid"
+          },
+          {
+            "$ref": "#/components/schemas/SourceSeen"
           },
           {
             "$ref": "#/components/schemas/SourceUrl"
@@ -1422,6 +1475,28 @@
         ],
         "additionalProperties": false
       },
+      "SourceSeen": {
+        "type": "object",
+        "properties": {
+          "seen_by": {
+            "type": "string",
+            "description": "The name of the key that wrote it: what that key did or saw itself."
+          },
+          "on": {
+            "type": "string",
+            "description": "The day the writer did or saw it."
+          },
+          "note": {
+            "type": "string",
+            "description": "A few words on what this source gave."
+          }
+        },
+        "required": [
+          "seen_by",
+          "on"
+        ],
+        "additionalProperties": false
+      },
       "SourceSaid": {
         "type": "object",
         "properties": {
@@ -1471,6 +1546,29 @@
           "entry",
           "slug",
           "title"
+        ],
+        "additionalProperties": false
+      },
+      "SourceSaidByOwner": {
+        "type": "object",
+        "properties": {
+          "said_by": {
+            "type": "string",
+            "enum": [
+              "owner"
+            ]
+          },
+          "on": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "description": "A few words on what this source gave."
+          }
+        },
+        "required": [
+          "said_by",
+          "on"
         ],
         "additionalProperties": false
       },
@@ -1709,6 +1807,10 @@
           "read_in_parent": {
             "type": "boolean",
             "description": "Entries of the type that are part of an entry of the same type are read in that entry, with their fields, as the parts of a whole (the disks of a computer), rather than as entries of their own in the tree."
+          },
+          "dated_by": {
+            "type": "string",
+            "description": "Its entries are things that happened at a time, and this field, a required `date`, is the day each happened: they are read under what they are part of, newest first."
           },
           "fields": {
             "type": "array",

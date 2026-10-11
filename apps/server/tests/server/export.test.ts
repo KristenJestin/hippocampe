@@ -405,6 +405,22 @@ describe('the export never pushes a sensitive value, and holds everything', () =
     )
   })
 
+  test('a dated type keeps the field that dates it; a type without one says nothing of it', async () => {
+    await run(
+      defineType({
+        name: 'service',
+        label: 'Service',
+        description: 'A service done on a thing, on a day.',
+        fields: [{ name: 'done_on', kind: 'date', required: true }],
+        dated_by: 'done_on',
+      }),
+    )
+    const dated = join(scratch, 'dated')
+    expect(cli('export:markdown', dated).status).toBe(0)
+    expect(read(dated, '_types/service.md').front).toMatchObject({ dated_by: 'done_on' })
+    expect(read(dated, '_types/recipe.md').front).not.toHaveProperty('dated_by')
+  })
+
   test('the summary counts what changed since the last commit, not a file left half written', async () => {
     const counted = join(scratch, 'counted')
     expect(cli('export:markdown', counted).status).toBe(0)
@@ -458,6 +474,23 @@ describe('the export never pushes a sensitive value, and holds everything', () =
     expect(read(all, 'rainy-days.md').front).toMatchObject({
       sources: [{ entry: monday }],
       fields: { one: monday },
+    })
+  })
+
+  test('a source said by the owner is exported as said by owner', async () => {
+    await run(
+      writeEntry({
+        type: 'area',
+        title: 'Told by the owner',
+        summary: 'The owner said so.',
+        provenance: { summary: 'extracted' },
+        sources: [{ said_by: 'owner', on: '2026-10-08' }],
+      }),
+    )
+    const folder = join(scratch, 'owner-said')
+    expect(cli('export:markdown', folder).status).toBe(0)
+    expect(read(folder, 'told-by-the-owner.md').front).toMatchObject({
+      sources: [{ said_by: 'owner', on: '2026-10-08' }],
     })
   })
 
