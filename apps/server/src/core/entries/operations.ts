@@ -391,8 +391,8 @@ export const lineageOf = Effect.fn('lineageOf')(function* (id: string) {
 /**
  * An entry, the titles of its ancestors from the root (through the oldest place it is part of),
  * every place it is or was part of, and the entries that are part of it today and are not
- * archived: by title, apart from those that happened at a time, the most recent first (the first
- * `DATED_READ`, and how many more).
+ * archived: by title, apart from those that happened at a time, the most recent first and, of one
+ * day, the last written first (the first `DATED_READ`, and how many more).
  */
 export const readEntry = Effect.fn('readEntry')(function* (reference: string) {
   const db = yield* drizzle
@@ -484,9 +484,11 @@ export const readEntry = Effect.fn('readEntry')(function* (reference: string) {
     ),
     children: shown,
     hidden_children: all.length - shown.length - dated.length,
-    // The most recent first; of one day, by title.
+    // The most recent first; of one day, the last written first (ids are UUIDv7, in creation order).
     dated: dated
-      .toSorted((left, right) => right.date.localeCompare(left.date))
+      .toSorted(
+        (left, right) => right.date.localeCompare(left.date) || right.id.localeCompare(left.id),
+      )
       .slice(0, DATED_READ),
     more_dated: Math.max(dated.length - DATED_READ, 0),
     cited_by: citing
