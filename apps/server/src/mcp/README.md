@@ -65,7 +65,11 @@ rules and runs no AI.
   or a date and time) bound the last change; `by` keeps the entries a key changed last. Each result
   carries `updated` and `by`, read from the event log: the actor of the latest event that
   moved its `updated` (created, updated, archived, a body rewritten by a rename); a link or a
-  medium added later leaves it alone.
+  medium added later leaves it alone. The `excerpt` of each result is then the empty string: it
+  would only repeat the `summary`.
+- **`total`**, beside `results`, is how many entries the search finds in all, the filters applied
+  and what the key may not see left out, whatever the `limit`; the database counts it with the
+  results, in the same statement.
 - **`read`** answers without the body unless `parts` asks for `body`. It names the successor by
   slug (`superseded_by`), the id beside (`superseded_by_id`), and keys `titles` by slug, each with
   its `id`. The tree is given as `path` (the titles above the entry, through the oldest place it

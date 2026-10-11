@@ -1,6 +1,6 @@
 import { SearchOptions } from '@hippocampe/api/model'
 import { neighborsOf } from '../../core/graph/index.ts'
-import { Recency, search } from '../../core/search/index.ts'
+import { Recency, searchWithTotal } from '../../core/search/index.ts'
 import { Effect, Schema } from 'effect'
 import { defineTool } from '../tool.ts'
 
@@ -10,7 +10,7 @@ const NEIGHBORS = 3
 export const searchTool = defineTool({
   name: 'search',
   description:
-    'Finds entries: with a `query`, a sentence or a few words, the entries that hold the most of its significant words, in the heaviest places (titles and aliases, then tags and summaries, then bodies), first, each with a `score` from 0 to 1 that says how solid it is; or without one, listed by most recent change. `sort`, `since`, `until` and `by` order and bound the search by the last change; each result says when (`updated`) and by which key (`by`). `sort: "dated"` keeps only the entries that happened at a time (their type is dated, `dated_by`), the most recent first: with `under`, what happened to a subject, further back than `read` gives. A result whose type is dated says the day it happened (`date`). Each result also comes with its `neighbors`, 3 by default: the entries next to it, explicit links first (a place it was part of is one), then the entries it is part of today (a link `part_of`), then the entries its fields name, then the entries its body cites, most recently updated first among equals. A neighbor is who it is (slug, title, type, summary) and how it is joined (`via`, `relation`, `direction`, the `note` of a link), never its body. `supposed: true` lists the entries that hold values that are not known (a field, the body, the summary or a link written `inferred`, or `ambiguous` when sources disagree), the most recently changed first, each result with its `supposed` list (what, how it stands, who wrote it, when); with `by`, the key that wrote the value: tell the owner what waits; they confirm it from the command line, or you write it again as known when they say so. A result whose summary is not known says `summary_provenance`. Read what you found and follow its neighbors as far as they help.',
+    'Finds entries: with a `query`, a sentence or a few words, the entries that hold the most of its significant words, in the heaviest places (titles and aliases, then tags and summaries, then bodies), first, each with a `score` from 0 to 1 that says how solid it is; or without one, listed by most recent change, each with an empty `excerpt` (it would only repeat the `summary`). The answer also says the `total` of entries the search finds in all, the filters applied, whatever the `limit`: a listing that is cut says there is more, and how much. `sort`, `since`, `until` and `by` order and bound the search by the last change; each result says when (`updated`) and by which key (`by`). `sort: "dated"` keeps only the entries that happened at a time (their type is dated, `dated_by`), the most recent first: with `under`, what happened to a subject, further back than `read` gives. A result whose type is dated says the day it happened (`date`). Each result also comes with its `neighbors`, 3 by default: the entries next to it, explicit links first (a place it was part of is one), then the entries it is part of today (a link `part_of`), then the entries its fields name, then the entries its body cites, most recently updated first among equals. A neighbor is who it is (slug, title, type, summary) and how it is joined (`via`, `relation`, `direction`, the `note` of a link), never its body. `supposed: true` lists the entries that hold values that are not known (a field, the body, the summary or a link written `inferred`, or `ambiguous` when sources disagree), the most recently changed first, each result with its `supposed` list (what, how it stands, who wrote it, when); with `by`, the key that wrote the value: tell the owner what waits; they confirm it from the command line, or you write it again as known when they say so. A result whose summary is not known says `summary_provenance`. Read what you found and follow its neighbors as far as they help.',
   input: Schema.Struct({
     query: Schema.optionalKey(Schema.String).annotate({
       description:
@@ -28,9 +28,9 @@ export const searchTool = defineTool({
   right: 'read',
   run: ({ query, neighbors, ...options }) =>
     Effect.gen(function* () {
-      const results = yield* search(query, options)
+      const { results, total } = yield* searchWithTotal(query, options)
       const count = neighbors ?? NEIGHBORS
-      if (count === 0) return { results }
+      if (count === 0) return { results, total }
       const next = yield* neighborsOf(
         results.map(({ id }) => id),
         { count, archived: options.archived ?? false },
@@ -40,6 +40,7 @@ export const searchTool = defineTool({
         results: results.map((result) =>
           Object.assign(result, { neighbors: next[result.id] ?? [] }),
         ),
+        total,
       }
     }),
 })

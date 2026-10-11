@@ -124,7 +124,7 @@ describe('a key lists the tools its rights allow, in a fixed order', () => {
     expect(JSON.stringify(refused?.error ?? refused?.result)).toMatch(/write/)
     expect(JSON.stringify(refused?.result ?? {})).not.toContain('"slug"')
     expect(await reader?.call('search', { query: 'allowed' })).toEqual({
-      result: { results: [] },
+      result: { results: [], total: 0 },
     })
   })
 })

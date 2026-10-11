@@ -180,6 +180,58 @@ describe('search without a query lists by recent change', () => {
   })
 })
 
+describe('search says how many entries it finds in all', () => {
+  const items = async () =>
+    asJson(await plain(searchTool.run({ type: 'item', limit: 100, neighbors: 0 })))
+
+  test('the answer carries the total beside the results, with neighbors or without', async () => {
+    const all = await items()
+    expect(all.results.length).toBeGreaterThan(1)
+    expect(all.total).toBe(all.results.length)
+    const withNeighbors = asJson(await plain(searchTool.run({ type: 'item', limit: 1 })))
+    expect(withNeighbors.results).toHaveLength(1)
+    expect(withNeighbors.total).toBe(all.total)
+    const without = asJson(await plain(searchTool.run({ type: 'item', limit: 1, neighbors: 0 })))
+    expect(without.results).toHaveLength(1)
+    expect(without.total).toBe(all.total)
+    const found = asJson(await plain(searchTool.run({ query: 'home server', limit: 1 })))
+    expect(found.total).toBeGreaterThan(1)
+  })
+
+  test('the total leaves out what the key may not see, and counts nothing when nothing is found', async () => {
+    const vaults = async (rights: typeof plain) =>
+      asJson(await rights(searchTool.run({ type: 'vault', neighbors: 0 }))).total
+    const before = await vaults(trusted)
+    await run(
+      writeEntry({
+        type: 'vault',
+        title: 'Server vault',
+        summary: 'Passwords of the home server.',
+        provenance: { summary: 'inferred' },
+      }),
+    )
+    expect(await vaults(trusted)).toBe(before + 1)
+    expect(await vaults(plain)).toBe(0)
+    expect(asJson(await plain(searchTool.run({ query: 'zzyzx', neighbors: 0 })))).toEqual({
+      results: [],
+      total: 0,
+    })
+  })
+
+  test('a listing without a query says each summary once, not again as an excerpt', async () => {
+    const listed = await items()
+    expect(listed.results.map(({ excerpt }: { excerpt: string }) => excerpt)).toEqual(
+      listed.results.map(() => ''),
+    )
+    expect(JSON.stringify(listed).split('The box under the stairs.')).toHaveLength(2)
+  })
+
+  test('the description of the tool says what the total and the empty excerpt mean', () => {
+    expect(searchTool.description).toContain('`total`')
+    expect(searchTool.description).toContain('`excerpt`')
+  })
+})
+
 describe('read is concise by default', () => {
   test('without parts, read returns no body, and gives the places it is part of with their slug and id', async () => {
     const read = asJson(await plain(readTool.run({ entry: 'graphics-card' })))
