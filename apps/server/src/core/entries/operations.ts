@@ -957,14 +957,10 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
         const added = provenance['body']
         const partial =
           (append === true || prepend === true || edits !== undefined) && base.body !== ''
+        const oldBody = Object.entries(base.provenance).find(([name]) => name === 'body')?.[1]
         const mixed =
           partial && (added === 'extracted' || added === 'inferred' || added === 'ambiguous')
-            ? {
-                body: mixedProvenance(
-                  Object.entries(base.provenance).find(([name]) => name === 'body')?.[1],
-                  added,
-                ),
-              }
+            ? { body: mixedProvenance(oldBody, added) }
             : {}
         const state = {
           ...base,
@@ -1362,6 +1358,13 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
               `The field \`provenance.${name}\` is required with \`${at}\`: say \`extracted\` (known, read in a source), \`inferred\` (supposed by you) or \`ambiguous\` (sources disagree).`,
             )
           }
+        }
+        // A partial write says the provenance of the whole body after it, which it cannot make
+        // more known than the rest of the body is: never silently another.
+        if (mixed.body !== undefined && mixed.body !== added) {
+          problems.push(
+            `The body ${oldBody === undefined ? 'has no provenance' : `is \`${oldBody}\``}${oldBody === 'unstated' ? ' (written before writers were asked)' : ''}: ${edits === undefined ? 'a part added to it does' : 'words edited in it do'} not make the rest of it known, so with \`provenance.body\` \`${added}\` it would be \`${mixed.body}\` as a whole. Say \`provenance.body: "${mixed.body}"\`, the provenance of the whole body after this write, or write the whole body again in \`body\`, without \`append\`, \`prepend\` or \`edits\`, with the provenance of all of it.`,
+          )
         }
         // The place is known when it is read in a source, which the entry then has.
         if (placeProvenance === 'extracted' && sources.length === 0 && !sourcesRefused) {

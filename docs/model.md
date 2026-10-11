@@ -94,7 +94,11 @@ disagree.
   it (`edits`) do not make the whole body known: the body stays `extracted` only if its old
   provenance and the part's both are, becomes `ambiguous` if either is, and is `inferred`
   otherwise. A body that was `unstated`, with an `extracted` part, is `inferred`: what the old part
-  was cannot be known. A body written whole again takes the provenance given. A field is not named
+  was cannot be known. So the `provenance.body` of such a write is that of the whole body after it,
+  and a write that asks another is refused, saying the one it would be: the body never ends with a
+  provenance the writer did not give. A body written whole again takes the provenance given: it is
+  how a writer that vouches for all of it (a body `unstated`, read again against its source) makes
+  it known. A field is not named
   `body` or `summary`, which are the keys of the provenance of those two texts; a migration refuses
   a database where a type has one, naming the type and the field, until it is renamed.
 - **A known value has a source.** An entry that holds an `extracted` value (a field, the body, the
