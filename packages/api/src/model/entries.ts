@@ -275,7 +275,7 @@ export const WriteEntryInput = Schema.Struct({
     Schema.Record(Schema.String, Schema.NullOr(Schema.String)),
   ).annotate({
     description:
-      'Whether each value written is known or supposed, by field name, required for every key of `fields` given: `extracted` (known, read in a source: the entry then needs a source), `inferred` (supposed by you) or `ambiguous` (sources disagree). Also `body` and `summary` when you write them: a body that mixes known facts and suppositions is `inferred`. Also `parent` when you give one: `extracted` or `inferred`, not `ambiguous`. A `null` removes it.',
+      'Whether each value written is known or supposed, by field name, required for every key of `fields` given: `extracted` (known, read in a source: the entry then needs a source), `inferred` (supposed by you) or `ambiguous` (sources disagree). Also `body` and `summary` when you write them: a body that mixes known facts and suppositions is `inferred`. With `append`, `prepend` or `edits`, `body` says the provenance of the whole body after the write: a part does not make the rest known, so it can be `extracted` only when the body stored is, and must be `ambiguous` when the body stored is; another is refused. To say all of it known, write the whole body again. Also `parent` when you give one: `extracted` or `inferred`, not `ambiguous`. A `null` removes it.',
   }),
   sources: Schema.optionalKey(Schema.Array(SourceGiven)).annotate({
     description:

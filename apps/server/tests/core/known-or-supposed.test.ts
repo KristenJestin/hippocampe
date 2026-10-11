@@ -582,156 +582,81 @@ describe('the names of the body and the summary are the keys of their provenance
   })
 })
 
-describe('a part added to a body does not make the whole body known', () => {
+describe('a partial write leaves the body with the provenance asked, or is refused', () => {
   const source = [{ url: 'https://example.org/minutes' }]
   const bodyOf = async (slug: string) => (await run(readEntry(slug))).entry.provenance['body']
-
-  test('an extracted part appended to an inferred body leaves the body inferred', async () => {
-    await run(
+  const parts = {
+    append: { body: 'Heard today.\n', append: true },
+    prepend: { body: 'Heard today.\n', prepend: true },
+    edits: { edits: [{ find: 'Lyon', replace: 'Annecy' }] },
+  }
+  const PARTIAL = (old: string, part: keyof typeof parts, asked: string, whole: string) =>
+    `The body is \`${old}\`${old === 'unstated' ? ' (written before writers were asked)' : ''}: ${part === 'edits' ? 'words edited in it do' : 'a part added to it does'} not make the rest of it known, so with \`provenance.body\` \`${asked}\` it would be \`${whole}\` as a whole. Say \`provenance.body: "${whole}"\`, the provenance of the whole body after this write, or write the whole body again in \`body\`, without \`append\`, \`prepend\` or \`edits\`, with the provenance of all of it.`
+  /** A body stored as `old`, given its provenance in the database when it is `unstated`. */
+  const stored = async (title: string, old: string) => {
+    const written = await run(
       writeEntry({
         type: 'visit',
-        title: 'Guessed minutes',
-        body: 'Probably Lyon.\n',
-        provenance: { body: 'inferred' },
-      }),
-    )
-    await run(
-      writeEntry({
-        entry: 'guessed-minutes',
-        body: 'Confirmed by phone.\n',
-        append: true,
-        provenance: { body: 'extracted' },
+        title,
+        body: 'Met in Lyon.\n',
+        provenance: { body: old === 'unstated' ? 'inferred' : old },
         sources: source,
       }),
     )
-    expect(await bodyOf('guessed-minutes')).toBe('inferred')
-  })
+    if (old === 'unstated') {
+      await run(
+        execute(
+          `UPDATE entries SET provenance = jsonb_set(provenance, '{body}', '"unstated"') WHERE slug = $1`,
+          written.slug,
+        ),
+      )
+    }
+    return written.slug
+  }
 
-  test('the same through prepend and through edits', async () => {
-    await run(
-      writeEntry({
-        type: 'visit',
-        title: 'Guessed notes',
-        body: 'Probably Lyon.\n',
-        provenance: { body: 'inferred' },
-      }),
-    )
-    await run(
-      writeEntry({
-        entry: 'guessed-notes',
-        body: 'Said on the phone.\n',
-        prepend: true,
-        provenance: { body: 'extracted' },
-        sources: source,
-      }),
-    )
-    expect(await bodyOf('guessed-notes')).toBe('inferred')
-    await run(
-      writeEntry({
-        entry: 'guessed-notes',
-        edits: [{ find: 'Lyon', replace: 'Annecy' }],
-        provenance: { body: 'extracted' },
-      }),
-    )
-    expect(await bodyOf('guessed-notes')).toBe('inferred')
-  })
+  // The provenance stored, the one a partial write asks, the body's as a whole after it, and
+  // whether the write is refused for asking another.
+  const cases = [
+    ['extracted', 'extracted', 'extracted', false],
+    ['extracted', 'inferred', 'inferred', false],
+    ['extracted', 'ambiguous', 'ambiguous', false],
+    ['inferred', 'extracted', 'inferred', true],
+    ['inferred', 'inferred', 'inferred', false],
+    ['inferred', 'ambiguous', 'ambiguous', false],
+    ['unstated', 'extracted', 'inferred', true],
+    ['unstated', 'inferred', 'inferred', false],
+    ['unstated', 'ambiguous', 'ambiguous', false],
+    ['ambiguous', 'extracted', 'ambiguous', true],
+    ['ambiguous', 'inferred', 'ambiguous', true],
+    ['ambiguous', 'ambiguous', 'ambiguous', false],
+  ] as const
+  for (const part of ['append', 'prepend', 'edits'] as const) {
+    for (const [old, asked, whole, refused] of cases) {
+      const outcome = refused ? `is refused: it would be ${whole}` : `is ${whole}`
+      test(`an ${old} body with ${part} said ${asked} ${outcome}`, async () => {
+        const slug = await stored(`${old} ${part} ${asked}`, old)
+        const write = writeEntry({ entry: slug, ...parts[part], provenance: { body: asked } })
+        if (refused) {
+          expect(await run(refusalOf(write))).toBe(PARTIAL(old, part, asked, whole))
+          expect(await bodyOf(slug)).toBe(old)
+        } else {
+          expect((await run(write)).provenance['body']).toBe(whole)
+          expect(await bodyOf(slug)).toBe(whole)
+        }
+      })
+    }
+  }
 
-  test('the body stays extracted only when the old and the new provenance both are', async () => {
+  test('an unstated body cleaned with edits is made known by writing it whole again', async () => {
+    const slug = await stored('Cleaned minutes', 'unstated')
     await run(
       writeEntry({
-        type: 'visit',
-        title: 'Known minutes',
-        body: 'Said on the phone.\n',
-        provenance: { body: 'extracted' },
-        sources: source,
-      }),
-    )
-    await run(
-      writeEntry({
-        entry: 'known-minutes',
-        body: 'Said again.\n',
-        append: true,
+        entry: slug,
+        body: 'Met in [[annecy]].\n',
         provenance: { body: 'extracted' },
       }),
     )
-    expect(await bodyOf('known-minutes')).toBe('extracted')
-    await run(
-      writeEntry({
-        entry: 'known-minutes',
-        body: 'Perhaps by mail.\n',
-        append: true,
-        provenance: { body: 'inferred' },
-      }),
-    )
-    expect(await bodyOf('known-minutes')).toBe('inferred')
-  })
-
-  test('either provenance ambiguous makes the body ambiguous', async () => {
-    await run(
-      writeEntry({
-        type: 'visit',
-        title: 'Disputed minutes',
-        body: 'Said on the phone.\n',
-        provenance: { body: 'extracted' },
-        sources: source,
-      }),
-    )
-    await run(
-      writeEntry({
-        entry: 'disputed-minutes',
-        body: 'Another version.\n',
-        append: true,
-        provenance: { body: 'ambiguous' },
-      }),
-    )
-    expect(await bodyOf('disputed-minutes')).toBe('ambiguous')
-    await run(
-      writeEntry({
-        entry: 'disputed-minutes',
-        body: 'Said once more.\n',
-        append: true,
-        provenance: { body: 'extracted' },
-      }),
-    )
-    expect(await bodyOf('disputed-minutes')).toBe('ambiguous')
-  })
-
-  test('an unstated body with an extracted part is inferred: what the old part was cannot be known', async () => {
-    await run(
-      writeEntry({
-        type: 'visit',
-        title: 'Old minutes',
-        body: 'Written before.\n',
-        provenance: { body: 'inferred' },
-      }),
-    )
-    await run(
-      execute(
-        `UPDATE entries SET provenance = jsonb_set(provenance, '{body}', '"unstated"') WHERE slug = $1`,
-        'old-minutes',
-      ),
-    )
-    await run(
-      writeEntry({
-        entry: 'old-minutes',
-        body: 'Heard today.\n',
-        append: true,
-        provenance: { body: 'extracted' },
-        sources: source,
-      }),
-    )
-    expect(await bodyOf('old-minutes')).toBe('inferred')
-  })
-
-  test('a body written whole again takes the provenance given', async () => {
-    await run(
-      writeEntry({
-        entry: 'guessed-minutes',
-        body: 'All of it said on the phone.\n',
-        provenance: { body: 'extracted' },
-      }),
-    )
-    expect(await bodyOf('guessed-minutes')).toBe('extracted')
+    expect(await bodyOf(slug)).toBe('extracted')
   })
 })
 
