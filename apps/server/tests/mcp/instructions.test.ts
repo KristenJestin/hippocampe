@@ -457,12 +457,25 @@ describe('agents keep each thing that happened at a time as an entry of its own'
     expect(told).toContain(
       'When the user points to something you can open (a link, a name you can look up), open it before writing, without asking',
     )
-    expect(told).toContain('`extracted`, with it as the source')
+    expect(told).toContain('`extracted`, with the page as the source')
     expect(told).toContain('what you guess from it is `inferred`')
     expect(told).toContain(
       "What you found may name other things: search for each, link the entry to those that exist, and create those that a type's description says to keep",
     )
     expect(told).toContain('Ask only when you cannot reach it, and say what you could not read')
+  })
+
+  test("an agent follows what it opened as far as it helps, and keeps what serves the user's reason", () => {
+    // The paragraph is wrapped: compared on one line.
+    const told = instructionsFor(types, development).replace(/\s+/g, ' ')
+    expect(told).toContain('follow it within a few pages as far as it helps')
+    expect(told).toContain('what it links to that says who or what it is')
+    expect(told).toContain('a search on the name found')
+    expect(told).toContain('keeping first what serves why the user keeps it')
+    // The same provenance: what a page says is `extracted`, with that page as its source.
+    expect(told).toContain('`extracted`, with the page as the source')
+    // One sentence, no paragraph more, and no site named.
+    expect(told.match(/within a few pages/g)).toHaveLength(1)
   })
 
   test("the instructions say when the writer's own account is a source, and when it is not", () => {

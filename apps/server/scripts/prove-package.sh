@@ -27,17 +27,27 @@ if [ "$said" != "hippo v$version" ]; then
   exit 1
 fi
 
-# The PostgreSQL of the installed package, with the library links npm's blocked script would make.
-native=$(dirname "$(find "$scratch/prefix/lib/node_modules" -path '*@embedded-postgres/linux-x64/package.json' | head -n 1)")/native
-cp -r "$native" "$scratch/postgresql"
-node -e '
-const fs = require("node:fs"), path = require("node:path")
-const root = process.argv[1]
-for (const { source, target } of JSON.parse(fs.readFileSync(path.join(root, "pg-symlinks.json"), "utf8"))) {
-  const to = path.join(root, target.replace(/^native\//, ""))
-  const from = path.join(root, source.replace(/^native\//, ""))
-  if (!fs.existsSync(to)) fs.symlinkSync(path.relative(path.dirname(to), from), to)
-}' "$scratch/postgresql"
+# The PostgreSQL the installed launcher hands the executable, as the owner meets it: `hippo
+# service install` copies the binaries into the data folder before it asks systemd for anything.
+# A `systemctl` that refuses everything stops it right after the copy and the initdb, so nothing
+# of the machine is touched and nothing is started; `HIPPOCAMPE_POSTGRES_BINARIES` is not set here.
+# Run from the scratch folder: from the repository, the executable would find the PostgreSQL
+# package of the workspace by itself, and the proof would not see the launcher fail.
+mkdir "$scratch/stub"
+printf '#!/bin/sh\necho "refused by the proof" >&2\nexit 1\n' >"$scratch/stub/systemctl"
+chmod +x "$scratch/stub/systemctl"
+installed=$(cd "$scratch" && env -u HIPPOCAMPE_POSTGRES_BINARIES HOME="$scratch/home" \
+  XDG_CONFIG_HOME="$scratch/home/.config" XDG_DATA_HOME="$scratch/home/.local/share" \
+  PATH="$scratch/stub:$PATH" "$hippo" service install 2>&1) || true
+postgresql="$scratch/home/.local/share/hippocampe/postgresql"
+case "$installed" in
+  "systemctl --user daemon-reload failed: refused by the proof") ;;
+  *)
+    echo "hippo service install did not reach systemd: $installed" >&2
+    exit 1
+    ;;
+esac
+cp -r "$postgresql" "$scratch/postgresql"
 printf 'proof\n' >"$scratch/password"
 "$scratch/postgresql/bin/initdb" -D "$scratch/database" -U hippocampe --pwfile="$scratch/password" \
   -A scram-sha-256 -E UTF8 --locale=C >/dev/null

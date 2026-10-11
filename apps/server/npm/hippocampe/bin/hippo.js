@@ -3,17 +3,20 @@
 // the platform carries both, as esbuild carries its own.
 'use strict'
 const { spawnSync } = require('node:child_process')
+const { existsSync } = require('node:fs')
 const { dirname, join } = require('node:path')
 
 const platform = `${process.platform}-${process.arch}`
-/** The folder of an installed package, looked for from `from` (this package by default). */
-const found = (name, from) => {
-  try {
-    return dirname(
-      require.resolve(`${name}/package.json`, from === undefined ? {} : { paths: [from] }),
-    )
-  } catch {
-    return undefined
+/**
+ * The folder of an installed package, looked for in the `node_modules` of `from` (this launcher
+ * by default) and of each folder above it. Not through `require.resolve`: a package that declares
+ * `exports`, as the PostgreSQL one does, refuses its own `package.json`.
+ */
+const found = (name, from = __dirname) => {
+  for (let folder = from; ; folder = dirname(folder)) {
+    const candidate = join(folder, 'node_modules', name)
+    if (existsSync(join(candidate, 'package.json'))) return candidate
+    if (dirname(folder) === folder) return undefined
   }
 }
 const own = found(`@netsirk/hippocampe-${platform}`)
@@ -23,8 +26,17 @@ if (own === undefined) {
 }
 // A dependency of the package of the platform: looked for from there.
 const postgres = found(`@embedded-postgres/${platform}`, own)
+if (postgres === undefined) {
+  console.error(
+    `Hippocampe cannot find its PostgreSQL, the package @embedded-postgres/${platform}.`,
+  )
+  process.exit(1)
+}
 const executable = join(own, 'bin', 'hippo')
-const env = { ...process.env, HIPPOCAMPE_EXECUTABLE: executable }
-if (postgres !== undefined) env.HIPPOCAMPE_POSTGRES_BINARIES = join(postgres, 'native')
+const env = {
+  ...process.env,
+  HIPPOCAMPE_EXECUTABLE: executable,
+  HIPPOCAMPE_POSTGRES_BINARIES: join(postgres, 'native'),
+}
 const ran = spawnSync(executable, process.argv.slice(2), { stdio: 'inherit', env })
 process.exit(ran.status ?? 1)

@@ -162,12 +162,11 @@ when to use it, is written in its description.
 Before writing, look at the types. Choose the type whose description matches what the user says,
 even when they do not name it. Before creating an entry, search for an existing one, and update
 it when it is the same thing. When no type fits, define one with \`define_type\` instead of asking,
-for any kind of thing that may come again (a link kept, a film seen, a wine tasted; for what
+for any kind that may come again (a link kept; for what
 happened at a time, a required \`date\` field named by \`dated_by\`): read \`types\` first, and use or
-extend a type that covers it under another name; a catch-all type (one to use when nothing more
-precise fits) is no place for a kind with fields of its own. Give the new type a description that
-says when to use it, so that the next agent picks it, and tell the user in one sentence which type
-you defined and why. Ask only when you cannot tell what the thing is. When the user points to something you can open (a link, a name you can look up), open it before writing, without asking, and fill the entry with what you found, \`extracted\`, with it as the source; what you guess from it is \`inferred\`. What you found may name other things: search for each, link the entry to those that exist, and create those that a type's description says to keep. Ask only when you cannot reach it, and say what you could not read.`
+extend a type that covers it under another name; a catch-all type is no place for a kind with fields of its own. Give the new type a description that
+says when to use it, so the next agent picks it, and tell the user in one sentence which type
+you defined and why. Ask only when you cannot tell what the thing is. When the user points to something you can open (a link, a name you can look up), open it before writing, without asking, follow it within a few pages as far as it helps (what it links to that says who or what it is, a search on the name found), keeping first what serves why the user keeps it, and fill the entry with what you found, \`extracted\`, with the page as the source; what you guess from it is \`inferred\`. What you found may name other things: search for each, link the entry to those that exist, and create those that a type's description says to keep. Ask only when you cannot reach it, and say what you could not read.`
 
 /** The entry that stands for the owner, as the instructions name it: its slug and its title. */
 type Owner = { readonly slug: string; readonly title: string }
