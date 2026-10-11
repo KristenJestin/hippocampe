@@ -116,8 +116,23 @@ export const search = Effect.fn('search')(function* (
   const withHiddenFields = Object.entries(hiddenFields).flatMap(([type, fields]) =>
     fields.length > 0 ? [type] : [],
   )
-  const ofTypesWithHiddenFields =
-    withHiddenFields.length === 0 ? sql`false` : sql`e.type IN ${sql.in(withHiddenFields)}`
+  const ofTypesWithHiddenFields = (entry: 'e' | 'x') =>
+    withHiddenFields.length === 0
+      ? sql`false`
+      : sql`${sql.literal(entry)}.type IN ${sql.in(withHiddenFields)}`
+  // The words of an entry the caller may see: those of the index, but the fields they may not.
+  const visibleWords = (entry: 'e' | 'x') => {
+    const of = (column: string) => sql.literal(`${entry}.${column}`)
+    return sql`${of('search')} || setweight(jsonb_to_tsvector(${configuration}::regconfig,
+          ${of('fields')} - coalesce(ARRAY(SELECT jsonb_array_elements_text(
+            ${JSON.stringify(hiddenFields)}::jsonb -> ${of('type')})), '{}'),
+          '["string", "numeric"]'), 'C')
+        -- Where the entry comes from: its URLs, external identifiers and their labels.
+        || setweight(jsonb_to_tsvector(${configuration}::regconfig,
+          jsonb_path_query_array(${of('sources')}, '$[*].url')
+            || jsonb_path_query_array(${of('sources')}, '$[*].identifier')
+            || jsonb_path_query_array(${of('sources')}, '$[*].label'), '["string"]'), 'C')`
+  }
   const subtree = yield* subtreeOf(under)
   // The day the entry happened, when its type is dated and the caller may see it.
   const dated = yield* datedOn
@@ -166,6 +181,20 @@ export const search = Effect.fn('search')(function* (
         AS token,
         unnest(tsvector_to_array(to_tsvector(${configuration}::regconfig, token.token))) AS lexeme
       WHERE token.alias NOT IN ('hword', 'asciihword', 'numhword')
+    ), seen AS MATERIALIZED (
+      SELECT count(*) AS entries FROM entries x
+      WHERE NOT (${JSON.stringify(hiddenTypes)}::jsonb ? x.type)
+    ), rarities AS MATERIALIZED (
+      -- How rare each word is among the entries the caller may see, as BM25 counts it: a word
+      -- most entries hold weighs almost nothing, a word none holds weighs most. One count per
+      -- word, which the search index answers.
+      SELECT word, ln(1 + (seen.entries - holding + 0.5) / (holding + 0.5)) AS rarity
+      FROM words, seen, unnest(words.quoted) AS word, LATERAL (
+        SELECT count(*) AS holding FROM entries x
+        WHERE ${sql.literal(SEARCHABLE)} @@ word::tsquery
+          AND NOT (${JSON.stringify(hiddenTypes)}::jsonb ? x.type)
+          AND (NOT ${ofTypesWithHiddenFields('x')} OR ${visibleWords('x')} @@ word::tsquery)
+      ) AS counted
     ), query AS MATERIALIZED (
       -- With an operator, a web search, every word required; otherwise any of the words. Each
       -- word also as found in a title or aliases (\`A\`), in tags or a summary (\`B\`), or anywhere.
@@ -173,24 +202,19 @@ export const search = Effect.fn('search')(function* (
         operators
           ? sql`websearch_to_tsquery(${configuration}::regconfig, ${text})`
           : sql`nullif(array_to_string(words.quoted, ' | '), '')::tsquery`
-      } AS q, cardinality(words.quoted) AS count,
-        ARRAY(SELECT (word || ':A')::tsquery FROM unnest(words.quoted) AS word) AS titled,
-        ARRAY(SELECT (word || ':B')::tsquery FROM unnest(words.quoted) AS word) AS summarised,
-        ARRAY(SELECT word::tsquery FROM unnest(words.quoted) AS word) AS anywhere
-      FROM words
+      } AS q, each.*
+      FROM words, LATERAL (
+        -- One pass, so that the arrays keep the words in the same order.
+        SELECT array_agg((word || ':A')::tsquery) AS titled,
+          array_agg((word || ':B')::tsquery) AS summarised,
+          array_agg(word::tsquery) AS anywhere, array_agg(rarity) AS rarity, sum(rarity) AS weight
+        FROM rarities
+      ) AS each
     ), ${subtree}
     , found AS (
       SELECT e.*, ${sql.literal(SEARCHABLE)} AS everything,
         -- The values of the fields, but those the caller may not see, weigh as much as a body.
-        e.search || setweight(jsonb_to_tsvector(${configuration}::regconfig,
-          e.fields - coalesce(ARRAY(SELECT jsonb_array_elements_text(
-            ${JSON.stringify(hiddenFields)}::jsonb -> e.type)), '{}'), '["string", "numeric"]'),
-          'C')
-        -- Where the entry comes from: its URLs, external identifiers and their labels.
-        || setweight(jsonb_to_tsvector(${configuration}::regconfig,
-          jsonb_path_query_array(e.sources, '$[*].url')
-            || jsonb_path_query_array(e.sources, '$[*].identifier')
-            || jsonb_path_query_array(e.sources, '$[*].label'), '["string"]'), 'C') AS words
+        ${visibleWords('e')} AS words
       FROM entries e WHERE NOT (${JSON.stringify(hiddenTypes)}::jsonb ? e.type)
     )
     SELECT e.id::text AS id, e.slug, e.type, e.title, e.summary, NULL AS path,
@@ -198,13 +222,14 @@ export const search = Effect.fn('search')(function* (
         concat_ws(' — ', e.title, nullif(e.summary, ''), nullif(e.body, '')), query.q,
         ${HEADLINE}), e.summary) AS excerpt,
       ts_rank(held.words, query.q)::float8 AS rank,
-      -- Each significant word counts by the heaviest place the entry holds it in, as \`ts_rank\`
-      -- weighs them: 1 in the title and aliases, 0.4 in the tags and summary, 0.2 elsewhere.
-      (SELECT coalesce(sum(CASE WHEN held.words @@ titled THEN 1 WHEN held.words @@ summarised
-          THEN 0.4 WHEN held.words @@ anywhere THEN 0.2 ELSE 0 END), 0)
-        FROM unnest(query.titled, query.summarised, query.anywhere)
-          AS word(titled, summarised, anywhere)
-      )::float8 / greatest(query.count, 1) AS score, ${lastChange},
+      -- Each significant word counts by its rarity, times the heaviest place the entry holds it
+      -- in, as \`ts_rank\` weighs them: 1 in the title and aliases, 0.4 in the tags and summary,
+      -- 0.2 elsewhere; over what all the words would count in a title.
+      coalesce((SELECT sum(rarity * CASE WHEN held.words @@ titled THEN 1
+          WHEN held.words @@ summarised THEN 0.4 WHEN held.words @@ anywhere THEN 0.2 ELSE 0 END)
+        FROM unnest(query.titled, query.summarised, query.anywhere, query.rarity)
+          AS word(titled, summarised, anywhere, rarity)
+      ) / nullif(query.weight, 0), 0)::float8 AS score, ${lastChange},
       -- A query that is the words of a slug, whole and in order, names that entry: those come
       -- first, the closest slug first.
       CASE WHEN ('-' || e.slug || '-') LIKE ${`%-${slugOf(text)}-%`}
@@ -218,7 +243,7 @@ export const search = Effect.fn('search')(function* (
       -- What the indexes find: the same matches, every field counted, so PostgreSQL reads them
       -- instead of every entry; the condition above then sets the hidden fields aside.
       AND (e.everything @@ query.q
-        OR ${ofTypesWithHiddenFields}
+        OR ${ofTypesWithHiddenFields('e')}
         OR e.sources @> jsonb_build_array(jsonb_build_object('url', ${text}::text))
         OR e.sources @> jsonb_build_array(jsonb_build_object('identifier', ${text}::text)))
       ${filters}

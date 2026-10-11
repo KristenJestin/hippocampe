@@ -48,7 +48,7 @@ const corpus = Effect.gen(function* () {
     slug: 'abonnement-internet',
     aliases: ['box fibre'],
     summary: "La fibre de l'appartement.",
-    body: 'Contrat signé en mars, résiliable chaque mois.',
+    body: 'Contrat signé en mars, résiliable chaque mois. Échéance en septembre.',
     fields: { provider: 'Opérateur Exemple', customer_number: 'quetzal' },
     provenance: { ...inferred, provider: 'inferred', customer_number: 'inferred' },
   })
@@ -104,6 +104,17 @@ const corpus = Effect.gen(function* () {
     body: "Changer les pneus avant l'été.",
     provenance: inferred,
   })
+  // A title made of the common words of a spoken question, beside the entry it is about.
+  yield* writeEntry({ type: 'note', title: 'Où et quand rappeler', slug: 'ou-et-quand-rappeler' })
+  // What makes words common: forty notes that hold them, as a real instance would.
+  const sql = yield* SqlClient.SqlClient
+  yield* sql.unsafe(
+    `INSERT INTO entries (type, title, slug, body, search_language)
+     SELECT 'note', 'Carnet ' || n, 'carnet-' || n,
+       'Où est-ce que je le range, et quand je rappelle ? Les carnets du jour.',
+       'hippocampe_french'
+     FROM generate_series(1, 40) AS n`,
+  )
 }).pipe(inFrench)
 
 const titles = (results: ReadonlyArray<{ title: string }>) => results.map(({ title }) => title)
@@ -124,6 +135,36 @@ describe('search with a sentence, in French', () => {
     expect(results[0]?.title).toBe('Abonnement internet')
   })
 
+  test('the common words of a spoken question do not outrank the word that matters', async () => {
+    // `Où et quand rappeler` holds `où`, `quand` and `rappel` in its title, and forty notes hold
+    // them too: the rare words, `contrat`, `internet` and `échéance`, make the answer.
+    const answers = await Promise.all(
+      [
+        'Rappelle-moi où en est le contrat internet',
+        "C'est quand l'échéance du contrat internet ?",
+      ].map((question) => find(question)),
+    )
+    for (const [first, ...others] of answers) {
+      expect(first?.title).toBe('Abonnement internet')
+      const decoy = others.find(({ slug }) => slug === 'ou-et-quand-rappeler')
+      expect(decoy?.score).toBeLessThan((first?.score ?? 0) / 2)
+    }
+  })
+
+  test('a word most entries hold weighs little, a word no entry holds weighs much', async () => {
+    // `carnet` is in forty notes of fifty: `musique` in a title is nearly all of the answer.
+    const server = (results: ReadonlyArray<{ title: string; score?: number }>) =>
+      results.find(({ title }) => title === 'Serveur de musique')?.score
+    const common = await find('musique carnet')
+    expect(titles(common.slice(0, 2)).sort()).toEqual([
+      'Décision sur la musique',
+      'Serveur de musique',
+    ])
+    expect(server(common)).toBeGreaterThan(0.85)
+    // `zeppelin` is nowhere: what was asked was not found, whatever `musique` finds.
+    expect(server(await find('musique zeppelin'))).toBeLessThan(0.5)
+  })
+
   test('plural and conjugated forms find the entry written otherwise', async () => {
     expect((await find('les tartes avec des pommes'))[0]?.title).toBe('Tarte aux pommes')
     expect((await find('on décidait quoi déjà ?'))[0]?.title).toBe('Décision sur la musique')
@@ -142,13 +183,14 @@ describe('search with a sentence, in French', () => {
   })
 
   test('each word counts by the heaviest place it is found in, and the share of words found', async () => {
-    // `musique` is in both titles; `vinyles` only in the body of the decision: (1 + 0.2) / 2.
+    // `musique` is in both titles; `vinyles` only in the body of the decision, where it counts
+    // 0.2 of what it would in a title.
     const results = await find('musique vinyles')
     expect(titles(results)).toEqual(['Décision sur la musique', 'Serveur de musique'])
-    expect(results[0]?.score).toBeCloseTo(0.6)
-    // `musique` in the title, and nothing more: 1 / 2.
-    expect(results[1]?.score).toBeCloseTo(0.5)
-    // A word of the summary counts 0.4, of the tags too.
+    const [decision, server] = results.map(({ score }) => score ?? 0)
+    expect(decision).toBeGreaterThan(server ?? 1)
+    expect(decision).toBeLessThan(1)
+    // One word, alone in a query, counts what its place counts: 0.4 in a summary or the tags.
     expect((await find('appartement'))[0]?.score).toBeCloseTo(0.4)
   })
 
@@ -193,7 +235,7 @@ describe('search with a sentence, in French', () => {
   })
 
   test('the places, dates, hidden types and supposed values keep working with a sentence', async () => {
-    const sentence = "c'était quand, l'orchestre ?"
+    const sentence = "et l'orchestre, alors ?"
     expect(titles(await find(sentence)).sort()).toEqual(['Page du soir', 'Sortie au parc'])
     expect(titles(await find(sentence, { under: 'decision-sur-la-musique' }))).toEqual([
       'Sortie au parc',
@@ -260,8 +302,9 @@ describe('search with a sentence, in the default language', () => {
   test('without stop words, every word of a sentence counts, and it still finds the entry', async () => {
     const results = await run(search('what did we decide about the music'))
     expect(titles(results)).toEqual(['Music decision'])
-    // Seven words, `music` in the title, `we` and `the` in the body: (1 + 0.2 + 0.2) / 7.
-    expect(results[0]?.score).toBeCloseTo(1.4 / 7)
+    // Seven words, `music` in the title, `we` and `the` in the body: a part of the answer only.
+    expect(results[0]?.score).toBeGreaterThan(0)
+    expect(results[0]?.score).toBeLessThan(0.5)
   })
 
   test('a word with a quote in it, as a URL may hold, is searched as it is', async () => {
@@ -319,9 +362,10 @@ describe('a sentence over a few thousand entries', () => {
       Array.from({ length: 14 }, () => 20),
     )
     // Every entry holds a word of the sentence, and the word: the worst case. Alone, the sentence
-    // took about 33 ms and the word 28 ms; a search that computes the words of an entry again
-    // for each word of the query took 65 ms for 36. The time of a search varies forty-fold with
-    // the load of the machine (over a second in a full check), not this ratio.
+    // took about 50 ms and the word 39 ms (counting how rare each word is costs about 1 ms a
+    // word); a search that computed the words of an entry again for each word of the query was
+    // 1.8 times the word. The time of a search varies forty-fold with the load of the machine
+    // (over a second in a full check), not this ratio.
     expect(median(rounds.map(({ long }) => long.time))).toBeLessThan(
       median(rounds.map(({ short }) => short.time)) * 1.5,
     )

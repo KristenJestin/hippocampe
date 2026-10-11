@@ -141,7 +141,7 @@ const search = HttpApiGroup.make('search')
       query: {
         q: Schema.String.annotate({
           description:
-            'A sentence or a few words, 600 characters at most: the entries that hold any of its significant words, the most and the heaviest first, each with its `score`. A quoted phrase or a word excluded with a minus requires every word.',
+            'A sentence or a few words, 600 characters at most: the entries that hold any of its significant words, the rarest and the heaviest first, each with its `score`. A quoted phrase or a word excluded with a minus requires every word.',
         }),
         ...SearchOptions.fields,
       },
