@@ -139,8 +139,10 @@ night when `EXPORT_DIR` is set (see `src/export/README.md`). The other
 entry point of `apps/server`: `bun run mcp` (the MCP tools over stdio, see `src/mcp/README.md`).
 The command line is built with `effect/cli` (`bun run hippo --help`); `hippo serve` runs the
 server, and `hippo service install|uninstall|start|stop|status|logs`, `hippo backup` and
-`hippo restore <file>` run Hippocampe as a systemd user service with its own PostgreSQL (see
-`docs/install.md`, and `scripts/pack.ts` for the npm packages).
+`hippo restore <file>` run Hippocampe as a systemd user service, one process with its database
+inside it: PGlite in a folder, named by `HIPPOCAMPE_DATABASE_DIR` instead of `DATABASE_URL`, which
+the command line reaches through the running server (see `docs/install.md`, and `scripts/pack.ts`
+for the npm packages).
 
 Hippocampe with Docker, server and database in one command (`docs/docker.md` has the rest: the
 variables, the ports and volumes, saving and restoring, updating, moving from the name Grenier;
@@ -174,7 +176,7 @@ by the stdio MCP server:
 Hippocampe was named Grenier before 1.0. A `GRENIER_*` variable still set is refused by the server,
 the command line and the stdio MCP server, at start-up, in one sentence naming the `HIPPOCAMPE_*`
 variable to use; it is never read silently. `docs/install.md` says how to move an installation made
-under the old name (`hippo service install` does it for the service), and `docs/docker.md` gives the
+under the old name (Hippocampe 0.12 does it for the service), and `docs/docker.md` gives the
 steps for Docker; the old name is written nowhere else in the repository but in the code and the tests that
 do that moving, in the migrations and in the history.
 
