@@ -12,7 +12,7 @@ import { cursorRefusal, historyPage } from './core/events/index.ts'
 import { Instance } from './core/instance.ts'
 import { pendingReferences } from './core/links/index.ts'
 import { Refused } from './core/refused.ts'
-import { search } from './core/search/index.ts'
+import { searchWithTotal } from './core/search/index.ts'
 import { listTypes } from './core/types/index.ts'
 import { Effect, Layer, Redacted } from 'effect'
 import { HttpApiBuilder } from 'effect/http-api'
@@ -109,8 +109,7 @@ const entries = HttpApiBuilder.group(HippocampeApi, 'entries', (handlers) =>
 const searching = HttpApiBuilder.group(HippocampeApi, 'search', (handlers) =>
   Effect.succeed(
     handlers.handle('search', ({ query: { q, ...options } }) =>
-      search(q, options).pipe(
-        Effect.map((results) => ({ results })),
+      searchWithTotal(q, options).pipe(
         Effect.catch((error) =>
           error instanceof Refused
             ? Effect.fail(new Invalid({ message: error.message }))

@@ -59,7 +59,10 @@ describe('write takes one entry or entries, and archives', () => {
       ],
     })
     expect(refused).toMatchObject({ error: expect.stringContaining('mood') })
-    expect(await answerOf('search', { query: 'Kept out', neighbors: 0 })).toEqual({ results: [] })
+    expect(await answerOf('search', { query: 'Kept out', neighbors: 0 })).toEqual({
+      results: [],
+      total: 0,
+    })
     expect(
       await answerOf('write', {
         entries: [
@@ -118,6 +121,7 @@ describe('write takes one entry or entries, and archives', () => {
     ).toEqual({ error: 'Writing `entries` takes no `title`: leave it out.' })
     expect(await answerOf('search', { query: 'Never Mixed', neighbors: 0 })).toEqual({
       results: [],
+      total: 0,
     })
   })
 })

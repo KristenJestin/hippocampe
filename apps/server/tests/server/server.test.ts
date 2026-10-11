@@ -642,13 +642,15 @@ describe('the read API', () => {
     })
     // MCP also says when and by whom an entry changed, and its neighbors; the read API does not.
     const found = await agent.call('search', { query: 'wire', type: 'note', limit: 5 })
-    const { results } = Schema.decodeUnknownSync(
-      Schema.Struct({ results: Schema.Array(Schema.Json) }),
+    const { results, total } = Schema.decodeUnknownSync(
+      Schema.Struct({ results: Schema.Array(Schema.Json), total: Schema.Int }),
     )(answerOf(found))
     expect(results.length).toBeGreaterThan(0)
+    expect(total).toBeGreaterThanOrEqual(results.length)
     expect(await get('/api/search?q=wire&type=note&limit=5')).toEqual({
       status: 200,
       body: {
+        total,
         results: results.map((result) => {
           const {
             updated: _,

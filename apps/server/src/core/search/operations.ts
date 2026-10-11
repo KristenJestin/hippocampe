@@ -29,6 +29,7 @@ const found = rowsOf(
     path: Schema.Null,
     date: Schema.NullOr(Schema.String),
     score: Schema.NullOr(Schema.Number),
+    total: Schema.Number,
     summary_provenance: Schema.NullOr(Schema.Literals(['inferred', 'ambiguous'])),
   }),
 )
@@ -80,9 +81,11 @@ const HEADLINE = 'StartSel=<mark>, StopSel=</mark>, MaxWords=30, MinWords=12, Ma
  * places, first, each with its `score`; a quoted phrase or a word excluded with a minus requires
  * every word. Archived entries are left out unless asked for; `under` keeps only the descendants
  * of an entry. Accents do not matter. Without a query, every entry the filters keep, the most
- * recently changed first. Each result says when its entry last changed and which key changed it.
+ * recently changed first, with no excerpt: it would say the summary again. Each result says when
+ * its entry last changed and which key changed it. Beside the results, the `total` of entries the
+ * filters keep (or the query finds), whatever the `limit`, counted by the same statement.
  */
-export const search = Effect.fn('search')(function* (
+export const searchWithTotal = Effect.fn('search')(function* (
   query: string | undefined,
   options: SearchOptions & Recency = {},
 ) {
@@ -161,7 +164,8 @@ export const search = Effect.fn('search')(function* (
   const listing = sql`
     WITH RECURSIVE ${subtree}
     SELECT e.id::text AS id, e.slug, e.type, e.title, e.summary, NULL AS path,
-      e.summary AS excerpt, 0::float8 AS rank, NULL::float8 AS score, ${lastChange}
+      '' AS excerpt, 0::float8 AS rank, NULL::float8 AS score, ${lastChange},
+      count(*) OVER ()::int AS total
     FROM entries e
     WHERE NOT (${JSON.stringify(hiddenTypes)}::jsonb ? e.type) ${filters}
     ORDER BY ${byDate ? sql`${dated} DESC,` : sql``} e.updated DESC, e.title
@@ -259,7 +263,9 @@ export const search = Effect.fn('search')(function* (
       -- A query that is the words of a slug, whole and in order, names that entry: those come
       -- first, the closest slug first.
       CASE WHEN ('-' || e.slug || '-') LIKE ${`%-${slugOf(text)}-%`}
-        THEN ${slugOf(text).length}::float8 / length(e.slug) ELSE 0 END AS fit
+        THEN ${slugOf(text).length}::float8 / length(e.slug) ELSE 0 END AS fit,
+      -- Before the \`LIMIT\`: every match the filters keep.
+      count(*) OVER ()::int AS total
     -- The words of each entry found, computed once rather than at every use.
     FROM found e, query, LATERAL (SELECT e.words OFFSET 0) AS held
     WHERE (e.words @@ query.q OR e.id = ANY(query.near)
@@ -286,24 +292,31 @@ export const search = Effect.fn('search')(function* (
           rows.map(({ id }) => id),
           wanted,
         )
-  return yield* Effect.forEach(rows, ({ summary_provenance, date, score, ...row }) =>
-    Effect.map(pathOf(row.id), (path) =>
-      Object.assign(
-        { ...row, path } satisfies Found,
-        date === null ? {} : { date },
-        score === null ? {} : { score },
-        summary_provenance === null ? {} : { summary_provenance },
-        supposed === undefined
-          ? {}
-          : {
-              supposed: (supposed.get(row.id) ?? []).map(({ what, provenance, by, when }) => ({
-                what,
-                provenance,
-                by,
-                when,
-              })),
-            },
+  const results = yield* Effect.forEach(
+    rows,
+    ({ summary_provenance, date, score, total: _total, ...row }) =>
+      Effect.map(pathOf(row.id), (path) =>
+        Object.assign(
+          { ...row, path } satisfies Found,
+          date === null ? {} : { date },
+          score === null ? {} : { score },
+          summary_provenance === null ? {} : { summary_provenance },
+          supposed === undefined
+            ? {}
+            : {
+                supposed: (supposed.get(row.id) ?? []).map(({ what, provenance, by, when }) => ({
+                  what,
+                  provenance,
+                  by,
+                  when,
+                })),
+              },
+        ),
       ),
-    ),
   )
+  return { results, total: rows[0]?.total ?? 0 }
 })
+
+/** The results of `searchWithTotal`, without the total. */
+export const search = (...args: Parameters<typeof searchWithTotal>) =>
+  Effect.map(searchWithTotal(...args), ({ results }) => results)

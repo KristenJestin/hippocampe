@@ -145,7 +145,13 @@ const search = HttpApiGroup.make('search')
         }),
         ...SearchOptions.fields,
       },
-      success: Schema.Struct({ results: Schema.Array(SearchResult) }).annotate({
+      success: Schema.Struct({
+        results: Schema.Array(SearchResult),
+        total: Schema.Int.annotate({
+          description:
+            'How many entries the search finds in all, the filters applied, whatever the `limit`.',
+        }),
+      }).annotate({
         identifier: 'SearchResults',
       }),
       error: Invalid,

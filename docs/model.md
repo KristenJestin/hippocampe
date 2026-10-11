@@ -660,8 +660,12 @@ score is 1 when every word is in the title or aliases, and compares from one sea
 without a query has none. It filters by type, by ancestor (`under`: only the entries that are part of an entry, at any depth, through the places
 that hold today), by what is supposed (`supposed`, and `unstated`, see "Known or supposed") and leaves
 archived entries out unless asked. Each result carries the id, slug, type,
-title, summary, the path of ancestors, an excerpt with the matched words in `<mark>` tags, its
-rank and its score; 20 results by default. The language comes from `SEARCH_LANGUAGE` (a PostgreSQL text
+title, summary, the path of ancestors, an excerpt with the matched words in `<mark>` tags (the
+empty string without a query, where it would only say the summary again), its rank and its score;
+20 results by default. Beside the `results`, the answer gives the `total` of entries the search
+finds in all, the filters applied and the hidden types and fields left out, whatever the `limit`:
+the database counts them in the same statement, so a client knows a listing is cut, and by how much,
+without reading it whole. The language comes from `SEARCH_LANGUAGE` (a PostgreSQL text
 search configuration, `simple` by default) and accents never matter.
 
 Without a query, a search lists the entries by most recent change (`sort` `updated`, the default
