@@ -9,7 +9,12 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import * as BunRuntime from '@effect/platform-bun/BunRuntime'
 import { Auth, Rights } from './core/auth/index.ts'
-import { confirmValue, countSupposed, supposedValues } from './core/entries/index.ts'
+import {
+  confirmValue,
+  countSupposed,
+  supposedValues,
+  unarchiveEntry,
+} from './core/entries/index.ts'
 import { Actor } from './core/events/index.ts'
 import {
   FindingFilter,
@@ -536,6 +541,27 @@ const ownerEntryCommand = Command.make(
   ),
 )
 
+const entryUnarchive = Command.make(
+  'entry:unarchive',
+  {
+    entry: Argument.String('entry').pipe(
+      Argument.withDescription('The slug or id of an archived entry.'),
+    ),
+  },
+  ({ entry }) =>
+    onDatabase(
+      Effect.map(
+        asOwner(unarchiveEntry(entry)),
+        ({ slug, archived_at, archived_reason }) =>
+          `The entry ${slug} is back: it was archived on ${archived_at.slice(0, 10)}${archived_reason === null ? '' : ` ("${archived_reason}")`}.`,
+      ),
+    ),
+).pipe(
+  Command.withDescription(
+    'Brings an archived entry back: it is written to and listed again, recorded in its history.',
+  ),
+)
+
 const rulesShow = Command.make('rules:show', {}, () =>
   onDatabase(
     Effect.map(instanceRulesText, (rules) =>
@@ -699,6 +725,7 @@ export const hippo = Command.make('hippo').pipe(
     rulesSet,
     rulesShow,
     ownerEntryCommand,
+    entryUnarchive,
     exportMarkdownCommand,
     serveCommand,
     serviceCommand,

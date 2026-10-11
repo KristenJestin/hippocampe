@@ -43,7 +43,7 @@ const archived = async (title: string, reason = 'Replaced by dated entries.') =>
 
 /** What a write to an archived entry is told when the entry has no successor. */
 const REFUSED = (slug: string, day: string, reason: string) =>
-  `The entry \`${slug}\` was archived on ${day} ("${reason}"), so it is no longer written to: what is added there is read by no one. Write what you have in an entry of its own, part of the same subject (\`parent\`), or of a dated type if it happened at a time. If this entry is really to come back, tell the owner: \`write\` cannot unarchive it.`
+  `The entry \`${slug}\` was archived on ${day} ("${reason}"), so it is no longer written to: what is added there is read by no one. Write what you have in an entry of its own, part of the same subject (\`parent\`), or of a dated type if it happened at a time. If this entry is really to come back, tell the owner: \`write\` cannot unarchive it, they do it with \`hippo entry:unarchive ${slug}\`. If another entry replaces it, name it in \`superseded_by\` before archiving: an archived entry takes no write, that one included.`
 
 describe('a write to an archived entry is refused, saying the archive', () => {
   const reason = 'Replaced by dated entries.'
@@ -72,7 +72,7 @@ describe('a write to an archived entry is refused, saying the archive', () => {
     const { archived_at } = await run(archiveEntry(written.slug))
     const day = String(archived_at).slice(0, 10)
     expect(await run(refusalOf(writeEntry({ entry: written.slug, title: 'Late' })))).toBe(
-      `The entry \`${written.slug}\` was archived on ${day}, so it is no longer written to: what is added there is read by no one. Write what you have in an entry of its own, part of the same subject (\`parent\`), or of a dated type if it happened at a time. If this entry is really to come back, tell the owner: \`write\` cannot unarchive it.`,
+      `The entry \`${written.slug}\` was archived on ${day}, so it is no longer written to: what is added there is read by no one. Write what you have in an entry of its own, part of the same subject (\`parent\`), or of a dated type if it happened at a time. If this entry is really to come back, tell the owner: \`write\` cannot unarchive it, they do it with \`hippo entry:unarchive ${written.slug}\`. If another entry replaces it, name it in \`superseded_by\` before archiving: an archived entry takes no write, that one included.`,
     )
   })
 

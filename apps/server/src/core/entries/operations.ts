@@ -1058,7 +1058,7 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
         }
         problems.push(...edited.problems)
         // What is written to an archived entry sits where no one reads: the session is told where
-        // to write instead. `write` has no way back, so a return is the owner's to decide.
+        // to write instead. `write` has no way back: a return is the owner's, by `entry:unarchive`.
         if (existing !== undefined && existing.archived_at !== null) {
           // The successor as the caller may see it: one it may not see is not named.
           const { superseded_by: successorId } = yield* masked(existing)
@@ -1069,7 +1069,7 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
           problems.push(
             `The entry \`${existing.slug}\` was archived on ${existing.archived_at.slice(0, 10)}${existing.archived_reason === null ? '' : ` ("${existing.archived_reason}")`}, so it is no longer written to: what is added there is read by no one. ${
               successor === null
-                ? 'Write what you have in an entry of its own, part of the same subject (`parent`), or of a dated type if it happened at a time. If this entry is really to come back, tell the owner: `write` cannot unarchive it.'
+                ? `Write what you have in an entry of its own, part of the same subject (\`parent\`), or of a dated type if it happened at a time. If this entry is really to come back, tell the owner: \`write\` cannot unarchive it, they do it with \`hippo entry:unarchive ${existing.slug}\`. If another entry replaces it, name it in \`superseded_by\` before archiving: an archived entry takes no write, that one included.`
                 : `It is superseded by \`${successor}\`: write there instead.`
             }`,
           )
@@ -1650,6 +1650,49 @@ export const archiveEntry = Effect.fn('archiveEntry')(function* (
         changesBetween(snapshotOf(entry), snapshotOf(archived)),
       )
       return archived
+    }),
+  )
+})
+
+/**
+ * Brings an archived entry back: it is written to and listed again. Only the owner decides it, from
+ * the command line; the event is one `archive`, whose changes clear `archived_at` and
+ * `archived_reason`. Gives the archive that was cleared, to say it.
+ */
+export const unarchiveEntry = Effect.fn('unarchiveEntry')(function* (reference: string) {
+  if (!(yield* Rights).includes('owner'))
+    return yield* new Refused({
+      message:
+        'Only the owner brings an archived entry back, from the command line (`entry:unarchive`).',
+    })
+  const client = yield* SqlClient.SqlClient
+  const db = yield* drizzle
+  const actor = yield* currentActor
+  return yield* client.withTransaction(
+    Effect.gen(function* () {
+      const entry = yield* lockedEntry(reference)
+      if (entry.archived_at === null)
+        return yield* new Refused({
+          message: `The entry \`${entry.slug}\` is not archived: there is nothing to bring back.`,
+        })
+      yield* db
+        .update(table)
+        .set({ archived_at: null, archived_reason: null, updated: sql`now()` })
+        .where(eq(table.id, entry.id))
+      yield* recordEvent(
+        actor,
+        { entryId: entry.id, typeName: null },
+        'archive',
+        changesBetween(
+          { archived_at: entry.archived_at, archived_reason: entry.archived_reason },
+          { archived_at: null, archived_reason: null },
+        ),
+      )
+      return {
+        slug: entry.slug,
+        archived_at: entry.archived_at,
+        archived_reason: entry.archived_reason,
+      }
     }),
   )
 })
