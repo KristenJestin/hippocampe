@@ -633,6 +633,22 @@ describe('the read API', () => {
     expect(listed.body.entries.map(({ slug }: { slug: string }) => slug)).toEqual(['shared-lamp'])
   })
 
+  test('the read API returns the description of a field', async () => {
+    const agent = connectStateless(`${base}/mcp`, bearer(writer))
+    await agent.call('define_type', {
+      name: 'described',
+      label: 'Described',
+      description: 'A type whose field says what it holds.',
+      fields: [
+        { name: 'relation', kind: 'text', description: 'Why we know them, in a few words.' },
+      ],
+    })
+    const { body } = await get('/api/types')
+    expect(body.types.find(({ name }: { name: string }) => name === 'described').fields).toEqual([
+      { name: 'relation', kind: 'text', description: 'Why we know them, in a few words.' },
+    ])
+  })
+
   test('types and search answer as the types tool and search do over MCP', async () => {
     const agent = connectStateless(`${base}/mcp`, bearer(writer))
     const listed = await agent.call('types', {})
