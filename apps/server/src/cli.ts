@@ -31,6 +31,7 @@ import { changeField, changeType, confirmProposal, listProposals } from './core/
 import { layer as database, migrate } from './core/database/index.ts'
 import { formatSchemaError } from '@hippocampe/api/schema'
 import { homeOf, loadInstalledEnvironment } from './local/home.ts'
+import { commandPostgres } from './local/postgres.ts'
 import * as service from './local/service.ts'
 import { legacyVariableSentence } from './core/legacy-variables.ts'
 import { serveProgram } from './serve.ts'
@@ -115,17 +116,21 @@ const findingFilter = (given: {
   ).pipe(Effect.mapError((error) => ({ message: formatSchemaError(error) })))
 
 /**
- * Runs what a command does on the database of `DATABASE_URL`, migrated first, and prints what it
- * answers; a refusal is printed on standard error, and the command line ends with 1.
+ * Runs what a command does on the database, migrated first, and prints what it answers; a refusal
+ * is printed on standard error, and the command line ends with 1. In local mode, the database is
+ * the running server's, or one the command runs for its length.
  */
 const onDatabase = <E extends { readonly message: string }>(
   effect: Effect.Effect<string, E, Layer.Success<typeof services>>,
 ) =>
   Effect.gen(function* () {
-    yield* migrate
-    return yield* effect
+    yield* commandPostgres
+    return yield* Effect.gen(function* () {
+      yield* migrate
+      return yield* effect
+    }).pipe(Effect.provide(services))
   }).pipe(
-    Effect.provide(services),
+    Effect.scoped,
     Effect.matchEffect({
       onSuccess: (text) => Console.log(text),
       onFailure: (error) =>
