@@ -6,6 +6,7 @@ import { writeEntry } from '../../src/core/entries/index.ts'
 import { search } from '../../src/core/search/index.ts'
 import { defineType } from '../../src/core/types/index.ts'
 import { useScratchDatabaseAs } from './scratch-database.ts'
+import { computesWordsOnce, planOfSearch } from './search-plan.ts'
 
 const inFrench = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   effect.pipe(
@@ -150,6 +151,18 @@ describe('a sentence with a misspelled name, over a few thousand entries', () =>
     ),
   )
 
+  test('the plan of a sentence with a misspelled name reads the indexes, and computes the words of an entry once', async () => {
+    const plan = await run(
+      planOfSearch(
+        search("Tu te souviens de ce qu'on avait noté sur le concert de Lagarbe ?"),
+      ).pipe(inFrench),
+    )
+    expect(plan.some((line) => line.includes('Bitmap Index Scan on entries_names'))).toBe(true)
+    expect(plan.some((line) => line.includes('Bitmap Index Scan on entries_search'))).toBe(true)
+    expect(plan.some((line) => /Seq Scan on public\.entries e$/.test(line))).toBe(false)
+    expect(computesWordsOnce(plan)).toBe(true)
+  })
+
   test('a sentence with a misspelled name costs about what one word costs', async () => {
     const sentence = "Tu te souviens de ce qu'on avait noté sur le concert de Lagarbe ?"
     await run(search(sentence).pipe(inFrench))
@@ -160,17 +173,18 @@ describe('a sentence with a misspelled name, over a few thousand entries', () =>
         return { time: performance.now() - start, results }
       })
     const rounds = await run(
-      Effect.forEach(Array.from({ length: 7 }), () =>
+      Effect.forEach(Array.from({ length: 15 }), () =>
         Effect.all({ long: timed(sentence), short: timed('note') }),
       ).pipe(inFrench),
     )
-    const median = (times: ReadonlyArray<number>) =>
-      [...times].sort((a, b) => a - b)[Math.floor(times.length / 2)] ?? Infinity
+    // A load slows some rounds, never speeds one up: the fastest round of each is the one the load
+    // touched least, held to a bound a blow-up crosses; the plan, above, holds the finer one.
+    const fastest = (times: ReadonlyArray<number>) => Math.min(...times)
     for (const { long } of rounds) {
       expect(titles(long.results)).toContain('Paul Lagarde')
     }
-    expect(median(rounds.map(({ long }) => long.time))).toBeLessThan(
-      median(rounds.map(({ short }) => short.time)) * 1.5,
+    expect(fastest(rounds.map(({ long }) => long.time))).toBeLessThan(
+      fastest(rounds.map(({ short }) => short.time)) * 2.5,
     )
   })
 })
