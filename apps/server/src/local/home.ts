@@ -1,6 +1,6 @@
 /**
  * Where a Hippocampe installed for one user keeps its things, by the XDG folders of Linux: its data
- * (database, media, the binaries of PostgreSQL) under `~/.local/share/hippocampe`, its configuration
+ * (the folder of its database, its media) under `~/.local/share/hippocampe`, its configuration
  * (the environment of the service, the first key) under `~/.config/hippocampe`. What the user keeps
  * whatever happens to the installation, the backups and the nightly export, is in `~/Hippocampe`, a
  * folder in sight that `service uninstall --purge` never deletes.
@@ -25,19 +25,12 @@ export const homeOf = (environment: Environment) => {
     units: join(configHome, 'systemd', 'user'),
     environment: join(config, 'hippocampe.env'),
     key: join(config, 'key'),
-    database: join(data, 'postgres'),
-    binaries: join(data, 'postgresql'),
+    database: join(data, 'pglite'),
     media: join(data, 'media'),
     export: join(kept, 'export'),
     backups: join(kept, 'backups'),
-    // Where the same things were while Hippocampe was named Grenier: `service install` moves them.
-    legacy: {
-      data: join(dataHome, 'grenier'),
-      config: join(configHome, 'grenier'),
-      kept: join(home, 'Grenier'),
-      environment: 'grenier.env',
-      units: ['grenier.service', 'grenier-postgres.service'],
-    },
+    // Where 0.6.0 to 0.12.x kept the database their own PostgreSQL ran, and Grenier before them.
+    earlierDatabases: [join(data, 'postgres'), join(dataHome, 'grenier', 'postgres')],
   }
 }
 

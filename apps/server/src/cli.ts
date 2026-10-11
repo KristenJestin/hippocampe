@@ -636,7 +636,6 @@ const serviceInstall = Command.make(
     ),
     // Free of any known service (4317 is OpenTelemetry's, 5432 PostgreSQL's).
     port: Flag.Int('port').pipe(Flag.withDefault(7468)),
-    databasePort: Flag.Int('database-port').pipe(Flag.withDefault(7469)),
   },
   (options) => onSystem(service.install(home(), options)),
 ).pipe(
@@ -665,7 +664,7 @@ const serviceCommand = Command.make('service').pipe(
       Command.withDescription('Starts the service.'),
     ),
     Command.make('stop', {}, () => onSystem(service.stop)).pipe(
-      Command.withDescription('Stops the service and its database.'),
+      Command.withDescription('Stops the service.'),
     ),
     Command.make('status', {}, () => onSystem(service.status)).pipe(
       Command.withDescription('What systemd says of the service.'),

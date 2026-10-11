@@ -38,6 +38,9 @@ export class EmbeddedDatabaseBusy extends Schema.TaggedError<EmbeddedDatabaseBus
   }
 }
 
+/** The major version of the PostgreSQL inside PGlite: a database folder belongs to it. */
+export const POSTGRES_MAJOR = 18
+
 /** Where the process that holds the folder serves its session. */
 export const socketOf = (folder: string) => join(folder, '.s.PGSQL.5432')
 

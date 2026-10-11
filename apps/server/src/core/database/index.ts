@@ -13,5 +13,5 @@ export {
   layer,
   serverLayer,
 } from './client.ts'
-export { EmbeddedDatabaseBusy } from './embedded.ts'
+export { EmbeddedDatabaseBusy, POSTGRES_MAJOR } from './embedded.ts'
 export { latestVersion, migrate, MigrationsBehind, schemaVersion } from './migrate.ts'
