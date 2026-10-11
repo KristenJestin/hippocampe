@@ -631,11 +631,15 @@ stemmed; with `simple`, every word counts), and a hyphenated word counts as its 
 with an operator, a quoted phrase or a word excluded with a minus, requires every word instead.
 A query made of the words of an entry's slug ranks that entry first; then come the entries with
 the highest `score`, then the highest rank. The `score`, from 0 to 1, is the share of the
-significant words of the query the entry holds, each counted by the heaviest place it holds it
-in: 1 in the title or aliases, 0.4 in the tags or summary, 0.2 in the body, the fields or the
-sources (the weights `A`, `B` and `C` of the rank). It is 1 when every word is in the title or
-aliases, does not depend on the other entries, and so compares from one search to another; a
-listing without a query has none. It filters by type, by ancestor (`under`: only the entries that are part of an entry, at any depth, through the places
+significant words of the query the entry holds, each weighed by how rare it is and counted by
+the heaviest place the entry holds it in: 1 in the title or aliases, 0.4 in the tags or summary,
+0.2 in the body, the fields or the sources (the weights `A`, `B` and `C` of the rank). A word's
+rarity is BM25's: `ln(1 + (N - n + 0.5) / (n + 0.5))`, with `N` the entries the caller may see
+and `n` those that hold the word, counted at each search. A word most entries hold (`où`, `quand`,
+a stop word the language keeps) weighs almost nothing; a word none holds weighs most, so a query
+whose main word is found nowhere scores low. The score is 1 when every word is in the title or
+aliases, and compares from one search to another (it moves only as the entries do); a listing
+without a query has none. It filters by type, by ancestor (`under`: only the entries that are part of an entry, at any depth, through the places
 that hold today), by what is supposed (`supposed`, and `unstated`, see "Known or supposed") and leaves
 archived entries out unless asked. Each result carries the id, slug, type,
 title, summary, the path of ancestors, an excerpt with the matched words in `<mark>` tags, its
