@@ -1,5 +1,6 @@
 import { Effect, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
+import type { Fragment } from 'effect/sql/Statement'
 import { rowsOf } from '../database/rows.ts'
 import { NAMES, SEARCHABLE } from '../database/schema.ts'
 import { holding, wantedOf } from '../entries/certainty.ts'
@@ -76,10 +77,11 @@ const HEADLINE = 'StartSel=<mark>, StopSel=</mark>, MaxWords=30, MinWords=12, Ma
 
 /**
  * Finds entries by their text: titles and aliases weigh most, then tags and summaries, then
- * bodies; a query made of the words of an entry's slug ranks it first. A sentence finds the
- * entries that hold any of its significant words, those that hold more of them, in heavier
- * places, first, each with its `score`; a quoted phrase or a word excluded with a minus requires
- * every word. Archived entries are left out unless asked for; `under` keeps only the descendants
+ * bodies; a query made of the words of an entry's slug ranks it first, and so does a query that
+ * says an entry's title, an alias or its slug whole, whose words then weigh as the rarest. A
+ * sentence finds the entries that hold any of its significant words, those that hold more of
+ * them, in heavier places, first, each with its `score`; a quoted phrase or a word excluded with a
+ * minus requires every word. Archived entries are left out unless asked for; `under` keeps only the descendants
  * of an entry. Accents do not matter. Without a query, every entry the filters keep, the most
  * recently changed first, with no excerpt: it would say the summary again. Each result says when
  * its entry last changed and which key changed it. Beside the results, the `total` of entries the
@@ -172,19 +174,23 @@ export const searchWithTotal = Effect.fn('search')(function* (
     LIMIT ${options.limit ?? 20}`
   // With a query, the matches in order of relevance, or of last change when asked.
   const byChange = options.sort === 'updated'
+  // A text as a slug spells it: lowercase, without accents, its words joined by hyphens.
+  const slugged = (text: Fragment) =>
+    sql`trim(both '-' from regexp_replace(unaccent(lower(${text})), '[^a-z0-9]+', '-', 'g'))`
   const matching = (text: string) => {
     const operators = OPERATOR.test(text)
+    const said = operators ? text.replace(EXCLUDED, ' ') : text
     return sql`
     WITH RECURSIVE spoken AS (
       -- The significant words of the query, as the configuration keeps them (stop words left
       -- out, the others stemmed), quoted for a \`tsquery\`; a hyphenated word counts as its parts.
       -- Each is normalised whole by \`to_tsvector\`: \`ts_debug\` shows its first dictionary only.
-      -- Beside it, the word as it was written, and whether it is made of letters only, as a name.
+      -- Beside it, the word as it was written, as a slug spells it, and whether it is made of
+      -- letters only, as a name.
       SELECT '''' || replace(replace(lexeme, '\\', '\\\\'), '''', '''''') || '''' AS word,
-        token.token AS said,
+        token.token AS said, ${slugged(sql`token.token`)} AS spelled,
         token.alias IN ('asciiword', 'word', 'hword_asciipart', 'hword_part') AS lettered
-      FROM ts_debug(${configuration}::regconfig, ${operators ? text.replace(EXCLUDED, ' ') : text})
-        AS token,
+      FROM ts_debug(${configuration}::regconfig, ${said}) AS token,
         unnest(tsvector_to_array(to_tsvector(${configuration}::regconfig, token.token))) AS lexeme
       WHERE token.alias NOT IN ('hword', 'asciihword', 'numhword')
     ), words AS (
@@ -213,11 +219,40 @@ export const searchWithTotal = Effect.fn('search')(function* (
         AND spoken.said <% (${sql.literal(NAMES)})
         AND NOT (${JSON.stringify(hiddenTypes)}::jsonb ? x.type)
       GROUP BY x.id, counted.word
+    ), sentence AS MATERIALIZED (
+      -- The query as a slug spells it, between hyphens (none when it has no such word), and its
+      -- words, anywhere and in a title or aliases.
+      SELECT '-' || nullif(${slugged(sql`${said}::text`)}, '') || '-' AS spelled,
+        (SELECT string_agg(word, ' | ') FROM spoken)::tsquery AS anywhere,
+        (SELECT string_agg(word || ':A', ' | ') FROM spoken)::tsquery AS titled
+    ), called AS MATERIALIZED (
+      -- The entries the query calls by their name: a run of its words is their slug, their title
+      -- or an alias, as a slug spells them (case and accents aside). Such an entry holds the words
+      -- of its name in its title or aliases: the search index finds the entries that hold any of
+      -- the words, and their own \`search\` keeps those that hold one in a title or aliases. How
+      -- much of the query the longest of these names covers, and their words.
+      SELECT x.id, max(length(name.spelled))::float8 / (length(sentence.spelled) - 2) AS share,
+        string_to_array(string_agg(name.spelled, '-'), '-') AS words
+      FROM sentence, (
+        SELECT x.id, x.slug, x.title, x.aliases FROM entries x
+        WHERE ${sql.literal(SEARCHABLE)} @@ (SELECT anywhere FROM sentence)
+          AND x.search @@ (SELECT titled FROM sentence)
+          AND NOT (${JSON.stringify(hiddenTypes)}::jsonb ? x.type)
+      ) AS x, LATERAL (
+        SELECT x.slug AS spelled
+        UNION ALL SELECT ${slugged(sql`name`)} FROM (SELECT x.title AS name
+          UNION ALL SELECT jsonb_array_elements_text(x.aliases)) AS names
+      ) AS name
+      WHERE position('-' || name.spelled || '-' IN sentence.spelled) > 0
+      GROUP BY x.id, sentence.spelled
     ), rarities AS MATERIALIZED (
       -- How rare each word is among the entries the caller may see, as BM25 counts it: a word
       -- most entries hold weighs almost nothing, a word none holds weighs most. A word found only
-      -- near names counts the entries named close to it.
-      SELECT word, ln(1 + (entries - holding - named + 0.5) / (holding + named + 0.5)) AS rarity
+      -- near names counts the entries named close to it. A word of a name the query calls weighs
+      -- as a word none holds, however many entries hold it: it is what the query is about.
+      SELECT word, CASE WHEN word IN (SELECT word FROM spoken, called WHERE spelled = ANY(words))
+        THEN ln(1 + (entries + 0.5) / 0.5)
+        ELSE ln(1 + (entries - holding - named + 0.5) / (holding + named + 0.5)) END AS rarity
       FROM counted, LATERAL (
         SELECT count(*) AS named FROM near WHERE near.word = counted.word
       ) AS close
@@ -260,10 +295,12 @@ export const searchWithTotal = Effect.fn('search')(function* (
         + coalesce((SELECT sum(rarity * closeness) FROM near JOIN rarities USING (word)
           WHERE near.id = e.id), 0)
       ) / nullif(query.weight, 0), 0)::float8 AS score, ${lastChange},
-      -- A query that is the words of a slug, whole and in order, names that entry: those come
-      -- first, the closest slug first.
-      CASE WHEN ('-' || e.slug || '-') LIKE ${`%-${slugOf(text)}-%`}
-        THEN ${slugOf(text).length}::float8 / length(e.slug) ELSE 0 END AS fit,
+      -- A query that is the words of a slug, whole and in order, names that entry, and so does a
+      -- query that calls an entry by its name: those come first, the closest slug first, then the
+      -- name that covers more of the query.
+      greatest(CASE WHEN ('-' || e.slug || '-') LIKE ${`%-${slugOf(text)}-%`}
+        THEN ${slugOf(text).length}::float8 / length(e.slug) ELSE 0 END,
+        coalesce((SELECT share FROM called WHERE called.id = e.id), 0)) AS fit,
       -- Before the \`LIMIT\`: every match the filters keep.
       count(*) OVER ()::int AS total
     -- The words of each entry found, computed once rather than at every use.
