@@ -28,6 +28,7 @@ const found = rowsOf(
     ...Found.fields,
     path: Schema.Null,
     date: Schema.NullOr(Schema.String),
+    score: Schema.NullOr(Schema.Number),
     summary_provenance: Schema.NullOr(Schema.Literals(['inferred', 'ambiguous'])),
   }),
 )
@@ -61,14 +62,24 @@ const startOf = (moment: string | undefined) =>
 const endOf = (moment: string | undefined) =>
   moment === undefined ? null : isDate(moment) ? `${moment}T23:59:59.999999Z` : moment
 
+/** The longest `query`: a sentence, as a person says or writes it. */
+const QUERY_LENGTH = 600
+
+/** An operator of a web search: a quoted phrase, or a word excluded with a minus. */
+const OPERATOR = /"|(?:^|\s)-\S/
+/** What a query excludes with a minus, which its score does not look for. */
+const EXCLUDED = /(?:^|\s)-(?:"[^"]*"?|\S+)/g
+
 /** Marks the matched words in the excerpt with `<mark>`, which no Markdown body uses for itself. */
 const HEADLINE = 'StartSel=<mark>, StopSel=</mark>, MaxWords=30, MinWords=12, MaxFragments=2'
 
 /**
  * Finds entries by their text: titles and aliases weigh most, then tags and summaries, then
- * bodies; a query made of the words of an entry's slug ranks it first. Archived entries are left
- * out unless asked for; `under` keeps only the descendants of
- * an entry. Accents do not matter. Without a query, every entry the filters keep, the most
+ * bodies; a query made of the words of an entry's slug ranks it first. A sentence finds the
+ * entries that hold any of its significant words, those that hold more of them, in heavier
+ * places, first, each with its `score`; a quoted phrase or a word excluded with a minus requires
+ * every word. Archived entries are left out unless asked for; `under` keeps only the descendants
+ * of an entry. Accents do not matter. Without a query, every entry the filters keep, the most
  * recently changed first. Each result says when its entry last changed and which key changed it.
  */
 export const search = Effect.fn('search')(function* (
@@ -89,6 +100,11 @@ export const search = Effect.fn('search')(function* (
         ]
   })
   if (problems.length > 0) return yield* new Refused({ message: problems.join(' ') })
+  if (query !== undefined && query.length > QUERY_LENGTH) {
+    return yield* new Refused({
+      message: `A \`query\` is a sentence, ${QUERY_LENGTH} characters at most: this one has ${query.length}. Keep the words that matter.`,
+    })
+  }
   const sql = yield* SqlClient.SqlClient
   const configuration = yield* searchConfiguration
   const { hiddenTypes, hiddenFields } = yield* sensitivity
@@ -130,16 +146,38 @@ export const search = Effect.fn('search')(function* (
   const listing = sql`
     WITH RECURSIVE ${subtree}
     SELECT e.id::text AS id, e.slug, e.type, e.title, e.summary, NULL AS path,
-      e.summary AS excerpt, 0::float8 AS rank, ${lastChange}
+      e.summary AS excerpt, 0::float8 AS rank, NULL::float8 AS score, ${lastChange}
     FROM entries e
     WHERE NOT (${JSON.stringify(hiddenTypes)}::jsonb ? e.type) ${filters}
     ORDER BY ${byDate ? sql`${dated} DESC,` : sql``} e.updated DESC, e.title
     LIMIT ${options.limit ?? 20}`
   // With a query, the matches in order of relevance, or of last change when asked.
   const byChange = options.sort === 'updated'
-  const matching = (text: string) => sql`
-    WITH RECURSIVE query AS (
-      SELECT websearch_to_tsquery(${configuration}::regconfig, ${text}) AS q
+  const matching = (text: string) => {
+    const operators = OPERATOR.test(text)
+    return sql`
+    WITH RECURSIVE words AS (
+      -- The significant words of the query, as the configuration keeps them (stop words left
+      -- out, the others stemmed), quoted for a \`tsquery\`; a hyphenated word counts as its parts.
+      -- Each is normalised whole by \`to_tsvector\`: \`ts_debug\` shows its first dictionary only.
+      SELECT coalesce(array_agg(DISTINCT
+        '''' || replace(replace(lexeme, '\\', '\\\\'), '''', '''''') || ''''), '{}') AS quoted
+      FROM ts_debug(${configuration}::regconfig, ${operators ? text.replace(EXCLUDED, ' ') : text})
+        AS token,
+        unnest(tsvector_to_array(to_tsvector(${configuration}::regconfig, token.token))) AS lexeme
+      WHERE token.alias NOT IN ('hword', 'asciihword', 'numhword')
+    ), query AS MATERIALIZED (
+      -- With an operator, a web search, every word required; otherwise any of the words. Each
+      -- word also as found in a title or aliases (\`A\`), in tags or a summary (\`B\`), or anywhere.
+      SELECT ${
+        operators
+          ? sql`websearch_to_tsquery(${configuration}::regconfig, ${text})`
+          : sql`nullif(array_to_string(words.quoted, ' | '), '')::tsquery`
+      } AS q, cardinality(words.quoted) AS count,
+        ARRAY(SELECT (word || ':A')::tsquery FROM unnest(words.quoted) AS word) AS titled,
+        ARRAY(SELECT (word || ':B')::tsquery FROM unnest(words.quoted) AS word) AS summarised,
+        ARRAY(SELECT word::tsquery FROM unnest(words.quoted) AS word) AS anywhere
+      FROM words
     ), ${subtree}
     , found AS (
       SELECT e.*, ${sql.literal(SEARCHABLE)} AS everything,
@@ -156,15 +194,23 @@ export const search = Effect.fn('search')(function* (
       FROM entries e WHERE NOT (${JSON.stringify(hiddenTypes)}::jsonb ? e.type)
     )
     SELECT e.id::text AS id, e.slug, e.type, e.title, e.summary, NULL AS path,
-      ts_headline(${configuration}::regconfig,
+      coalesce(ts_headline(${configuration}::regconfig,
         concat_ws(' — ', e.title, nullif(e.summary, ''), nullif(e.body, '')), query.q,
-        ${HEADLINE}) AS excerpt,
-      ts_rank(e.words, query.q)::float8 AS rank, ${lastChange},
+        ${HEADLINE}), e.summary) AS excerpt,
+      ts_rank(held.words, query.q)::float8 AS rank,
+      -- Each significant word counts by the heaviest place the entry holds it in, as \`ts_rank\`
+      -- weighs them: 1 in the title and aliases, 0.4 in the tags and summary, 0.2 elsewhere.
+      (SELECT coalesce(sum(CASE WHEN held.words @@ titled THEN 1 WHEN held.words @@ summarised
+          THEN 0.4 WHEN held.words @@ anywhere THEN 0.2 ELSE 0 END), 0)
+        FROM unnest(query.titled, query.summarised, query.anywhere)
+          AS word(titled, summarised, anywhere)
+      )::float8 / greatest(query.count, 1) AS score, ${lastChange},
       -- A query that is the words of a slug, whole and in order, names that entry: those come
       -- first, the closest slug first.
       CASE WHEN ('-' || e.slug || '-') LIKE ${`%-${slugOf(text)}-%`}
         THEN ${slugOf(text).length}::float8 / length(e.slug) ELSE 0 END AS fit
-    FROM found e, query
+    -- The words of each entry found, computed once rather than at every use.
+    FROM found e, query, LATERAL (SELECT e.words OFFSET 0) AS held
     WHERE (e.words @@ query.q
         -- A URL or an identifier given whole is found as it is, whatever the parser makes of it.
         OR e.sources @> jsonb_build_array(jsonb_build_object('url', ${text}::text))
@@ -177,8 +223,9 @@ export const search = Effect.fn('search')(function* (
         OR e.sources @> jsonb_build_array(jsonb_build_object('identifier', ${text}::text)))
       ${filters}
     ORDER BY ${byChange ? sql`e.updated DESC,` : byDate ? sql`${dated} DESC,` : sql``} fit DESC,
-      rank DESC, e.title
+      score DESC, rank DESC, e.title
     LIMIT ${options.limit ?? 20}`
+  }
   const rows = yield* found(query === undefined ? listing : matching(query))
   // With a filter on what is supposed, what made each entry match.
   const supposed =
@@ -188,11 +235,12 @@ export const search = Effect.fn('search')(function* (
           rows.map(({ id }) => id),
           wanted,
         )
-  return yield* Effect.forEach(rows, ({ summary_provenance, date, ...row }) =>
+  return yield* Effect.forEach(rows, ({ summary_provenance, date, score, ...row }) =>
     Effect.map(pathOf(row.id), (path) =>
       Object.assign(
         { ...row, path } satisfies Found,
         date === null ? {} : { date },
+        score === null ? {} : { score },
         summary_provenance === null ? {} : { summary_provenance },
         supposed === undefined
           ? {}

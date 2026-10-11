@@ -843,6 +843,8 @@ pub struct SearchResult {
     pub id: ::std::string::String,
     pub path: ::std::vec::Vec<::std::string::String>,
     pub rank: f64,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub score: ::std::option::Option<f64>,
     pub slug: ::std::string::String,
     pub summary: ::std::string::String,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]

@@ -27,6 +27,13 @@ export const SearchResult = Schema.Struct({
   path: Schema.Array(Schema.String),
   excerpt: Schema.String,
   rank: Schema.Finite,
+  /**
+   * With a `query`, from 0 to 1, comparable from one search to another: the share of the
+   * significant words of the query the entry holds, each counted by the heaviest place it is in
+   * (1 in the title or aliases, 0.4 in the tags or summary, 0.2 in the body, fields or sources).
+   * 1 when every word is in the title or aliases. Absent without a query.
+   */
+  score: Schema.optionalKey(Schema.Finite),
   /** With the filter `supposed` or `unstated`: the values that made the entry match. */
   supposed: Schema.optionalKey(Schema.Array(Supposed)),
 }).annotate({ identifier: 'SearchResult' })
