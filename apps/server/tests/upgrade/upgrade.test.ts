@@ -590,7 +590,8 @@ describe.each(FIXTURES)(
       expect(await found('quillon')).toEqual(['alma-quillon'])
       expect(await found('riverbend')).toEqual(['atlas-of-rivers'])
       expect(await found('herb')).toEqual(['garden-plan'])
-      expect(await found('vegetable plan')).toEqual(['garden-plan'])
+      // Any of the words: the entry that holds both first.
+      expect(await found('vegetable plan')).toEqual(['garden-plan', 'garden-plan-2025'])
       expect(await found('hinges')).toEqual(['shed-door'])
       expect(await found('sketch')).toEqual(['garden-plan'])
       expect(await found('quiet')).toEqual(['journal-2026-09-30'])
