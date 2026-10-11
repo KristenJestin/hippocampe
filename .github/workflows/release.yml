@@ -165,14 +165,14 @@ jobs:
             npm publish "$2" --provenance --access public --tag "$tag"
           }
           publish @netsirk/hippocampe-linux-x64 "$RUNNER_TEMP/npm/netsirk-hippocampe-linux-x64-$version.tgz"
-          # The registry may take a moment to show what was just published.
-          tries=0
+          # The registry may take minutes to show what was just published (more than 150 s for 0.8.0).
+          waited=0
           until npm view "@netsirk/hippocampe-linux-x64@$version" version >/dev/null 2>&1; do
-            tries=$((tries + 1))
-            if [ "$tries" -gt 30 ]; then
-              echo "::error::The executable of $version is not on npm: the launcher is not published."
+            if [ "$waited" -ge 600 ]; then
+              echo "::error::The executable of $version is not on npm after waiting $waited s: the launcher is not published."
               exit 1
             fi
-            sleep 5
+            sleep 10
+            waited=$((waited + 10))
           done
           publish @netsirk/hippocampe "$RUNNER_TEMP/npm/netsirk-hippocampe-$version.tgz"
