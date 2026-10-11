@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { INBOX_STANDARD } from '../../src/mcp/instructions.ts'
 import { DIAGNOSTICS_TOOLS, TOOLS } from '../../src/mcp/tools.ts'
+import { defineTypeTool } from '../../src/mcp/tools/define-type.ts'
 import { inboxTakeTool } from '../../src/mcp/tools/inbox.ts'
 
 /** Claude Code cuts each tool description at this many characters. */
@@ -18,5 +19,10 @@ describe('no tool description is cut by a client', () => {
     expect(inboxTakeTool.description).not.toContain(INBOX_STANDARD)
     expect(inboxTakeTool.description).toContain('How an inbox item becomes entries')
     expect(INBOX_STANDARD.startsWith('How an inbox item becomes entries')).toBe(true)
+  })
+
+  test('an agent with no fitting type defines the one it needs, and its description says when to use it', () => {
+    expect(defineTypeTool.description).toContain('Define the type you need when none fits')
+    expect(defineTypeTool.description).toContain('the next agent picks it from its description')
   })
 })
