@@ -1,6 +1,6 @@
 import { Effect } from 'effect'
 import { beforeAll, describe, expect, test } from 'vitest'
-import { archiveEntry, readEntry, writeEntry } from '../../src/core/entries/index.ts'
+import { archiveEntry, readEntry, writeEntries, writeEntry } from '../../src/core/entries/index.ts'
 import { search } from '../../src/core/search/index.ts'
 import { briefing, Today } from '../../src/core/time/index.ts'
 import { defineType } from '../../src/core/types/index.ts'
@@ -193,6 +193,70 @@ describe('reading a subject gives its recent dated entries', () => {
       expect.objectContaining({ slug: 'planning', date: '2025-10-10', type: 'session' }),
     ])
     expect((await run(on('2026-10-11')(briefing('today')))).a_year_ago.dated).toEqual([])
+  })
+})
+
+describe('entries of one day are read newest written first', () => {
+  // Written in an order that is neither the order of their titles nor the reverse of it.
+  const sameDay = ['Zulu call', 'Alpha call', 'Mike call']
+  const newestFirst = ['mike-call', 'alpha-call', 'zulu-call']
+
+  beforeAll(() =>
+    run(
+      Effect.gen(function* () {
+        yield* writeEntry({ type: 'project', title: 'Beacon' })
+        yield* session('Earlier call', '2026-10-01', 'beacon')
+        for (const title of sameDay) yield* session(title, '2026-10-05', 'beacon')
+        yield* session('Later call', '2026-10-09', 'beacon')
+        // Changed last, which moves its `updated` but not when it was written.
+        yield* writeEntry({
+          entry: 'zulu-call',
+          summary: 'Zulu call: a session of work, corrected.',
+          provenance: { summary: 'inferred' },
+        })
+        yield* writeEntry({ type: 'project', title: 'Lantern' })
+        yield* writeEntries(
+          ['Yankee batch', 'Bravo batch', 'Papa batch'].map((title) => ({
+            type: 'session',
+            title,
+            summary: `${title}: a session of work.`,
+            parent: 'lantern',
+            fields: { day: '2026-10-05' },
+            provenance: { parent: 'inferred', day: 'inferred', summary: 'inferred' },
+          })),
+        )
+      }),
+    ),
+  )
+
+  test('read gives the dated parts of one day newest written first, the date still first', async () => {
+    const read = await run(readEntry('beacon'))
+    expect(read.dated.map(({ slug }) => slug)).toEqual([
+      'later-call',
+      ...newestFirst,
+      'earlier-call',
+    ])
+  })
+
+  test('search sorted by date under a subject gives the entries of one day newest written first', async () => {
+    const found = await run(search(undefined, { under: 'beacon', sort: 'dated', limit: 20 }))
+    expect(found.map(({ slug }) => slug)).toEqual(['later-call', ...newestFirst, 'earlier-call'])
+  })
+
+  test('search sorted by date with words gives the entries of one day newest written first', async () => {
+    const found = await run(search('call', { under: 'beacon', sort: 'dated', limit: 20 }))
+    expect(found.map(({ slug }) => slug)).toEqual(['later-call', ...newestFirst, 'earlier-call'])
+  })
+
+  test('entries written in one batch are ordered by their position in it, the last first', async () => {
+    const read = await run(readEntry('lantern'))
+    expect(read.dated.map(({ slug }) => slug)).toEqual([
+      'papa-batch',
+      'bravo-batch',
+      'yankee-batch',
+    ])
+    const found = await run(search(undefined, { under: 'lantern', sort: 'dated' }))
+    expect(found.map(({ slug }) => slug)).toEqual(['papa-batch', 'bravo-batch', 'yankee-batch'])
   })
 })
 

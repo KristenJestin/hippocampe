@@ -71,10 +71,11 @@ Read in the order of time, newest first, the dated entries of a subject are its 
 
 - `read` of an entry gives, apart from its `children`, its parts that are dated and not archived
   (`dated`: the 5 most recent, each with its slug, title, type, date and summary, the most recent
-  first, those of one day by title) and how many more there are (`more_dated`). The read API
+  first, those of one day the last written first) and how many more there are (`more_dated`). The read API
   (`/api/entries/{slug}`) gives the same.
-- `search` with `sort: "dated"` keeps only the dated entries, the most recent first: with `under`, a
-  subject's story further back. Every result of a dated type carries its `date`.
+- `search` with `sort: "dated"` keeps only the dated entries, the most recent first and, of one day,
+  the last written first (the date is all a writer gives; entry ids, UUIDv7, are in creation order, so
+  the id breaks the tie): with `under`, a subject's story further back. Every result of a dated type carries its `date`.
 - "A year ago" in `briefing` lists the entries that happened on the same days a year earlier
   (`dated`), beside the entries created and the occurrences.
 - A write that changes the body or the fields of a dated entry more than 7 days after its date is

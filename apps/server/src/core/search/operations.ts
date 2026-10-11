@@ -168,7 +168,7 @@ export const searchWithTotal = Effect.fn('search')(function* (
       count(*) OVER ()::int AS total
     FROM entries e
     WHERE NOT (${JSON.stringify(hiddenTypes)}::jsonb ? e.type) ${filters}
-    ORDER BY ${byDate ? sql`${dated} DESC,` : sql``} e.updated DESC, e.title
+    ORDER BY ${byDate ? sql`${dated} DESC, e.id DESC,` : sql``} e.updated DESC, e.title
     LIMIT ${options.limit ?? 20}`
   // With a query, the matches in order of relevance, or of last change when asked.
   const byChange = options.sort === 'updated'
@@ -279,7 +279,7 @@ export const searchWithTotal = Effect.fn('search')(function* (
         OR e.sources @> jsonb_build_array(jsonb_build_object('url', ${text}::text))
         OR e.sources @> jsonb_build_array(jsonb_build_object('identifier', ${text}::text)))
       ${filters}
-    ORDER BY ${byChange ? sql`e.updated DESC,` : byDate ? sql`${dated} DESC,` : sql``} fit DESC,
+    ORDER BY ${byChange ? sql`e.updated DESC,` : byDate ? sql`${dated} DESC, e.id DESC,` : sql``} fit DESC,
       score DESC, rank DESC, e.title
     LIMIT ${options.limit ?? 20}`
   }
