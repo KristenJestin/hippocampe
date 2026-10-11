@@ -235,6 +235,9 @@ pub struct EntryReadReferencesItem {
 #[doc = "A field of a type: its name, its kind and the rules a value of it follows."]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 pub struct FieldDefinition {
+    #[doc = "What the field holds, in one short sentence the agent that fills it reads first. A field whose name does not say it all gets one."]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub description: ::std::option::Option<FieldDefinitionDescription>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub due: ::std::option::Option<FieldDefinitionDue>,
     #[doc = "What the field holds. `enum` needs its `values`; `entry` points to other entries (see `types`); `date` may carry `due` or `recurs`."]
@@ -258,6 +261,59 @@ pub struct FieldDefinition {
     #[doc = "For an `enum` field only: the values it accepts, at least one, without repeats."]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub values: ::std::option::Option<::std::vec::Vec<FieldDefinitionValuesItem>>,
+}
+#[doc = "What the field holds, in one short sentence the agent that fills it reads first. A field whose name does not say it all gets one."]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct FieldDefinitionDescription(::std::string::String);
+impl ::std::ops::Deref for FieldDefinitionDescription {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<FieldDefinitionDescription> for ::std::string::String {
+    fn from(value: FieldDefinitionDescription) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for FieldDefinitionDescription {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 300usize {
+            return Err("longer than 300 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for FieldDefinitionDescription {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for FieldDefinitionDescription {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for FieldDefinitionDescription {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
 }
 #[doc = "For a `date` field only: the date is a deadline, told as coming `notice` before it."]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]

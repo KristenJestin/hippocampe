@@ -437,11 +437,32 @@ describe('agents keep each thing that happened at a time as an entry of its own'
     for (const text of [line ?? '', GROWING_BODY]) expect(text).not.toContain('owner')
   })
 
-  test('the rule to ask the user when no type fits states things that happened at a time as its exception', () => {
+  test('an agent with no fitting type defines one instead of asking', () => {
     // The paragraph is wrapped: compared on one line.
-    expect(instructionsFor(types, development).replace(/\s+/g, ' ')).toContain(
-      'When no type fits, ask the user rather than forcing one, except for things that happened at a time, for which you define a dated type yourself; a new type is defined with a description that says when to use it.',
+    const told = instructionsFor(types, development).replace(/\s+/g, ' ')
+    expect(told).not.toContain('ask the user rather than forcing one')
+    expect(told).toContain('When no type fits, define one with `define_type` instead of asking')
+    expect(told).toContain('a description that says when to use it')
+    expect(told).toContain('read `types` first')
+    expect(told).toContain('catch-all')
+    expect(told).toContain('tell the user in one sentence which type you defined and why')
+    expect(told).toContain('Ask only when you cannot tell what the thing is')
+    // A thing that happened at a time is a case of the rule, said once.
+    expect(told.match(/`dated_by`/g)).toHaveLength(1)
+  })
+
+  test('an agent reads what the user points to before writing, instead of asking', () => {
+    // The paragraph is wrapped: compared on one line.
+    const told = instructionsFor(types, development).replace(/\s+/g, ' ')
+    expect(told).toContain(
+      'When the user points to something you can open (a link, a name you can look up), open it before writing, without asking',
     )
+    expect(told).toContain('`extracted`, with it as the source')
+    expect(told).toContain('what you guess from it is `inferred`')
+    expect(told).toContain(
+      "What you found may name other things: search for each, link the entry to those that exist, and create those that a type's description says to keep",
+    )
+    expect(told).toContain('Ask only when you cannot reach it, and say what you could not read')
   })
 
   test("the instructions say when the writer's own account is a source, and when it is not", () => {
