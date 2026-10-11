@@ -136,6 +136,15 @@ describe('the embedded database', () => {
     expect(Math.floor((version[0]?.number ?? 0) / 10_000)).toBe(POSTGRES_MAJOR)
   })
 
+  test('the embedded database keeps a small buffer pool, for a workstation with little memory', async () => {
+    const buffers = await holding(freshFolder(), (path) =>
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        rowsOf(Schema.Struct({ shared_buffers: Schema.String }))(sql`SHOW shared_buffers`),
+      ).pipe(Effect.provide(client(path))),
+    )
+    expect(buffers).toEqual([{ shared_buffers: '16MB' }])
+  })
+
   test('a folder left held by a process that ended is taken over', async () => {
     const folder = freshFolder()
     mkdirSync(folder, { recursive: true })

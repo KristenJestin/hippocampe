@@ -107,6 +107,13 @@ const extension = (name: string, made: typeof unaccent) => ({
   setup: async () => ({ bundlePath: artifact(`${name}.tar.gz`) }),
 })
 
+/**
+ * The buffer pool of PGlite: PostgreSQL's 128MB by default, resident in the process as soon as the
+ * database starts. A personal database fits in a fraction of it, and what does not is read again
+ * from the files the system caches; the server weighs about 120MB less.
+ */
+const SETTINGS = ['shared_buffers = 16MB']
+
 /** PGlite on the folder, with the extensions the migrations create. */
 const open = (folder: string) =>
   Effect.promise(async () => {
@@ -119,6 +126,7 @@ const open = (folder: string) =>
       pgliteWasmModule: await WebAssembly.compile(wasm),
       initdbWasmModule: await WebAssembly.compile(initdb),
       fsBundle: new Blob([bundle]),
+      postgresqlconf: SETTINGS,
       extensions: {
         unaccent: extension('unaccent', unaccent),
         pg_trgm: extension('pg_trgm', pg_trgm),
