@@ -23,30 +23,23 @@ const write = (file: string, content: string) => {
 
 /**
  * An installed tree as npm lays it out: the launcher, then (in `at`, a folder under the root
- * `node_modules`, where npm hoists or nests a dependency) the package of the platform, whose
- * executable prints what it was handed, and unless `withPostgres` is false the PostgreSQL package,
- * which declares `exports` as the real one does, so its `package.json` cannot be resolved.
+ * `node_modules`, where npm hoists or nests a dependency) the package of the platform, unless
+ * `withPlatform` is false, whose executable prints what it was handed. No PostgreSQL: the
+ * executable carries its database.
  */
-const install = (name: string, at: string, withPostgres = true) => {
+const install = (name: string, at: string, withPlatform = true) => {
   const root = join(scratch, name, 'node_modules')
   const platform = `${process.platform}-${process.arch}`
   write(join(root, '@netsirk/hippocampe/package.json'), '{"name":"@netsirk/hippocampe"}')
   mkdirSync(join(root, '@netsirk/hippocampe/bin'), { recursive: true })
   copyFileSync(launcher, join(root, '@netsirk/hippocampe/bin/hippo.js'))
   const own = join(root, at, `@netsirk/hippocampe-${platform}`)
-  write(join(own, 'package.json'), `{"name":"@netsirk/hippocampe-${platform}"}`)
-  write(join(own, 'bin/hippo'), '#!/bin/sh\necho "$HIPPOCAMPE_POSTGRES_BINARIES"\n')
-  chmodSync(join(own, 'bin/hippo'), 0o755)
-  if (withPostgres) {
-    const postgres = join(root, at, `@embedded-postgres/${platform}`)
-    write(
-      join(postgres, 'package.json'),
-      `{"name":"@embedded-postgres/${platform}","type":"module","exports":"./dist/index.js"}`,
-    )
-    write(join(postgres, 'dist/index.js'), 'export {}\n')
-    return { run: () => run(root), postgres }
+  if (withPlatform) {
+    write(join(own, 'package.json'), `{"name":"@netsirk/hippocampe-${platform}"}`)
+    write(join(own, 'bin/hippo'), '#!/bin/sh\necho "$HIPPOCAMPE_EXECUTABLE $*"\n')
+    chmodSync(join(own, 'bin/hippo'), 0o755)
   }
-  return { run: () => run(root), postgres: undefined }
+  return { run: () => run(root), executable: join(own, 'bin/hippo') }
 }
 
 /**
@@ -63,29 +56,29 @@ const node = (process.env['PATH'] ?? '')
   )
 
 const run = (root: string) =>
-  spawnSync(node ?? 'node', [join(root, '@netsirk/hippocampe/bin/hippo.js')], {
+  spawnSync(node ?? 'node', [join(root, '@netsirk/hippocampe/bin/hippo.js'), 'serve'], {
     encoding: 'utf8',
     env: { PATH: process.env['PATH'] ?? '' },
   })
 
 describe('the launcher of the npm package', () => {
-  test('the launcher finds the PostgreSQL a package hides behind its exports', () => {
-    const { run: launch, postgres } = install('hidden', '')
+  test('the launcher runs the executable of its platform, with no PostgreSQL installed', () => {
+    const { run: launch, executable } = install('hoisted', '')
     const ran = launch()
     expect(ran.stderr).toBe('')
-    expect(ran.stdout.trim()).toBe(join(postgres ?? '', 'native'))
+    expect(ran.stdout.trim()).toBe(`${executable} serve`)
   })
 
-  test('the launcher finds the PostgreSQL installed in the folder of the package of the launcher', () => {
-    const { run: launch, postgres } = install('nested', '@netsirk/hippocampe/node_modules')
-    expect(launch().stdout.trim()).toBe(join(postgres ?? '', 'native'))
+  test('the launcher finds the package of its platform in its own folder', () => {
+    const { run: launch, executable } = install('nested', '@netsirk/hippocampe/node_modules')
+    expect(launch().stdout.trim()).toBe(`${executable} serve`)
   })
 
-  test('the launcher names the package of the PostgreSQL when it is not installed', () => {
+  test('the launcher says in one sentence that there is no build for the platform', () => {
     const ran = install('absent', '', false).run()
     expect(ran.status).toBe(1)
     expect(ran.stdout).toBe('')
     expect(ran.stderr.trim().split('\n')).toHaveLength(1)
-    expect(ran.stderr).toContain(`@embedded-postgres/${process.platform}-${process.arch}`)
+    expect(ran.stderr).toContain(`Hippocampe has no build for ${process.platform}-${process.arch}`)
   })
 })

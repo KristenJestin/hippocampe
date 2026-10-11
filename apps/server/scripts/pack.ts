@@ -1,13 +1,14 @@
 #!/usr/bin/env bun
 /**
  * Packs Hippocampe for npm: `bun scripts/pack.ts <version> <folder>` compiles the executable of this
- * platform (`bun build --compile`, the version built in), lays it beside its migrations in the
- * package of the platform, and writes both packages' tarballs into `folder`, ready for
+ * platform (`bun build --compile`, the version built in), lays it beside its migrations and the
+ * files of PGlite in the package of the platform, and writes both packages' tarballs into `folder`, ready for
  * `npm i -g` or for `npm publish`. Nothing is published here.
  */
 import { execFileSync } from 'node:child_process'
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { Schema } from 'effect'
 
 const [version, out] = process.argv.slice(2)
@@ -56,6 +57,18 @@ execFileSync(
 cpSync(join(app, 'src', 'core', 'database', 'migrations'), join(platform, 'bin', 'migrations'), {
   recursive: true,
 })
+// What PGlite reads beside its code, which the executable holds: its WebAssembly, its files, and
+// the extensions the migrations create.
+const pglite = dirname(fileURLToPath(import.meta.resolve('@electric-sql/pglite')))
+mkdirSync(join(platform, 'bin', 'pglite'), { recursive: true })
+for (const name of [
+  'pglite.wasm',
+  'initdb.wasm',
+  'pglite.data',
+  'unaccent.tar.gz',
+  'pg_trgm.tar.gz',
+])
+  cpSync(join(pglite, name), join(platform, 'bin', 'pglite', name))
 const launcher = stage('hippocampe', { '@netsirk/hippocampe-linux-x64': version })
 for (const packed of [platform, launcher])
   execFileSync('npm', ['pack', '--pack-destination', folder], { cwd: packed, stdio: 'inherit' })
