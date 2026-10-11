@@ -637,8 +637,13 @@ the heaviest place the entry holds it in: 1 in the title or aliases, 0.4 in the 
 rarity is BM25's: `ln(1 + (N - n + 0.5) / (n + 0.5))`, with `N` the entries the caller may see
 and `n` those that hold the word, counted at each search. A word most entries hold (`où`, `quand`,
 a stop word the language keeps) weighs almost nothing; a word none holds weighs most, so a query
-whose main word is found nowhere scores low. The score is 1 when every word is in the title or
-aliases, and compares from one search to another (it moves only as the entries do); a listing
+whose main word is found nowhere scores low. A word of letters no entry holds, as a name heard
+or typed is often written otherwise (a letter wrong, missing or doubled), is compared by trigrams
+(`pg_trgm`'s `word_similarity`) with the titles, aliases and slugs of the entries, never their
+bodies: an entry named close enough (0.55 at least) is found, and the word counts its similarity
+there instead of the 1 of a title, with `n` the entries named close to it. A name found near
+ranks below the same name found as it is written; with an operator, every word stays exact. The
+score is 1 when every word is in the title or aliases, and compares from one search to another (it moves only as the entries do); a listing
 without a query has none. It filters by type, by ancestor (`under`: only the entries that are part of an entry, at any depth, through the places
 that hold today), by what is supposed (`supposed`, and `unstated`, see "Known or supposed") and leaves
 archived entries out unless asked. Each result carries the id, slug, type,

@@ -228,10 +228,12 @@ describe('search in French', () => {
 
   test('changing SEARCH_LANGUAGE needs no code change: the migration reindexes', async () => {
     await run(writeEntry({ type: 'note', title: 'Les cerisiers' }).pipe(inLanguage('simple')))
-    expect(await run(search('cerisier').pipe(inLanguage('simple')))).toEqual([])
+    // Unstemmed, the word is only near the title, as a misspelled name is.
+    const [near] = await run(search('cerisier').pipe(inLanguage('simple')))
+    expect(near?.score).toBeLessThan(1)
     await run(migrate.pipe(inLanguage('french')))
     const results = await run(search('cerisier').pipe(inLanguage('french')))
-    expect(results.map(({ title }) => title)).toEqual(['Les cerisiers'])
+    expect(results).toMatchObject([{ title: 'Les cerisiers', score: 1 }])
   })
 
   test('an unknown language is refused in one sentence', async () => {

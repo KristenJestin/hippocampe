@@ -57,7 +57,9 @@ rules and runs no AI.
 - **With a `query`**, a sentence as a person says it or a few words (600 characters at most),
   `search` finds the entries that hold any of its significant words, those that hold more of them,
   in heavier places, first; each result carries `score`, from 0 to 1 (see "Search" in
-  `docs/model.md`). A quoted phrase or a word excluded with a minus requires every word.
+  `docs/model.md`); a word no entry holds, such as a misspelled name, finds the entries whose
+  title, aliases or slug hold a word close to it. A quoted phrase or a word excluded with a minus
+  requires every word.
 - **Without a `query`**, `search` lists the entries by most recent change. `sort` is `relevance`
   (the default with a `query`) or `updated` (the default without one); `since` and `until` (a date
   or a date and time) bound the last change; `by` keeps the entries a key changed last. Each result

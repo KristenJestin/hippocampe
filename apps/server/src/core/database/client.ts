@@ -2,6 +2,7 @@ import { PgClient } from '@effect/sql-pg'
 import * as PgDrizzle from 'drizzle-orm/effect-postgres'
 import { Config, Context, Effect, Layer, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
+import { startupParameters } from '../search/near.ts'
 
 export class DatabaseUrlMissing extends Schema.TaggedError<DatabaseUrlMissing>()(
   'DatabaseUrlMissing',
@@ -17,7 +18,9 @@ export const databaseUrl = Config.Redacted('DATABASE_URL').pipe(
 )
 
 /** The database of `DATABASE_URL`, as the SQL client every operation of the core runs on. */
-export const layer = Layer.unwrap(Effect.map(databaseUrl, (url) => PgClient.layer({ url })))
+export const layer = Layer.unwrap(
+  Effect.map(databaseUrl, (url) => PgClient.layer({ url, startupParameters })),
+)
 
 /**
  * The services of the database alone, out of a larger context: what a program built apart, such
