@@ -45,6 +45,7 @@ import { refusingContention } from './contention.ts'
 import { holding, wantedOf } from './certainty.ts'
 import { DateText, fieldsOf, isDate, Provenance, Slug, Text } from './values.ts'
 import { DATED_READ, datedOn } from './dated.ts'
+import { slugsOf } from './slugs.ts'
 
 const Row = Schema.Struct({
   ...Entry.fields,
@@ -391,8 +392,8 @@ export const lineageOf = Effect.fn('lineageOf')(function* (id: string) {
 /**
  * An entry, the titles of its ancestors from the root (through the oldest place it is part of),
  * every place it is or was part of, and the entries that are part of it today and are not
- * archived: by title, apart from those that happened at a time, the most recent first (the first
- * `DATED_READ`, and how many more).
+ * archived: by title, apart from those that happened at a time, the most recent first and, of one
+ * day, the last written first (the first `DATED_READ`, and how many more).
  */
 export const readEntry = Effect.fn('readEntry')(function* (reference: string) {
   const db = yield* drizzle
@@ -484,9 +485,11 @@ export const readEntry = Effect.fn('readEntry')(function* (reference: string) {
     ),
     children: shown,
     hidden_children: all.length - shown.length - dated.length,
-    // The most recent first; of one day, by title.
+    // The most recent first; of one day, the last written first (ids are UUIDv7, in creation order).
     dated: dated
-      .toSorted((left, right) => right.date.localeCompare(left.date))
+      .toSorted(
+        (left, right) => right.date.localeCompare(left.date) || right.id.localeCompare(left.id),
+      )
       .slice(0, DATED_READ),
     more_dated: Math.max(dated.length - DATED_READ, 0),
     cited_by: citing
@@ -957,14 +960,10 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
         const added = provenance['body']
         const partial =
           (append === true || prepend === true || edits !== undefined) && base.body !== ''
+        const oldBody = Object.entries(base.provenance).find(([name]) => name === 'body')?.[1]
         const mixed =
           partial && (added === 'extracted' || added === 'inferred' || added === 'ambiguous')
-            ? {
-                body: mixedProvenance(
-                  Object.entries(base.provenance).find(([name]) => name === 'body')?.[1],
-                  added,
-                ),
-              }
+            ? { body: mixedProvenance(oldBody, added) }
             : {}
         const state = {
           ...base,
@@ -1058,6 +1057,23 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
           )
         }
         problems.push(...edited.problems)
+        // What is written to an archived entry sits where no one reads: the session is told where
+        // to write instead. `write` has no way back, so a return is the owner's to decide.
+        if (existing !== undefined && existing.archived_at !== null) {
+          // The successor as the caller may see it: one it may not see is not named.
+          const { superseded_by: successorId } = yield* masked(existing)
+          const successor =
+            successorId === null
+              ? null
+              : ((yield* slugsOf([successorId]))[successorId] ?? successorId)
+          problems.push(
+            `The entry \`${existing.slug}\` was archived on ${existing.archived_at.slice(0, 10)}${existing.archived_reason === null ? '' : ` ("${existing.archived_reason}")`}, so it is no longer written to: what is added there is read by no one. ${
+              successor === null
+                ? 'Write what you have in an entry of its own, part of the same subject (`parent`), or of a dated type if it happened at a time. If this entry is really to come back, tell the owner: `write` cannot unarchive it.'
+                : `It is superseded by \`${successor}\`: write there instead.`
+            }`,
+          )
+        }
         const instants = { created, updated }
         for (const [field, value] of Object.entries(instants)) {
           if (value === undefined) continue
@@ -1362,6 +1378,13 @@ export const writeEntry = Effect.fn('writeEntry')(function* (
               `The field \`provenance.${name}\` is required with \`${at}\`: say \`extracted\` (known, read in a source), \`inferred\` (supposed by you) or \`ambiguous\` (sources disagree).`,
             )
           }
+        }
+        // A partial write says the provenance of the whole body after it, which it cannot make
+        // more known than the rest of the body is: never silently another.
+        if (mixed.body !== undefined && mixed.body !== added) {
+          problems.push(
+            `The body ${oldBody === undefined ? 'has no provenance' : `is \`${oldBody}\``}${oldBody === 'unstated' ? ' (written before writers were asked)' : ''}: ${edits === undefined ? 'a part added to it does' : 'words edited in it do'} not make the rest of it known, so with \`provenance.body\` \`${added}\` it would be \`${mixed.body}\` as a whole. Say \`provenance.body: "${mixed.body}"\`, the provenance of the whole body after this write, or write the whole body again in \`body\`, without \`append\`, \`prepend\` or \`edits\`, with the provenance of all of it.`,
+          )
         }
         // The place is known when it is read in a source, which the entry then has.
         if (placeProvenance === 'extracted' && sources.length === 0 && !sourcesRefused) {

@@ -646,10 +646,15 @@
             "items": {
               "$ref": "#/components/schemas/SearchResult"
             }
+          },
+          "total": {
+            "type": "integer",
+            "description": "How many entries the search finds in all, the filters applied, whatever the `limit`."
           }
         },
         "required": [
-          "results"
+          "results",
+          "total"
         ],
         "additionalProperties": false
       },

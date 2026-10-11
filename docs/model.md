@@ -28,6 +28,15 @@ bookmark, a folder-like area. All entries share the same base:
 
 An entry is never deleted by an agent; it is archived.
 
+An archived entry is no longer written to: a `write` that names it (its body, `append`, `prepend`,
+`edits`, its summary, its fields, its title, anything) is refused, with the date and the reason of
+the archive, and where to write instead: the entry that supersedes it (`superseded_by`) when there
+is one, else an entry of its own, part of the same subject. The refusal comes with the other
+problems of the write, in one sentence. Archiving it again with a new reason still works; `write`
+has no way to bring an entry back, which is the owner's to decide. `read` says the archive in every
+answer about an archived entry, `headings` and `section` included: `archived_at` and
+`archived_reason` come with them.
+
 ### Things that happened at a time
 
 Something that happened at a time (a session of work, a measurement, a meeting, a repair, a
@@ -62,10 +71,11 @@ Read in the order of time, newest first, the dated entries of a subject are its 
 
 - `read` of an entry gives, apart from its `children`, its parts that are dated and not archived
   (`dated`: the 5 most recent, each with its slug, title, type, date and summary, the most recent
-  first, those of one day by title) and how many more there are (`more_dated`). The read API
+  first, those of one day the last written first) and how many more there are (`more_dated`). The read API
   (`/api/entries/{slug}`) gives the same.
-- `search` with `sort: "dated"` keeps only the dated entries, the most recent first: with `under`, a
-  subject's story further back. Every result of a dated type carries its `date`.
+- `search` with `sort: "dated"` keeps only the dated entries, the most recent first and, of one day,
+  the last written first (the date is all a writer gives; entry ids, UUIDv7, are in creation order, so
+  the id breaks the tie): with `under`, a subject's story further back. Every result of a dated type carries its `date`.
 - "A year ago" in `briefing` lists the entries that happened on the same days a year earlier
   (`dated`), beside the entries created and the occurrences.
 - A write that changes the body or the fields of a dated entry more than 7 days after its date is
@@ -94,7 +104,11 @@ disagree.
   it (`edits`) do not make the whole body known: the body stays `extracted` only if its old
   provenance and the part's both are, becomes `ambiguous` if either is, and is `inferred`
   otherwise. A body that was `unstated`, with an `extracted` part, is `inferred`: what the old part
-  was cannot be known. A body written whole again takes the provenance given. A field is not named
+  was cannot be known. So the `provenance.body` of such a write is that of the whole body after it,
+  and a write that asks another is refused, saying the one it would be: the body never ends with a
+  provenance the writer did not give. A body written whole again takes the provenance given: it is
+  how a writer that vouches for all of it (a body `unstated`, read again against its source) makes
+  it known. A field is not named
   `body` or `summary`, which are the keys of the provenance of those two texts; a migration refuses
   a database where a type has one, naming the type and the field, until it is renamed.
 - **A known value has a source.** An entry that holds an `extracted` value (a field, the body, the
@@ -647,8 +661,12 @@ score is 1 when every word is in the title or aliases, and compares from one sea
 without a query has none. It filters by type, by ancestor (`under`: only the entries that are part of an entry, at any depth, through the places
 that hold today), by what is supposed (`supposed`, and `unstated`, see "Known or supposed") and leaves
 archived entries out unless asked. Each result carries the id, slug, type,
-title, summary, the path of ancestors, an excerpt with the matched words in `<mark>` tags, its
-rank and its score; 20 results by default. The language comes from `SEARCH_LANGUAGE` (a PostgreSQL text
+title, summary, the path of ancestors, an excerpt with the matched words in `<mark>` tags (the
+empty string without a query, where it would only say the summary again), its rank and its score;
+20 results by default. Beside the `results`, the answer gives the `total` of entries the search
+finds in all, the filters applied and the hidden types and fields left out, whatever the `limit`:
+the database counts them in the same statement, so a client knows a listing is cut, and by how much,
+without reading it whole. The language comes from `SEARCH_LANGUAGE` (a PostgreSQL text
 search configuration, `simple` by default) and accents never matter.
 
 Without a query, a search lists the entries by most recent change (`sort` `updated`, the default

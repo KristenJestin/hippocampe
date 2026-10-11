@@ -25,6 +25,7 @@ export const SearchResult = Schema.Struct({
   /** For an entry whose type is dated (`dated_by`): the day it happened. */
   date: Schema.optionalKey(Schema.String),
   path: Schema.Array(Schema.String),
+  /** With a `query`, the matched words in `<mark>` tags; the empty string without one. */
   excerpt: Schema.String,
   rank: Schema.Finite,
   /**
