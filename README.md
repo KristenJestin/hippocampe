@@ -40,3 +40,9 @@ Between a release and the end of its builds, or when a build failed, the latest 
 archive yet: the script says so and changes nothing; run it again later. A viewer that says a
 version newer than the latest release, such as a local build (`9.9.9-local`), is never replaced.
 On Windows, unpack the archive anywhere and run `hippocampe-desktop.exe`.
+
+## The Android application
+
+It puts links, texts, photos and files into the inbox from the phone's share menu, even offline,
+and shows what each became. Each release carries `hippocampe-android-<version>.apk`; installing it
+and pairing it with a server: [`docs/android.md`](docs/android.md).
