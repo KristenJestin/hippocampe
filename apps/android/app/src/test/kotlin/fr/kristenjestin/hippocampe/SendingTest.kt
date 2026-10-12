@@ -11,6 +11,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -68,7 +69,7 @@ class SendingTest {
     }
 
     @Test
-    fun `a refusal is shown with the server's sentence and not retried`() = runBlocking {
+    fun `a send refused for its content stays refused`() = runBlocking {
         val item = fixture.outbox.add(listOf(Draft.Link("https://example.org/a")), null).single()
         val sentence = "The client identifier was sent with another content: it is kept once."
 
@@ -124,5 +125,63 @@ class SendingTest {
         fixture.server.silentRefusal = true
         fixture.attempt()
         assertEquals("Hippocampe refused it (400) without saying why.", dao.get(item.clientId)?.refusal)
+    }
+
+    @Test
+    fun `a send refused for its key waits and is sent once the settings are saved`() = runBlocking {
+        val copy = File(fixture.folder, "copy").apply { writeText("a receipt") }
+        val (text, file) = fixture.outbox.add(
+            listOf(Draft.Text("The boiler needs a service"), Draft.Copy(copy.path, "receipt.pdf", "application/pdf", 9)),
+            null,
+        )
+
+        fixture.key = "hk_revoked_key"
+        assertEquals("nothing to try again by itself", ListenableWorker.Result.success(), fixture.attempt())
+        for (item in listOf(text, file)) {
+            val held = dao.get(item.clientId)!!
+            assertEquals(Standing.Held, held.standing)
+            assertEquals("This key is not known: it was revoked or mistyped.", held.refusal)
+        }
+        assertTrue("its file is kept", copy.exists())
+        assertEquals(emptyList<Received>(), fixture.server.inbox)
+
+        // The settings are saved with a good key: the save schedules the sending.
+        fixture.key = fixture.server.key
+        SendWorker.schedule(fixture.work)
+        assertEquals(ListenableWorker.Result.success(), fixture.attempt())
+        assertEquals(listOf(text.clientId, file.clientId), fixture.server.inbox.map { it.clientId })
+        for (item in listOf(text, file)) {
+            val sent = dao.get(item.clientId)!!
+            assertEquals(Standing.Sent, sent.standing)
+            assertNull(sent.refusal)
+        }
+        assertFalse("its file is gone once sent", copy.exists())
+    }
+
+    @Test
+    fun `a send refused for a missing right waits too`() = runBlocking {
+        val item = fixture.outbox.add(listOf(Draft.Link("https://example.org/a")), null).single()
+
+        fixture.server.rights = setOf("read")
+        assertEquals(ListenableWorker.Result.success(), fixture.attempt())
+        val held = dao.get(item.clientId)!!
+        assertEquals(Standing.Held, held.standing)
+        assertEquals("This key may not write: ask the owner of Hippocampe for a key with the right `write`.", held.refusal)
+
+        fixture.server.rights = setOf("read", "write")
+        assertEquals(ListenableWorker.Result.success(), fixture.attempt())
+        assertEquals(Standing.Sent, dao.get(item.clientId)?.standing)
+    }
+
+    @Test
+    fun `an item waiting for the settings can be cancelled with its file`() = runBlocking {
+        val copy = File(fixture.folder, "copy").apply { writeText("a receipt") }
+        val item = fixture.outbox.add(listOf(Draft.Copy(copy.path, "receipt.pdf", "application/pdf", 9)), null).single()
+        fixture.key = "hk_revoked_key"
+        fixture.attempt()
+
+        fixture.outbox.cancel(item.clientId)
+        assertNull(dao.get(item.clientId))
+        assertFalse(copy.exists())
     }
 }

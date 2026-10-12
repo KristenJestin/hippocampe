@@ -28,7 +28,10 @@ class Fixture {
     val database = Room.inMemoryDatabaseBuilder(context, OutboxDatabase::class.java).allowMainThreadQueries().build()
     val dao = database.outgoing()
     val folder: File = Files.createTempDirectory("outbox").toFile()
-    val sender = Sender(dao, api) { Server("http://hippocampe.test:3000", server.key) }
+
+    /** The key the phone holds in its settings; changing it is saving other settings. */
+    var key = server.key
+    val sender = Sender(dao, api) { Server("http://hippocampe.test:3000", key) }
 
     private val factory = object : WorkerFactory() {
         override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker =

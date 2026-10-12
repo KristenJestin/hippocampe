@@ -13,6 +13,9 @@ sealed interface Became {
     /** Still on the phone: it may be cancelled. */
     data object Waiting : Became
 
+    /** Refused for its key, in the server's sentence: it waits for the settings. */
+    data class Held(val sentence: String) : Became
+
     /** Refused by the server, in its sentence. */
     data class Refused(val sentence: String) : Became
 
@@ -35,6 +38,7 @@ fun sentRows(items: List<Outgoing>, followed: List<InboxSent>): List<SentRow> {
         val inbox = byClient[item.clientId]
         val became = when {
             item.standing == Standing.Waiting -> Became.Waiting
+            item.standing == Standing.Held -> Became.Held(item.refusal.orEmpty())
             item.standing == Standing.Refused -> Became.Refused(item.refusal.orEmpty())
             inbox == null -> Became.InInbox
             inbox.status == InboxSentStatus.Processed -> Became.Processed(inbox.entries.map { it.title })

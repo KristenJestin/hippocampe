@@ -112,14 +112,14 @@ private fun SentLine(row: SentRow, cancel: () -> Unit) {
                 became(row.became),
                 style = MaterialTheme.typography.bodyMedium,
                 color = when (row.became) {
-                    is Became.Refused -> MaterialTheme.colorScheme.error
+                    is Became.Held, is Became.Refused -> MaterialTheme.colorScheme.error
                     is Became.Processed -> MaterialTheme.colorScheme.primary
                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                 },
             )
         }
         when (row.became) {
-            Became.Waiting -> RemoveButton(stringResource(R.string.sent_cancel), cancel)
+            Became.Waiting, is Became.Held -> RemoveButton(stringResource(R.string.sent_cancel), cancel)
             is Became.Refused -> RemoveButton(stringResource(R.string.sent_remove), cancel)
             else -> {}
         }
@@ -130,6 +130,7 @@ private fun SentLine(row: SentRow, cancel: () -> Unit) {
 private fun became(became: Became) = when (became) {
     Became.Waiting -> stringResource(R.string.sent_waiting)
     Became.InInbox -> stringResource(R.string.sent_in_inbox)
+    is Became.Held -> stringResource(R.string.sent_held, became.sentence)
     is Became.Refused -> stringResource(R.string.sent_refused, became.sentence)
     is Became.Processed ->
         if (became.titles.isEmpty()) stringResource(R.string.sent_processed_none)

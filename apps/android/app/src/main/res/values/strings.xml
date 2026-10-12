@@ -46,6 +46,7 @@
     <string name="sent_processed_none">Processed, without an entry this key may read</string>
     <string name="sent_dismissed">Dismissed: %1$s</string>
     <string name="sent_dismissed_no_reason">Dismissed</string>
+    <string name="sent_held">Waiting for the settings: %1$s</string>
     <string name="sent_refused">Refused: %1$s</string>
     <string name="sent_cancel">Cancel</string>
     <string name="sent_remove">Remove</string>

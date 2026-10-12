@@ -26,15 +26,24 @@ class Sender(
     private val server: suspend () -> Server?,
 ) {
     /**
-     * Sends every waiting item; true when none is left to try again (each is in the inbox or
-     * refused), false when the server could not take one now, or when no server is set yet.
+     * Sends every waiting item, and those held for their key (the settings may have changed); true
+     * when none is left to try again (each is in the inbox, refused, or held until the settings are
+     * saved), false when the server could not take one now, or when no server is set yet.
      */
     suspend fun sendWaiting(): Boolean {
         val server = server() ?: return false
         for (item in dao.waiting()) {
             when (val answer = send(server, item)) {
                 is Answer.Done -> dao.sent(item.clientId, answer.value.id)
-                is Answer.Refused -> dao.refused(item.clientId, answer.message)
+                is Answer.Refused -> when (answer.status) {
+                    // The key is unknown, revoked or lacks the right `write`: a matter of the
+                    // settings, not of the item, which waits with its file.
+                    401, 403 -> {
+                        dao.held(item.clientId, answer.message)
+                        continue
+                    }
+                    else -> dao.refused(item.clientId, answer.message)
+                }
                 is Answer.Failed -> return false
             }
             item.file?.let { File(it).delete() }

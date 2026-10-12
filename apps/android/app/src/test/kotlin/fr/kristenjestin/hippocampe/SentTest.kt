@@ -59,4 +59,17 @@ class SentTest {
         val asked = fixture.server.requests.last().url.parameters.getAll("client_id")!!.toSet()
         assertEquals("only what is in the inbox is asked about", setOf(pending, processed, dismissed).map { it.clientId }.toSet(), asked)
     }
+
+    @Test
+    fun `the sent list says an item waits for the settings, with the server's sentence`() = runBlocking {
+        fixture.outbox.add(listOf(Draft.Text("A note")), null)
+        fixture.key = "hk_revoked_key"
+        fixture.attempt()
+
+        val rows = sentRows(fixture.dao.all().first(), emptyList())
+        assertEquals(
+            listOf(Became.Held("This key is not known: it was revoked or mistyped.")),
+            rows.map { it.became },
+        )
+    }
 }

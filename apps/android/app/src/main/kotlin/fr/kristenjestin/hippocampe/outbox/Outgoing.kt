@@ -18,6 +18,9 @@ enum class Standing {
     /** In the inbox: [Outgoing.inboxId] names it there. */
     Sent,
 
+    /** Refused for its key, not for itself: kept with its file until the settings are saved again. */
+    Held,
+
     /** Refused by the server for a reason a retry cannot fix, said in [Outgoing.refusal]. */
     Refused,
 }
@@ -52,14 +55,17 @@ interface OutgoingDao {
     @Query("SELECT * FROM outgoing ORDER BY createdAt DESC, rowid DESC")
     fun all(): Flow<List<Outgoing>>
 
-    @Query("SELECT * FROM outgoing WHERE standing = 'Waiting' ORDER BY createdAt, rowid")
+    @Query("SELECT * FROM outgoing WHERE standing IN ('Waiting', 'Held') ORDER BY createdAt, rowid")
     suspend fun waiting(): List<Outgoing>
 
     @Query("SELECT * FROM outgoing WHERE clientId = :clientId")
     suspend fun get(clientId: String): Outgoing?
 
-    @Query("UPDATE outgoing SET standing = 'Sent', inboxId = :inboxId, file = NULL WHERE clientId = :clientId")
+    @Query("UPDATE outgoing SET standing = 'Sent', inboxId = :inboxId, refusal = NULL, file = NULL WHERE clientId = :clientId")
     suspend fun sent(clientId: String, inboxId: String)
+
+    @Query("UPDATE outgoing SET standing = 'Held', refusal = :refusal WHERE clientId = :clientId")
+    suspend fun held(clientId: String, refusal: String)
 
     @Query("UPDATE outgoing SET standing = 'Refused', refusal = :refusal, file = NULL WHERE clientId = :clientId")
     suspend fun refused(clientId: String, refusal: String)
