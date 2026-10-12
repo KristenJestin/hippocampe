@@ -1,6 +1,10 @@
 package fr.kristenjestin.hippocampe
 
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import fr.kristenjestin.hippocampe.api.Answer
+import fr.kristenjestin.hippocampe.api.InboxGave
 import fr.kristenjestin.hippocampe.api.InboxSentStatus
 import fr.kristenjestin.hippocampe.api.Server
 import fr.kristenjestin.hippocampe.outbox.Draft
@@ -10,7 +14,10 @@ import fr.kristenjestin.hippocampe.sent.follow
 import fr.kristenjestin.hippocampe.sent.sentRows
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import fr.kristenjestin.hippocampe.ui.SentLine
+import fr.kristenjestin.hippocampe.ui.theme.HippocampeTheme
 import org.junit.After
+import org.junit.Rule
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,6 +25,9 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class SentTest {
+    @get:Rule
+    val compose = createComposeRule()
+
     private val fixture = Fixture()
 
     @After
@@ -51,7 +61,7 @@ class SentTest {
                 Became.Waiting,
                 Became.Refused("A text of the inbox is not empty."),
                 Became.Dismissed("Already kept as an entry."),
-                Became.Processed(listOf("Lentil soup", "Pantry")),
+                Became.Processed(listOf(InboxGave("entry-0", "entry-0", "Lentil soup", "note"), InboxGave("entry-1", "entry-1", "Pantry", "note"))),
                 Became.InInbox,
             ),
             rows.map { it.became },
@@ -71,5 +81,24 @@ class SentTest {
             listOf(Became.Held("This key is not known: it was revoked or mistyped.")),
             rows.map { it.became },
         )
+    }
+
+    @Test
+    fun `a processed item opens the entries it gave`() {
+        val processed = runBlocking { fixture.outbox.add(listOf(Draft.Text("A recipe to keep")), null).single() }
+        fixture.server.became[processed.clientId] = Triple(InboxSentStatus.Processed, null, listOf("Lentil soup", "Pantry"))
+        val row = runBlocking {
+            fixture.attempt()
+            val items = fixture.dao.all().first()
+            val followed = follow(fixture.api, Server("http://hippocampe.test:3000", fixture.server.key), items) as Answer.Done
+            sentRows(items, followed.value).single()
+        }
+        val opened = mutableListOf<String>()
+
+        compose.setContent { HippocampeTheme { SentLine(row, {}, { opened += it }) } }
+        compose.onNodeWithText("Lentil soup").performClick()
+        compose.onNodeWithText("Pantry").performClick()
+
+        assertEquals(listOf("entry-0", "entry-1"), opened)
     }
 }

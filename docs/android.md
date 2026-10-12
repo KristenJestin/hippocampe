@@ -3,21 +3,23 @@
 The Android application puts things into the inbox from the phone: from any application's share
 menu (a link, a text, a file, several images at once) or from the application itself (a note, a
 link, a photo from the camera, a file), even offline. Agents then turn each item into entries; the
-**Sent** tab shows what each became. It needs Android 8 or later. There is no Play Store version.
+**Sent** tab shows what each became. It also reads Hippocampe: **Search**, **Browse** and the page of
+an entry, with the key it already holds (the right `read`). It needs Android 8 or later. There is no
+Play Store version.
 
 ## Which APK is which
 
 | | Release | Beta | Debug |
 |---|---|---|---|
-| Application id | `fr.kristenjestin.hippocampe` | `fr.kristenjestin.hippocampe.beta` | `fr.kristenjestin.hippocampe` |
-| Name, launcher | Hippocampe | Hippocampe Beta, another background colour | Hippocampe |
+| Application id | `fr.kristenjestin.hippocampe` | `fr.kristenjestin.hippocampe.beta` | `fr.kristenjestin.hippocampe.debug` |
+| Name, launcher | Hippocampe | Hippocampe Beta, another background colour | Hippocampe Debug |
 | For | the real instance (production) | the development instance | trying a pull request |
 | Where | the release, `hippocampe-android-<version>.apk` | the pre-release `android-beta`, `hippocampe-android-beta.apk`, replaced at each push to `dev` | the artifact `hippocampe-android-debug` of a CI run |
 | Signed with | the release key | the same release key | the debug key of the machine that built it |
 | Plain HTTP | refused: the server is reached over HTTPS | allowed | allowed |
 
-The release and the beta are two applications: they are installed side by side, each with its own
-settings and its own queue, and one never replaces the other.
+The release, the beta and the debug build are three applications: they are installed side by side,
+each with its own settings and its own queue, and one never replaces another.
 
 ## Install it
 
@@ -74,6 +76,19 @@ signature, uninstall first, which forgets the settings and what waits on the pho
 
 ## Using it
 
+- **Search**: the server's own search, as you type, with a chip per type to narrow it. Each result
+  shows its title, its type, where it is (its path) and its excerpt, the words found marked.
+- **Browse**: the tree from the top-level entries down, as the desktop viewer's sidebar: the arrow
+  opens what is filed under an entry, its title opens the entry.
+- **An entry** (from a search, the tree, a link, a reference or **Sent**): where it sits (each step
+  opens), its type and tags, its fields (an `entry` field opens the entry it names; a sensitive value
+  the key may not read is said to be *hidden*), its body in Markdown, what it contains, what it is
+  dated by, its links both ways with their note and dates, its images (an image of the body or of the
+  media is fetched with the key and shown; any other file is fetched and opened by an application of
+  the phone) and, on demand, its history. **What is only supposed** (a value, the summary, the body or
+  a link written `inferred`, or `ambiguous` when sources disagree) carries a *Supposed* or *Sources
+  disagree* mark, apart from what is known. An entry or a search that fails says why in one sentence,
+  with *Try again*.
 - **Share**: in any application, Share, then Hippocampe inbox. The sheet shows what is shared and
   the instance, takes an optional note (why it is kept, for the agent), and sends; the phone goes
   back to that application at once, with a short confirmation.
@@ -81,7 +96,7 @@ signature, uninstall first, which forgets the settings and what waits on the pho
   and files, with an optional note.
 - **Sent**: what was sent from this phone, newest first: waiting on the phone (it may be
   cancelled), waiting for the settings (with the server's sentence), in the inbox, processed (with
-  the titles of the entries it gave), dismissed (with the reason), or refused by the server (with
+  the entries it gave, each of which opens), dismissed (with the reason), or refused by the server (with
   its sentence; it is not tried again).
 
 Nothing is lost offline: each item is kept on the phone first (a shared file is copied at once) and

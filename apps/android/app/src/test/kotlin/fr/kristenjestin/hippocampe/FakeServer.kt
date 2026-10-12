@@ -2,6 +2,8 @@ package fr.kristenjestin.hippocampe
 
 import fr.kristenjestin.hippocampe.api.About
 import fr.kristenjestin.hippocampe.api.AboutInstance
+import fr.kristenjestin.hippocampe.api.EntryList
+import fr.kristenjestin.hippocampe.api.HistoryPage
 import fr.kristenjestin.hippocampe.api.InboxGave
 import fr.kristenjestin.hippocampe.api.InboxSend
 import fr.kristenjestin.hippocampe.api.InboxSent
@@ -9,11 +11,17 @@ import fr.kristenjestin.hippocampe.api.InboxSentKind
 import fr.kristenjestin.hippocampe.api.InboxSentPage
 import fr.kristenjestin.hippocampe.api.InboxSentStatus
 import fr.kristenjestin.hippocampe.api.InboxSendKind
+import fr.kristenjestin.hippocampe.api.SearchResult
+import fr.kristenjestin.hippocampe.api.SearchResults
+import fr.kristenjestin.hippocampe.api.TreeEntry
+import fr.kristenjestin.hippocampe.api.TypeDefinition
+import fr.kristenjestin.hippocampe.api.TypeList
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.engine.mock.toByteArray
 import io.ktor.client.request.HttpRequestData
+import io.ktor.client.request.HttpResponseData
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -50,6 +58,18 @@ class FakeServer {
     val inbox = mutableListOf<Received>()
     val requests = mutableListOf<HttpRequestData>()
 
+    /** What the read API holds: the entries found by a search, the tree, the types. */
+    var found = listOf<SearchResult>()
+    var tree = listOf<TreeEntry>()
+    var types = listOf<TypeDefinition>()
+
+    /** Each entry as the API reads it, in JSON as the server writes it, by slug and by id. */
+    val entries = mutableMapOf<String, String>()
+    val histories = mutableMapOf<String, HistoryPage>()
+
+    /** The files served under `/media`, by their address. */
+    val media = mutableMapOf<String, ByteArray>()
+
     /** What agents made of an item, by client identifier. */
     val became = mutableMapOf<String, Triple<InboxSentStatus, String?, List<String>>>()
 
@@ -69,8 +89,26 @@ class FakeServer {
         when (request.url.encodedPath) {
             "/api/about" -> answer(json.encodeToString(About.serializer(), About(AboutInstance.Development, "Test bench", "1.0.0", "abc1234")))
             "/api/inbox" -> if (read) follow(request) else add(request)
-            else -> refuse(HttpStatusCode.NotFound, "Nothing here.")
+            "/api/search" -> {
+                val type = request.url.parameters["type"]
+                val results = found.filter { type == null || it.type == type }
+                answer(json.encodeToString(SearchResults.serializer(), SearchResults(results, results.size.toLong())))
+            }
+            "/api/types" -> answer(json.encodeToString(TypeList.serializer(), TypeList(types)))
+            "/api/entries" -> answer(json.encodeToString(EntryList.serializer(), EntryList(tree)))
+            else -> readEntry(request.url.encodedPath)
         }
+    }
+
+    private fun MockRequestHandleScope.readEntry(path: String): HttpResponseData {
+        val medium = media[path]
+        if (medium != null) return respond(medium, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "image/png"))
+        val name = Regex("^/api/entries/([^/]+)(/history)?$").find(path) ?: return refuse(HttpStatusCode.NotFound, "Nothing here.")
+        val entry = name.groupValues[1]
+        if (entry !in entries) return refuse(HttpStatusCode.NotFound, "No entry is named `$entry`: search for it, or check its slug.")
+        if (name.groupValues[2].isEmpty()) return answer(entries.getValue(entry))
+        val page = histories[entry] ?: HistoryPage(emptyList(), null)
+        return answer(json.encodeToString(HistoryPage.serializer(), page))
     }
 
     private suspend fun MockRequestHandleScope.add(request: HttpRequestData) = run {

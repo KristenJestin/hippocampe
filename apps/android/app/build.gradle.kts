@@ -43,6 +43,10 @@ android {
     }
 
     buildTypes {
+        // For trying a pull request: installed beside the release and the beta.
+        debug {
+            applicationIdSuffix = ".debug"
+        }
         release {
             isMinifyEnabled = false
             signingConfig = signingConfigs.findByName("release")

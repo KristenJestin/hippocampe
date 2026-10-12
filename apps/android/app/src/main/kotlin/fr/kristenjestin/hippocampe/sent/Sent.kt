@@ -2,6 +2,7 @@ package fr.kristenjestin.hippocampe.sent
 
 import fr.kristenjestin.hippocampe.api.Answer
 import fr.kristenjestin.hippocampe.api.Api
+import fr.kristenjestin.hippocampe.api.InboxGave
 import fr.kristenjestin.hippocampe.api.InboxSent
 import fr.kristenjestin.hippocampe.api.InboxSentStatus
 import fr.kristenjestin.hippocampe.api.Server
@@ -22,8 +23,8 @@ sealed interface Became {
     /** In the inbox, for an agent to take. */
     data object InInbox : Became
 
-    /** Processed: the titles of the entries it gave. */
-    data class Processed(val titles: List<String>) : Became
+    /** Processed: the entries it gave. */
+    data class Processed(val entries: List<InboxGave>) : Became
 
     /** Dismissed by an agent, and why. */
     data class Dismissed(val reason: String?) : Became
@@ -41,7 +42,7 @@ fun sentRows(items: List<Outgoing>, followed: List<InboxSent>): List<SentRow> {
             item.standing == Standing.Held -> Became.Held(item.refusal.orEmpty())
             item.standing == Standing.Refused -> Became.Refused(item.refusal.orEmpty())
             inbox == null -> Became.InInbox
-            inbox.status == InboxSentStatus.Processed -> Became.Processed(inbox.entries.map { it.title })
+            inbox.status == InboxSentStatus.Processed -> Became.Processed(inbox.entries)
             inbox.status == InboxSentStatus.Dismissed -> Became.Dismissed(inbox.reason)
             else -> Became.InInbox
         }

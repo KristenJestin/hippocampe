@@ -14,6 +14,7 @@ import fr.kristenjestin.hippocampe.outbox.Outbox
 import fr.kristenjestin.hippocampe.outbox.OutboxDatabase
 import fr.kristenjestin.hippocampe.outbox.SendWorker
 import fr.kristenjestin.hippocampe.outbox.Sender
+import fr.kristenjestin.hippocampe.read.Reading
 import fr.kristenjestin.hippocampe.settings.KeystoreCipher
 import fr.kristenjestin.hippocampe.settings.SettingsCheck
 import fr.kristenjestin.hippocampe.settings.SettingsStore
@@ -27,6 +28,7 @@ class Graph(context: Context) {
     val api = Api(OkHttp.create())
     val settings = SettingsStore(context.preferences, KeystoreCipher())
     val check = SettingsCheck(api)
+    val reading = Reading(api, settings::server)
     private val database = Room.databaseBuilder(context, OutboxDatabase::class.java, "outbox").build()
     val work: WorkManager by lazy { WorkManager.getInstance(context) }
     val outbox = Outbox(database.outgoing(), File(context.filesDir, "outbox"), { SendWorker.schedule(work) })
