@@ -1,14 +1,14 @@
 /**
- * Hippocampe as a service of the user's session, on Linux with systemd: a database of its own (the
- * PostgreSQL binaries the package carries, copied into the data folder) and the server, each a
- * user unit, started with the session, restarted on failure, listening on `127.0.0.1` only.
- * Everything that touches the system goes through `System`, so a test runs it without one.
+ * Hippocampe as a service of the user's session, on Linux with systemd: one user unit, the server,
+ * which runs its own PostgreSQL (the binaries the package carries) as a child, on a socket in the
+ * data folder, with no port; started with the session, restarted on failure, listening on
+ * `127.0.0.1` only. Everything that touches the system goes through `System`, so a test runs it
+ * without one.
  */
 import { randomBytes } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import {
   chmodSync,
-  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -16,14 +16,13 @@ import {
   readdirSync,
   renameSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from 'node:fs'
-import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative } from 'node:path'
+import { dirname, join } from 'node:path'
 import { Console, Context, Effect, Layer, Schedule, Schema } from 'effect'
 import { type Home, readEnvironment } from './home.ts'
+import { postgresBinaries, postgresSource } from './postgres.ts'
 
 /** What a command run on the system answered. */
 export type Ran = { readonly code: number; readonly output: string }
@@ -68,6 +67,7 @@ export class ServiceRefused extends Schema.TaggedError<ServiceRefused>()('Servic
 }) {}
 
 const SERVER_UNIT = 'hippocampe.service'
+/** The unit of the database, beside the server's, from 0.6.0 to 0.12.x: `install` removes it. */
 const DATABASE_UNIT = 'hippocampe-postgres.service'
 
 /** How the service runs Hippocampe: this executable, or Bun and this script in a clone. */
@@ -78,62 +78,18 @@ export const commandOfHippocampe = () => {
   return script.endsWith('.ts') ? [process.execPath, script] : [process.execPath]
 }
 
-/**
- * Where the PostgreSQL binaries the package carries are: `HIPPOCAMPE_POSTGRES_BINARIES`, or the
- * package installed beside Hippocampe.
- */
-const postgresSource = () =>
-  process.env['HIPPOCAMPE_POSTGRES_BINARIES'] ??
-  join(
-    dirname(createRequire(import.meta.url).resolve('@embedded-postgres/linux-x64/package.json')),
-    'native',
-  )
-
-/** The binaries, copied into the data folder with the links their package leaves out. */
-export const copyBinaries = (home: Pick<Home, 'binaries'>) => {
-  const source = postgresSource()
-  rmSync(home.binaries, { recursive: true, force: true })
-  cpSync(source, home.binaries, { recursive: true })
-  const links = join(home.binaries, 'pg-symlinks.json')
-  if (!existsSync(links)) return
-  const listed = Schema.decodeUnknownSync(
-    Schema.fromJsonString(
-      Schema.Array(Schema.Struct({ source: Schema.String, target: Schema.String })),
-    ),
-  )(readFileSync(links, 'utf8'))
-  for (const { source: from, target } of listed) {
-    // Written relative to the package (`native/lib/…`): the copy is that `native` folder.
-    const to = join(home.binaries, target.replace(/^native\//, ''))
-    const file = join(home.binaries, from.replace(/^native\//, ''))
-    if (!existsSync(to)) symlinkSync(relative(dirname(to), file), to)
-  }
-}
-
-/** The two user units: the database, then the server that needs it. */
 /** A path as a unit takes it: quoted, for a home folder with a space in it. */
 const quoted = (path: string) => `"${path}"`
 
-export const unitsOf = (home: Home, hippocampe: ReadonlyArray<string>, databasePort: number) => ({
-  [DATABASE_UNIT]: [
-    '[Unit]',
-    'Description=The database of Hippocampe',
-    '',
-    '[Service]',
-    `ExecStart=${quoted(join(home.binaries, 'bin', 'postgres'))} -D ${quoted(home.database)} -p ${databasePort} -k ${quoted(home.data)} -c listen_addresses=127.0.0.1`,
-    'Restart=on-failure',
-    '',
-    '[Install]',
-    'WantedBy=default.target',
-    '',
-  ].join('\n'),
-  [SERVER_UNIT]: [
+/** The user unit: the server, which runs its PostgreSQL itself, from the binaries of the package. */
+export const unitOf = (home: Home, hippocampe: ReadonlyArray<string>) =>
+  [
     '[Unit]',
     'Description=Hippocampe',
-    `Requires=${DATABASE_UNIT}`,
-    `After=${DATABASE_UNIT}`,
     '',
     '[Service]',
     `EnvironmentFile=${home.environment}`,
+    `Environment=${quoted(`HIPPOCAMPE_POSTGRES_BINARIES=${postgresSource()}`)}`,
     `ExecStart=${[...hippocampe.map(quoted), 'serve'].join(' ')}`,
     'Restart=on-failure',
     'RestartSec=2',
@@ -141,14 +97,14 @@ export const unitsOf = (home: Home, hippocampe: ReadonlyArray<string>, databaseP
     '[Install]',
     'WantedBy=default.target',
     '',
-  ].join('\n'),
-})
+  ].join('\n')
 
 export type InstallOptions = {
   readonly email: string
   readonly instance: string
   readonly port: number
-  readonly databasePort: number
+  /** Given by a command written for 0.12 or earlier: no longer used, and said so. */
+  readonly databasePort?: number | undefined
 }
 
 /** Runs a command, refused with its output when it fails. */
@@ -179,12 +135,12 @@ const MOVER = 'hippocampe_mover'
  * verifier does not depend on the name of the role (an MD5 one would).
  */
 const renameRole = Effect.fn('renameRole')(function* (home: Home) {
-  copyBinaries(home)
+  const binaries = yield* postgresBinaries
   const alone = (statements: ReadonlyArray<string>) =>
     must(
-      join(home.binaries, 'bin', 'postgres'),
+      binaries.binary('postgres'),
       ['--single', '-D', home.database, 'postgres'],
-      undefined,
+      binaries.environment,
       `${statements.join('\n')}\n`,
     ).pipe(
       Effect.flatMap((output) =>
@@ -204,7 +160,7 @@ const renameRole = Effect.fn('renameRole')(function* (home: Home) {
     `DO $$ BEGIN IF EXISTS (SELECT FROM pg_roles WHERE rolname = '${LEGACY_ROLE}') THEN ALTER ROLE ${LEGACY_ROLE} RENAME TO hippocampe; END IF; END $$`,
   ])
   yield* alone([`DROP ROLE ${MOVER}`])
-})
+}, Effect.scoped)
 
 /** An environment file as Hippocampe reads it: its variables, its role and its folders renamed. */
 const renewedEnvironment = (text: string, home: Home) =>
@@ -291,6 +247,50 @@ const moveInstallation = Effect.fn('moveInstallation')(function* (home: Home) {
   return said
 })
 
+/**
+ * Moves an installation made with two units (0.6.0 to 0.12.x), whose PostgreSQL ran in a unit of
+ * its own on a port of `127.0.0.1`, to one unit whose server runs it: the database unit stopped
+ * and removed, the environment set to the local mode on the same database folder, the copy of the
+ * binaries that unit ran removed. Returns what it did, one sentence each; nothing when there is
+ * nothing to move, so installing again changes nothing.
+ */
+const moveToOneUnit = Effect.fn('moveToOneUnit')(function* (home: Home) {
+  const said: Array<string> = []
+  if (existsSync(join(home.units, DATABASE_UNIT))) {
+    const system = yield* System
+    yield* system.run('systemctl', ['--user', 'disable', '--now', DATABASE_UNIT])
+    rmSync(join(home.units, DATABASE_UNIT), { force: true })
+    yield* system.run('systemctl', ['--user', 'daemon-reload'])
+    said.push(
+      `Stopped and removed the unit ${DATABASE_UNIT}: the server runs its PostgreSQL itself now.`,
+    )
+  }
+  if (existsSync(home.environment)) {
+    const text = readFileSync(home.environment, 'utf8')
+    const lines = text.split('\n')
+    if (lines.some((line) => line.startsWith('DATABASE_URL='))) {
+      writeFileSync(
+        home.environment,
+        lines
+          .map((line) =>
+            line.startsWith('DATABASE_URL=') ? `HIPPOCAMPE_DATABASE_DIR=${home.database}` : line,
+          )
+          .join('\n'),
+      )
+      said.push(
+        `Updated ${home.environment}: DATABASE_URL is replaced by HIPPOCAMPE_DATABASE_DIR=${home.database}, the same database, reached through its socket.`,
+      )
+    }
+  }
+  if (existsSync(home.binaries)) {
+    rmSync(home.binaries, { recursive: true, force: true })
+    said.push(
+      `Removed ${home.binaries}, the copy of PostgreSQL the database unit ran: the server runs the one of its package.`,
+    )
+  }
+  return said
+})
+
 /** Waits until `ready` is true, a minute at most. */
 const waitFor = (what: string, ready: Effect.Effect<boolean>) =>
   ready.pipe(
@@ -301,13 +301,18 @@ const waitFor = (what: string, ready: Effect.Effect<boolean>) =>
   )
 
 /**
- * Installs Hippocampe for this user: its folders, its database, its two units enabled and started,
- * then its owner and a first key, whose file it names with the address of MCP. Installed again,
- * it keeps the data, the secret and the key, and takes the new binaries and units.
+ * Installs Hippocampe for this user: its folders, its unit enabled and started (the server makes
+ * its database at its first start), then its owner and a first key, whose file it names with the
+ * address of MCP. Installed again, it keeps the data, the secret and the key, and takes the new
+ * unit; an installation made with two units is moved to one first.
  */
 export const install = Effect.fn('install')(function* (home: Home, options: InstallOptions) {
   const system = yield* System
-  const moved = yield* moveInstallation(home)
+  const moved = [...(yield* moveInstallation(home)), ...(yield* moveToOneUnit(home))]
+  const ignored =
+    options.databasePort === undefined
+      ? []
+      : ['--database-port is ignored: the database has no port now, only a socket in its folder.']
   mkdirSync(home.units, { recursive: true })
   // Readable by this user only: the database, the key, the backups.
   for (const folder of [home.data, home.config, home.kept, home.media, home.export, home.backups]) {
@@ -316,14 +321,13 @@ export const install = Effect.fn('install')(function* (home: Home, options: Inst
   }
   const fresh = !existsSync(home.environment)
   if (fresh) {
-    const password = randomBytes(18).toString('base64url')
     writeFileSync(
       home.environment,
       [
         `HIPPOCAMPE_INSTANCE=${options.instance}`,
         `HIPPOCAMPE_HOST=127.0.0.1`,
         `PORT=${options.port}`,
-        `DATABASE_URL=postgres://hippocampe:${password}@127.0.0.1:${options.databasePort}/postgres`,
+        `HIPPOCAMPE_DATABASE_DIR=${home.database}`,
         `BETTER_AUTH_SECRET=${randomBytes(32).toString('base64url')}`,
         `MEDIA_DIR=${home.media}`,
         `EXPORT_DIR=${home.export}`,
@@ -333,47 +337,28 @@ export const install = Effect.fn('install')(function* (home: Home, options: Inst
     )
   }
   const environment = readEnvironment(home.environment)
-  const databasePort = Number(new URL(environment['DATABASE_URL'] ?? '').port)
   const port = Number(environment['PORT'] ?? options.port)
   const instance = environment['HIPPOCAMPE_INSTANCE'] ?? options.instance
   // Installed already, the file decides: an install never moves a database under its server.
   const kept =
-    !fresh &&
-    (port !== options.port ||
-      databasePort !== options.databasePort ||
-      instance !== options.instance)
+    !fresh && (port !== options.port || instance !== options.instance)
       ? [
-          `Installed already: the values of ${home.environment} are kept (port ${port}, database port ${databasePort}, instance ${instance}); edit that file to change them.`,
+          `Installed already: the values of ${home.environment} are kept (port ${port}, instance ${instance}); edit that file to change them.`,
         ]
       : []
-  copyBinaries(home)
-  if (!existsSync(home.database) || readdirSync(home.database).length === 0) {
-    const passwordFile = join(home.config, '.database-password')
-    writeFileSync(passwordFile, new URL(environment['DATABASE_URL'] ?? '').password, {
-      mode: 0o600,
-    })
-    yield* must(join(home.binaries, 'bin', 'initdb'), [
-      '-D',
-      home.database,
-      '-U',
-      'hippocampe',
-      `--pwfile=${passwordFile}`,
-      '-A',
-      'scram-sha-256',
-      '-E',
-      'UTF8',
-      '--locale=C',
-    ]).pipe(Effect.ensuring(Effect.sync(() => rmSync(passwordFile, { force: true }))))
-  }
   const hippocampe = commandOfHippocampe()
-  for (const [name, text] of Object.entries(unitsOf(home, hippocampe, databasePort)))
-    writeFileSync(join(home.units, name), text)
+  writeFileSync(join(home.units, SERVER_UNIT), unitOf(home, hippocampe))
   yield* systemctl('daemon-reload')
-  yield* systemctl('enable', DATABASE_UNIT, SERVER_UNIT)
-  yield* systemctl('restart', DATABASE_UNIT, SERVER_UNIT)
+  yield* systemctl('enable', SERVER_UNIT)
+  yield* systemctl('restart', SERVER_UNIT)
   const address = `http://127.0.0.1:${port}`
   yield* waitFor('The server of Hippocampe', system.answers(`${address}/health`))
-  const said = [...moved, ...kept, `Hippocampe runs at ${address}, for this machine only.`]
+  const said = [
+    ...ignored,
+    ...moved,
+    ...kept,
+    `Hippocampe runs at ${address}, for this machine only.`,
+  ]
   if (!existsSync(home.key)) {
     const [command = '', ...script] = hippocampe
     const created = yield* must(
@@ -402,12 +387,12 @@ export const install = Effect.fn('install')(function* (home: Home, options: Inst
   return said.join('\n')
 })
 
-/** Stops and removes the units; the data and the configuration stay unless `purge`. */
+/** Stops and removes the unit; the data and the configuration stay unless `purge`. */
 export const uninstall = Effect.fn('uninstall')(function* (home: Home, purge: boolean) {
   const system = yield* System
   // Already stopped or never enabled is no reason to stop here.
-  yield* system.run('systemctl', ['--user', 'disable', '--now', SERVER_UNIT, DATABASE_UNIT])
-  for (const name of [SERVER_UNIT, DATABASE_UNIT]) rmSync(join(home.units, name), { force: true })
+  yield* system.run('systemctl', ['--user', 'disable', '--now', SERVER_UNIT])
+  rmSync(join(home.units, SERVER_UNIT), { force: true })
   yield* system.run('systemctl', ['--user', 'daemon-reload'])
   if (purge) {
     const kept = `${home.kept} (the backups and the export)`
@@ -422,11 +407,8 @@ export const uninstall = Effect.fn('uninstall')(function* (home: Home, purge: bo
 /** Starts the service, its database with it. */
 export const start = Effect.as(systemctl('start', SERVER_UNIT), 'Hippocampe is started.')
 
-/** Stops the service and its database. */
-export const stop = Effect.as(
-  systemctl('stop', SERVER_UNIT, DATABASE_UNIT),
-  'Hippocampe is stopped.',
-)
+/** Stops the service, its database with it. */
+export const stop = Effect.as(systemctl('stop', SERVER_UNIT), 'Hippocampe is stopped.')
 
 /** What systemd says of the service. */
 export const status = Effect.gen(function* () {
@@ -435,7 +417,6 @@ export const status = Effect.gen(function* () {
     'status',
     '--no-pager',
     SERVER_UNIT,
-    DATABASE_UNIT,
   ])
   return output.trimEnd()
 })
@@ -456,10 +437,11 @@ const Manifest = Schema.fromJsonString(
 const versionOfHippocampe = () => process.env['HIPPOCAMPE_VERSION'] ?? 'unknown'
 
 /** The major version of the PostgreSQL the installation runs, from its binaries. */
-const postgresMajor = (home: Home) =>
-  Effect.map(must(join(home.binaries, 'bin', 'postgres'), ['--version']), (output) =>
-    Number(/PostgreSQL\)? (\d+)/.exec(output)?.[1]),
-  )
+const postgresMajor = Effect.gen(function* () {
+  const binaries = yield* postgresBinaries
+  const output = yield* must(binaries.binary('postgres'), ['--version'], binaries.environment)
+  return Number(/PostgreSQL\)? (\d+)/.exec(output)?.[1])
+}).pipe(Effect.scoped)
 
 /** A moment as a file name takes it. */
 const stampOf = (date: Date) => date.toISOString().replaceAll(':', '-')
@@ -475,7 +457,7 @@ const archive = Effect.fn('archive')(function* (home: Home, file: string) {
   chmodSync(file, 0o600)
   const manifest = Schema.encodeSync(Manifest)({
     hippocampe: versionOfHippocampe(),
-    postgres: yield* postgresMajor(home),
+    postgres: yield* postgresMajor,
     made: new Date().toISOString(),
   })
   const folder = mkdtempSync(join(tmpdir(), 'hippocampe-backup-'))
@@ -501,7 +483,7 @@ const archive = Effect.fn('archive')(function* (home: Home, file: string) {
  */
 export const backup = Effect.fn('backup')(function* (home: Home, to: string | undefined) {
   const file = to ?? join(home.backups, `hippocampe-${stampOf(new Date())}.tar.gz`)
-  yield* systemctl('stop', SERVER_UNIT, DATABASE_UNIT)
+  yield* systemctl('stop', SERVER_UNIT)
   yield* archive(home, file).pipe(Effect.ensuring(Effect.ignore(systemctl('start', SERVER_UNIT))))
   return `The database and the media are saved in ${file}.`
 })
@@ -521,7 +503,7 @@ const newer = (a: string, b: string) => {
  * What a backup is, read from its archive before anything is touched: its manifest, if it has
  * one, refused when it is not a backup this Hippocampe can put back.
  */
-const checkedBackup = Effect.fn('checkedBackup')(function* (home: Home, file: string) {
+const checkedBackup = Effect.fn('checkedBackup')(function* (file: string) {
   const notBackup = (why: string) =>
     new ServiceRefused({
       message: `${file} is not a backup of Hippocampe: ${why}. Give a file written by hippo backup.`,
@@ -557,7 +539,7 @@ const checkedBackup = Effect.fn('checkedBackup')(function* (home: Home, file: st
     })
   // The database folder says which PostgreSQL wrote it, with a manifest or without.
   const theirs = Number((yield* member('postgres/PG_VERSION')).trim())
-  const ours = yield* postgresMajor(home)
+  const ours = yield* postgresMajor
   if (theirs !== ours)
     return yield* new ServiceRefused({
       message: `${file} holds a database of PostgreSQL ${theirs}, and this Hippocampe carries PostgreSQL ${ours}: a database folder does not move across major versions. Restore it with a Hippocampe that carries PostgreSQL ${theirs}.`,
@@ -577,7 +559,7 @@ export const restore = Effect.fn('restore')(function* (home: Home, file: string)
       message:
         'Hippocampe is not installed for this user: run hippo service install first, then restore.',
     })
-  const manifest = yield* checkedBackup(home, file)
+  const manifest = yield* checkedBackup(file)
   if (manifest === undefined)
     yield* Console.log(
       `${file} has no manifest: it was made before Hippocampe recorded one, so the version it came from is unknown. Restoring it.`,
@@ -585,7 +567,7 @@ export const restore = Effect.fn('restore')(function* (home: Home, file: string)
   const system = yield* System
   const stamp = stampOf(new Date())
   const before = join(home.backups, `hippocampe-before-restore-${stamp}.tar.gz`)
-  yield* systemctl('stop', SERVER_UNIT, DATABASE_UNIT)
+  yield* systemctl('stop', SERVER_UNIT)
   yield* archive(home, before).pipe(
     Effect.onError(() =>
       Effect.sync(() => rmSync(before, { force: true })).pipe(
@@ -604,7 +586,7 @@ export const restore = Effect.fn('restore')(function* (home: Home, file: string)
     aside: `${live}.before-restore-${stamp}`,
   }))
   const putBack = Effect.gen(function* () {
-    yield* system.run('systemctl', ['--user', 'stop', SERVER_UNIT, DATABASE_UNIT])
+    yield* system.run('systemctl', ['--user', 'stop', SERVER_UNIT])
     for (const { live, aside } of moved)
       if (existsSync(aside)) {
         rmSync(live, { recursive: true, force: true })

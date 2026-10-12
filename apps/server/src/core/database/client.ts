@@ -9,7 +9,15 @@ export class DatabaseUrlMissing extends Schema.TaggedError<DatabaseUrlMissing>()
   {},
 ) {
   override readonly message =
-    'The environment variable DATABASE_URL is missing: set it to the URL of the PostgreSQL database.'
+    'The environment variable DATABASE_URL is missing: set it to the URL of the PostgreSQL database, or set HIPPOCAMPE_DATABASE_DIR to the folder of the one Hippocampe runs itself.'
+}
+
+export class DatabaseModesBoth extends Schema.TaggedError<DatabaseModesBoth>()(
+  'DatabaseModesBoth',
+  {},
+) {
+  override readonly message =
+    'Both DATABASE_URL and HIPPOCAMPE_DATABASE_DIR are set: keep DATABASE_URL to reach a PostgreSQL that runs elsewhere, or HIPPOCAMPE_DATABASE_DIR for the one Hippocampe runs itself, not both.'
 }
 
 /** The URL of the PostgreSQL server and database, from `DATABASE_URL`. */
@@ -17,9 +25,43 @@ export const databaseUrl = Config.Redacted('DATABASE_URL').pipe(
   Effect.mapError(() => new DatabaseUrlMissing()),
 )
 
-/** The database of `DATABASE_URL`, as the SQL client every operation of the core runs on. */
+/** A variable of the environment, absent when it is not set or empty. */
+const variable = (name: string) =>
+  Config.String(name).pipe(
+    Config.withDefault(''),
+    Effect.orDie,
+    Effect.map((value) => (value.trim() === '' ? undefined : value)),
+  )
+
+/**
+ * The folder of the database Hippocampe runs itself, from `HIPPOCAMPE_DATABASE_DIR` (the local
+ * mode); nothing when the database runs elsewhere, at `DATABASE_URL` (the external mode). Both set
+ * is refused: the mode is chosen, never guessed.
+ */
+export const localDatabaseFolder = Effect.gen(function* () {
+  const folder = yield* variable('HIPPOCAMPE_DATABASE_DIR')
+  if (folder !== undefined && (yield* variable('DATABASE_URL')) !== undefined)
+    return yield* new DatabaseModesBoth()
+  return folder
+})
+
+/**
+ * Where the database is reached: in local mode, the socket of its folder (which is readable by
+ * this user only), as the role the folder was made with; in external mode, `DATABASE_URL`.
+ */
+const connection = Effect.gen(function* () {
+  const folder = yield* localDatabaseFolder
+  if (folder === undefined) return { url: yield* databaseUrl }
+  return { host: folder, port: 5432, username: 'hippocampe', database: 'postgres' }
+})
+
+/**
+ * The database of the environment, as the SQL client every operation of the core runs on: the
+ * PostgreSQL of `DATABASE_URL`, or the one Hippocampe runs on `HIPPOCAMPE_DATABASE_DIR`, which the
+ * entry points start before they need it (see `local/postgres.ts`).
+ */
 export const layer = Layer.unwrap(
-  Effect.map(databaseUrl, (url) => PgClient.layer({ url, startupParameters })),
+  Effect.map(connection, (reached) => PgClient.layer({ ...reached, startupParameters })),
 )
 
 /**
@@ -32,13 +74,13 @@ export const databaseServices = Effect.map(
 )
 
 /**
- * Whether the database of `DATABASE_URL` answers within two seconds, through a connection of its
+ * Whether the database answers within two seconds, through a connection of its
  * own: a health check sees a database that came back without waiting for a pool to notice.
  */
 export const databaseReachable = Effect.gen(function* () {
-  const url = yield* databaseUrl
+  const reached = yield* connection
   return yield* Effect.flatMap(SqlClient.SqlClient, (sql) => sql`SELECT 1`).pipe(
-    Effect.provide(PgClient.layer({ url, connectTimeout: '2 seconds' })),
+    Effect.provide(PgClient.layer({ ...reached, connectTimeout: '2 seconds' })),
     Effect.timeout('2 seconds'),
   )
 }).pipe(

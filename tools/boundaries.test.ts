@@ -119,6 +119,7 @@ describe('Every access to the data goes through the core', () => {
   test('the module the core exposes for wiring hands out no Drizzle handle and no table', async () => {
     const wiring = await import('../apps/server/src/core/database/index.ts')
     expect(Object.keys(wiring).toSorted()).toEqual([
+      'DatabaseModesBoth',
       'DatabaseUrlMissing',
       'MigrationsBehind',
       'awaitDatabase',
@@ -127,6 +128,7 @@ describe('Every access to the data goes through the core', () => {
       'databaseUrl',
       'latestVersion',
       'layer',
+      'localDatabaseFolder',
       'migrate',
       'schemaVersion',
     ])

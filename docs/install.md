@@ -9,27 +9,34 @@ Hippocampe installs for one user of a Linux machine, without Docker or a server 
 
 ```
 npm i -g @netsirk/hippocampe
-hippo service install [--email <owner>] [--port 7468] [--database-port 7469]
+hippo service install [--email <owner>] [--port 7468]
 ```
 
-`service install` creates the folders, initialises a database of its own (PostgreSQL 18, carried by
-the package), writes two systemd user units, `hippocampe-postgres.service` and `hippocampe.service`,
-enables and starts them (they start with the session and restart on failure), then creates the
-owner and a first key. It prints where the key file is and the address of MCP, with the command
-that declares it in Claude Code. Hippocampe listens on `127.0.0.1` only. The instance is `production`
-(real data) unless `--instance` says otherwise.
+`service install` creates the folders, writes one systemd user unit, `hippocampe.service`, enables
+and starts it (it starts with the session and restarts on failure), then creates the owner and a
+first key. It prints where the key file is and the address of MCP, with the command that declares it
+in Claude Code. The instance is `production` (real data) unless `--instance` says otherwise.
+
+One service and one port. The server runs its own database, PostgreSQL 18 carried by the package,
+as a child process: it starts it before it serves (making the database at its first start), stops
+it when it stops, and stops with it if it ends. The database listens on a Unix socket in its folder,
+readable by you only, and on no TCP port; the only port is Hippocampe's own (MCP and the API), on
+`127.0.0.1` only. `--database-port`, which earlier versions took, is accepted and said to be ignored.
 
 ## Where things are
 
 | What | Where |
 |---|---|
-| The database, the media, the PostgreSQL binaries | `~/.local/share/hippocampe/` (`postgres/`, `media/`, `postgresql/`) |
+| The database (its folder holds its socket too), the media | `~/.local/share/hippocampe/` (`postgres/`, `media/`) |
 | The backups and the nightly Markdown export, kept whatever happens to the installation | `~/Hippocampe/backups/`, `~/Hippocampe/export/` |
-| The environment of the service (its secret, its database URL), the first key | `~/.config/hippocampe/hippocampe.env`, `~/.config/hippocampe/key` (both readable by the user only) |
-| The units | `~/.config/systemd/user/hippocampe.service`, `hippocampe-postgres.service` |
+| The environment of the service (its secret, `HIPPOCAMPE_DATABASE_DIR` the folder of its database), the first key | `~/.config/hippocampe/hippocampe.env`, `~/.config/hippocampe/key` (both readable by the user only) |
+| The unit | `~/.config/systemd/user/hippocampe.service` |
 
 A command run on this machine (`hippo key:create`, `hippo supposed`…) reaches this Hippocampe:
-it reads `hippocampe.env` when the environment does not say otherwise.
+it reads `hippocampe.env` when the environment does not say otherwise. While the service runs, the
+command goes through the socket of its PostgreSQL; while it is stopped, the command starts the
+PostgreSQL itself for its own length, and stops it. Two PostgreSQL never run on one folder: one
+that holds it keeps the other off, and the server, refused, says so in one sentence.
 
 ## Day to day
 
@@ -64,9 +71,16 @@ hippo service install
 ```
 
 Installed again, it keeps the data, the secret, the key and the values of `hippocampe.env` (ports,
-instance: it says so when the flags ask for others; change them in that file), takes the new binaries and units, and
-restarts the service, which migrates its database as it starts. (npm no longer runs the scripts of
+instance: it says so when the flags ask for others; change them in that file), takes the new unit,
+and restarts the service, which migrates its database as it starts. (npm no longer runs the scripts of
 a global install by default, so the restart is not automatic after `npm i -g`.)
+
+An installation made with two units (0.6.0 to 0.12.x), whose PostgreSQL ran in
+`hippocampe-postgres.service` on the port `127.0.0.1:7469`, is moved by that same `service install`,
+keeping its data: it stops and removes `hippocampe-postgres.service`, replaces `DATABASE_URL` in
+`hippocampe.env` by `HIPPOCAMPE_DATABASE_DIR` on the same database folder, removes the copy of the
+binaries that unit ran (`~/.local/share/hippocampe/postgresql/`), writes the one unit, and says what
+it changed, one line each. Run again, it changes nothing.
 
 What an update may and may not change is in [`docs/versions.md`](versions.md).
 
@@ -100,11 +114,11 @@ usual. It stops and removes the units `grenier.service` and `grenier-postgres.se
 | `~/.config/grenier/` (environment, key, viewer configuration) | `~/.config/hippocampe/`, with `grenier.env` now `hippocampe.env` |
 | `~/Grenier/` (backups, nightly export) | `~/Hippocampe/`; the archives `grenier-<date>.tar.gz` are `hippocampe-<date>.tar.gz` |
 
-It rewrites the environment file: the `GRENIER_*` variables are `HIPPOCAMPE_*`, `DATABASE_URL` names
-the role `hippocampe`, and the folders it names are the new ones. It renames the PostgreSQL role
-`grenier` of the service's database to `hippocampe`, keeping its password (the database of the
-service is the default one, `postgres`, which has no name of Hippocampe to change), and says what
-it moved, one line each. Where there is nothing under the old names, it changes nothing
+It rewrites the environment file: the `GRENIER_*` variables are `HIPPOCAMPE_*`, and the folders it
+names are the new ones. It renames the PostgreSQL role `grenier` of the service's database to
+`hippocampe` (the database of the service is the default one, `postgres`, which has no name of
+Hippocampe to change), and says what it moved, one line each. It then moves the installation, made
+with two units, to one, as [an update](#update) does. Where there is nothing under the old names, it changes nothing
 and says nothing of it, so running it again is safe. If the old name and the new one both exist
 for a folder, it refuses before moving anything, and says which: two installations are never
 merged; keep the one that holds your data, remove the other, and run it again.

@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -36,8 +37,6 @@ const fakeSystem = Layer.succeed(service.System, {
         writeFileSync(archive, 'an archive')
       }
       if (args[0] === '--version') return { code: 0, output: 'postgres (PostgreSQL) 18.4\n' }
-      if (command.endsWith('initdb')) mkdirSync(args[1] ?? '', { recursive: true })
-      if (command.endsWith('initdb')) writeFileSync(join(args[1] ?? '', 'PG_VERSION'), '18\n')
       const created = args.includes('key:create')
       return {
         code: 0,
@@ -54,7 +53,6 @@ const options = {
   email: 'owner@example.org',
   instance: 'production',
   port: 7468,
-  databasePort: 7469,
 }
 
 beforeAll(() => {
@@ -76,14 +74,14 @@ beforeAll(() => {
 afterAll(() => rmSync(scratch, { recursive: true, force: true }))
 
 describe('hippo service install', () => {
-  test('folders, a private environment, the database, two units started, an owner and a key', async () => {
+  test('service install writes one unit', async () => {
     const said = await run(service.install(home, options))
     const environment = readFileSync(home.environment, 'utf8')
     expect(environment).toMatch(/^HIPPOCAMPE_INSTANCE=production$/m)
     expect(environment).toMatch(/^HIPPOCAMPE_HOST=127\.0\.0\.1$/m)
-    expect(environment).toMatch(
-      /^DATABASE_URL=postgres:\/\/hippocampe:[\w-]+@127\.0\.0\.1:7469\/postgres$/m,
-    )
+    // The local mode, on the database folder: no URL, no port, no password.
+    expect(environment).toMatch(new RegExp(`^HIPPOCAMPE_DATABASE_DIR=${home.database}$`, 'm'))
+    expect(environment).not.toContain('DATABASE_URL')
     expect(environment).toMatch(/^BETTER_AUTH_SECRET=[\w-]{40,}$/m)
     // The export and the backups are kept apart from what `--purge` deletes.
     expect(home.export).toBe(join(scratch, 'home', 'Hippocampe', 'export'))
@@ -92,27 +90,25 @@ describe('hippo service install', () => {
     expect(statSync(home.environment).mode & 0o777).toBe(0o600)
     for (const folder of [home.data, home.config, home.kept, home.export, home.backups, home.media])
       expect({ folder, mode: statSync(folder).mode & 0o777 }).toEqual({ folder, mode: 0o700 })
-    expect(existsSync(join(home.binaries, 'lib', 'libicuuc.so.60'))).toBe(true)
+    // The binaries are run where the package put them: nothing is copied.
+    expect(existsSync(home.binaries)).toBe(false)
+    expect(readdirSync(home.units)).toEqual(['hippocampe.service'])
     const server = readFileSync(join(home.units, 'hippocampe.service'), 'utf8')
+    expect(server).toContain(`Environment="HIPPOCAMPE_POSTGRES_BINARIES=${binaries}"`)
+    expect(server).not.toMatch(/Requires=|After=/)
     expect(server).toContain('ExecStart="/opt/hippocampe/bin/hippo" serve')
     expect(server).toContain(`EnvironmentFile=${home.environment}`)
     expect(server).toContain('Restart=on-failure')
     expect(server).toContain('WantedBy=default.target')
-    const database = readFileSync(join(home.units, 'hippocampe-postgres.service'), 'utf8')
-    expect(database).toContain('listen_addresses=127.0.0.1')
-    expect(database).toContain(
-      `ExecStart="${join(home.binaries, 'bin', 'postgres')}" -D "${home.database}"`,
-    )
+    // The server makes its database at its first start.
     expect(ran).toEqual([
-      expect.stringMatching(/initdb -D .* -U hippocampe --pwfile=.* -A scram-sha-256/),
       'systemctl --user daemon-reload',
-      'systemctl --user enable hippocampe-postgres.service hippocampe.service',
-      'systemctl --user restart hippocampe-postgres.service hippocampe.service',
+      'systemctl --user enable hippocampe.service',
+      'systemctl --user restart hippocampe.service',
       '/opt/hippocampe/bin/hippo key:create --name local --rights read,write,sensitive --owner owner@example.org',
     ])
     expect(readFileSync(home.key, 'utf8')).toBe('secret-of-the-tests\n')
     expect(statSync(home.key).mode & 0o777).toBe(0o600)
-    expect(existsSync(join(home.config, '.database-password'))).toBe(false)
     expect(said).toContain('MCP is at http://127.0.0.1:7468/mcp')
     expect(said).not.toContain('secret-of-the-tests')
     // A machine with nothing under the old names has nothing to move.
@@ -125,9 +121,19 @@ describe('hippo service install', () => {
     const said = await run(service.install(home, { ...options, port: 5000, instance: 'local' }))
     expect(readFileSync(home.environment, 'utf8')).toBe(before)
     expect(said).toContain(
-      `Installed already: the values of ${home.environment} are kept (port 7468, database port 7469, instance production); edit that file to change them.`,
+      `Installed already: the values of ${home.environment} are kept (port 7468, instance production); edit that file to change them.`,
     )
-    expect(ran.some((line) => line.includes('initdb') || line.includes('key:create'))).toBe(false)
+    expect(ran.some((line) => line.includes('key:create'))).toBe(false)
+  })
+
+  test('a command written with --database-port still installs, and says the port is ignored', async () => {
+    const before = readFileSync(home.environment, 'utf8')
+    const said = await run(service.install(home, { ...options, databasePort: 7469 }))
+    expect(said.split('\n')[0]).toBe(
+      '--database-port is ignored: the database has no port now, only a socket in its folder.',
+    )
+    expect(readFileSync(home.environment, 'utf8')).toBe(before)
+    expect(readdirSync(home.units)).toEqual(['hippocampe.service'])
   })
 })
 
@@ -140,8 +146,8 @@ describe('the service is driven by systemd', () => {
     await run(service.logs)
     expect(ran).toEqual([
       'systemctl --user start hippocampe.service',
-      'systemctl --user stop hippocampe.service hippocampe-postgres.service',
-      'systemctl --user status --no-pager hippocampe.service hippocampe-postgres.service',
+      'systemctl --user stop hippocampe.service',
+      'systemctl --user status --no-pager hippocampe.service',
       'journalctl --user -u hippocampe.service -n 200 --no-pager',
     ])
   })
@@ -151,8 +157,8 @@ describe('the service is driven by systemd', () => {
     const file = join(scratch, 'copy.tar.gz')
     const said = await run(service.backup(home, file))
     expect(ran).toEqual([
-      'systemctl --user stop hippocampe.service hippocampe-postgres.service',
-      `${join(home.binaries, 'bin', 'postgres')} --version`,
+      'systemctl --user stop hippocampe.service',
+      `${join(binaries, 'bin', 'postgres')} --version`,
       expect.stringMatching(
         new RegExp(
           `^tar -czf ${file} -C \\S+ hippocampe-backup\\.json -C ${home.data} postgres media$`,
@@ -182,9 +188,7 @@ describe('the service is driven by systemd', () => {
     expect(await run(service.uninstall(home, false))).toContain('give --purge to delete them')
     expect(existsSync(join(home.units, 'hippocampe.service'))).toBe(false)
     expect(existsSync(home.environment)).toBe(true)
-    expect(ran[0]).toBe(
-      'systemctl --user disable --now hippocampe.service hippocampe-postgres.service',
-    )
+    expect(ran[0]).toBe('systemctl --user disable --now hippocampe.service')
     const purged = await run(service.uninstall(home, true))
     expect(purged).toContain(`Deleted: ${home.data} and ${home.config}.`)
     expect(purged).toContain(`Kept: ${home.kept} (the backups and the export).`)

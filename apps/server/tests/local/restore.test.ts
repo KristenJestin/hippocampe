@@ -10,11 +10,9 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
-import { createRequire } from 'node:module'
-import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
-import { ConfigProvider, Effect, Exit, Layer, Predicate } from 'effect'
+import { ConfigProvider, Effect, Exit, Layer } from 'effect'
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'
 import { layer as database, migrate } from '../../src/core/database/index.ts'
 import { Rights } from '../../src/core/auth/index.ts'
@@ -25,76 +23,57 @@ import { createScratchDatabase, dropScratchDatabase, loadDump } from '../../src/
 import { defineType } from '../../src/core/types/index.ts'
 import { homeOf, readEnvironment } from '../../src/local/home.ts'
 import * as service from '../../src/local/service.ts'
+import { postgresForTests } from './postgres.ts'
 
-const native = join(
-  dirname(createRequire(import.meta.url).resolve('@embedded-postgres/linux-x64/package.json')),
-  'native',
-)
 const scratch = mkdtempSync(join(tmpdir(), 'hippocampe-restore-'))
 const home = homeOf({ HOME: join(scratch, 'home') })
 
 /** Each command the service ran, as it ran it. */
 const ran: Array<string> = []
 
-/** Whether the database of the installation runs, as systemd would say. */
+/** The PostgreSQL of the running service, as its server runs it; nothing while it is stopped. */
+let postgres: Awaited<ReturnType<typeof postgresForTests>> | undefined
+
+/** Whether the service runs, as systemd would say. */
 let running = false
 
 /** A command made to fail after it ran, for the restore that goes wrong. */
 let failing: RegExp | undefined
 
-/** The database of the installation, started and stopped as its unit would be. */
-const pgCtl = (...args: ReadonlyArray<string>) => {
-  const { DATABASE_URL = '' } = readEnvironment(home.environment)
-  const port = new URL(DATABASE_URL).port
-  execFileSync(
-    join(home.binaries, 'bin', 'pg_ctl'),
-    [
-      '-D',
-      home.database,
-      '-o',
-      `-p ${port} -k ${home.data} -c listen_addresses=127.0.0.1`,
-      '-l',
-      join(scratch, 'postgres.log'),
-      '-w',
-      ...args,
-    ],
-    { stdio: 'pipe' },
-  )
-}
-
-/** systemd, for the two units: the server needs the database, so starting it starts both. */
-const systemd = (args: ReadonlyArray<string>) => {
+/** systemd, for the one unit: its server runs its PostgreSQL, so stopping it stops both. */
+const systemd = async (args: ReadonlyArray<string>) => {
   const [verb] = args.slice(1)
-  if ((verb === 'stop' || verb === 'restart') && running) {
-    pgCtl('-m', 'fast', 'stop')
-    running = false
+  if ((verb === 'stop' || verb === 'restart') && postgres !== undefined) {
+    await postgres.release()
+    postgres = undefined
   }
-  if ((verb === 'start' || verb === 'restart') && !running) {
-    pgCtl('start')
-    running = true
-  }
+  if ((verb === 'start' || verb === 'restart') && postgres === undefined)
+    postgres = await postgresForTests(home.database)
+  running = postgres !== undefined
   return { code: 0, output: '' }
 }
 
 /** systemd is faked; PostgreSQL and `tar` are the real ones, for the data to really move. */
 const system = Layer.succeed(service.System, {
   run: (command, args, environment, input) =>
-    Effect.sync(() => {
+    Effect.suspend(() => {
       const line = [command, ...args].join(' ')
       ran.push(line)
-      if (command === 'systemctl') return systemd(args)
-      if (args.includes('key:create'))
-        return {
-          code: 0,
-          output: 'The key local is created.\nIts secret:\n\nsecret-of-the-tests\n',
-        }
-      const real = spawnSync(command, [...args], {
-        encoding: 'utf8',
-        env: { ...process.env, ...environment },
-        input,
+      if (command === 'systemctl') return Effect.promise(() => systemd(args))
+      return Effect.sync(() => {
+        if (args.includes('key:create'))
+          return {
+            code: 0,
+            output: 'The key local is created.\nIts secret:\n\nsecret-of-the-tests\n',
+          }
+        const real = spawnSync(command, [...args], {
+          encoding: 'utf8',
+          env: { ...process.env, ...environment },
+          input,
+        })
+        if (failing?.test(line)) return { code: 2, output: 'tar: a failure made by the test' }
+        return { code: real.status ?? 1, output: `${real.stdout ?? ''}${real.stderr ?? ''}` }
       })
-      if (failing?.test(line)) return { code: 2, output: 'tar: a failure made by the test' }
-      return { code: real.status ?? 1, output: `${real.stdout ?? ''}${real.stderr ?? ''}` }
     }),
   answers: () => Effect.succeed(true),
 })
@@ -127,22 +106,17 @@ const reading = (slug: string) => core(readEntry(slug))
 /** Whether an entry of that slug can be read. */
 const exists = (slug: string) => core(Effect.exit(readEntry(slug))).then(Exit.isSuccess)
 
-/** Every file of the home but the database's own and the binaries, with its content. */
+/** Every file of the home but the database's own, with its content. */
 const snapshot = () =>
   readdirSync(join(scratch, 'home'), { recursive: true, withFileTypes: true })
     .filter((found) => found.isFile())
     .map((found) => join(found.parentPath, found.name))
-    .filter((path) => !path.startsWith(`${home.database}/`) && !path.startsWith(home.binaries))
-    // The lock of the running database's socket, written again at each start.
-    .filter((path) => !path.startsWith(join(home.data, '.s.PGSQL')))
+    .filter((path) => !path.startsWith(`${home.database}/`))
     .toSorted()
     .map((path) => `${relative(scratch, path)}: ${readFileSync(path).toString('base64')}`)
 
-/** The folders of the data, but the socket of the running database. */
-const dataFolders = () =>
-  readdirSync(home.data)
-    .filter((name) => !name.startsWith('.'))
-    .toSorted()
+/** The folders of the data. */
+const dataFolders = () => readdirSync(home.data).toSorted()
 
 /** The files of the media, by their path in its folder. */
 const mediaFiles = () =>
@@ -179,23 +153,9 @@ let firstBackup = ''
 let beforeRestore = ''
 
 beforeAll(async () => {
-  process.env['HIPPOCAMPE_POSTGRES_BINARIES'] = native
   process.env['HIPPOCAMPE_EXECUTABLE'] = '/opt/hippocampe/bin/hippo'
   process.env['HIPPOCAMPE_VERSION'] = '0.6.0'
-  const databasePort = await new Promise<number>((resolve) => {
-    const probe = createServer().listen(0, '127.0.0.1', () => {
-      const address = probe.address()
-      probe.close(() => resolve(address === null || Predicate.isString(address) ? 0 : address.port))
-    })
-  })
-  await run(
-    service.install(home, {
-      email: 'owner@example.org',
-      instance: 'local',
-      port: 7468,
-      databasePort,
-    }),
-  )
+  await run(service.install(home, { email: 'owner@example.org', instance: 'local', port: 7468 }))
   await core(
     Effect.gen(function* () {
       yield* defineType({
@@ -215,8 +175,8 @@ beforeAll(async () => {
   )
 }, 60_000)
 
-afterAll(() => {
-  if (running) pgCtl('-m', 'immediate', 'stop')
+afterAll(async () => {
+  await postgres?.release()
   rmSync(scratch, { recursive: true, force: true })
 })
 
@@ -266,12 +226,12 @@ describe('hippo restore', () => {
     expect(Buffer.from(served.bytes).toString('base64')).toBe(PIXEL)
     expect(mediaFiles()).toEqual(mediaAtBackup)
     // Nothing is left aside, the data is readable by this user only, and the service runs.
-    expect(dataFolders()).toEqual(['media', 'postgres', 'postgresql'])
+    expect(dataFolders()).toEqual(['media', 'postgres'])
     expect(statSync(home.database).mode & 0o777).toBe(0o700)
     expect(statSync(home.media).mode & 0o777).toBe(0o700)
     expect(running).toBe(true)
     expect(ran.filter((line) => line.startsWith('systemctl'))).toEqual([
-      'systemctl --user stop hippocampe.service hippocampe-postgres.service',
+      'systemctl --user stop hippocampe.service',
       'systemctl --user start hippocampe.service',
     ])
     beforeRestore =
@@ -313,7 +273,7 @@ describe('hippo restore', () => {
     expect(refusal).toContain('the data that was there is put back')
     expect(running).toBe(true)
     expect(await exists('teapot')).toBe(true)
-    expect(dataFolders()).toEqual(['media', 'postgres', 'postgresql'])
+    expect(dataFolders()).toEqual(['media', 'postgres'])
     expect(snapshot().filter((line) => !line.startsWith('home/Hippocampe/backups/'))).toEqual(
       before,
     )
@@ -444,18 +404,18 @@ describe('hippo restore refuses, before anything is touched', () => {
 describe('hippo restore of a backup of Hippocampe 0.6.0', () => {
   test('a backup made from the 0.6.0 fixture restores into this version, and reads after its migrations', async () => {
     const fixture = new URL('../upgrade/0.6.0/', import.meta.url).pathname
-    const { DATABASE_URL = '' } = readEnvironment(home.environment)
-    /** Runs on the database `name` of the installation's server. */
+    /** Runs on the database `name` of the installation's server, through its socket. */
     const on =
       (name: string) =>
-      <A, E, R>(effect: Effect.Effect<A, E, R>) => {
-        const url = new URL(DATABASE_URL)
-        url.pathname = `/${name}`
-        return Effect.provide(
+      <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+        Effect.provide(
           effect,
-          ConfigProvider.layer(ConfigProvider.fromUnknown({ DATABASE_URL: url.toString() })),
+          ConfigProvider.layer(
+            ConfigProvider.fromUnknown({
+              DATABASE_URL: `postgres://hippocampe@localhost:5432/${name}?host=${encodeURIComponent(home.database)}`,
+            }),
+          ),
         )
-      }
     // The installation holds the fixture's database as 0.6.0 left it, not migrated, and its media.
     // Its database is `postgres`: it is made again from another one, then that one is dropped.
     await Effect.runPromise(
