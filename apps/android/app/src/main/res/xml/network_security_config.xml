@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The release reaches its server over HTTPS only (see docs/android.md); the beta and the debug
+     builds, in src/beta and src/debug, also allow plain HTTP. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

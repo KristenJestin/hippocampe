@@ -10,6 +10,6 @@
     "build": "bun scripts/gradle.ts assembleDebug",
     "lint": "oxlint -c ../../.oxlintrc.json scripts tests && bun scripts/gradle.ts lintDebug",
     "fmt:check": "oxfmt -c ../../.oxfmtrc.json --check scripts tests",
-    "test": "bun --bun vitest run --config ../../vitest.config.ts --dir . && bun scripts/gradle.ts testDebugUnitTest"
+    "test": "bun --bun vitest run --config ../../vitest.config.ts --dir . && bun scripts/gradle.ts testDebugUnitTest testBetaUnitTest --tests fr.kristenjestin.hippocampe.BuildTypesTest testReleaseUnitTest --tests fr.kristenjestin.hippocampe.BuildTypesTest"
   }
 }

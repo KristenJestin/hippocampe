@@ -1,3 +1,5 @@
+import com.android.build.api.variant.HostTestBuilder
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -8,6 +10,9 @@ plugins {
 
 /** The version of Hippocampe, from the tag of a release (`HIPPOCAMPE_VERSION`), `0.0.0` in a local build. */
 val hippocampeVersion: String = providers.environmentVariable("HIPPOCAMPE_VERSION").getOrElse("0.0.0")
+
+/** The run of the workflow that builds the beta: its version code, which grows from one beta to the next. */
+val betaRun: Int? = providers.environmentVariable("HIPPOCAMPE_BETA_RUN").orNull?.toInt()
 
 /** The release key, given by CI from the repository's secrets; without it, a release build is unsigned. */
 val keystore: String? = providers.environmentVariable("ANDROID_KEYSTORE_FILE").orNull
@@ -42,6 +47,13 @@ android {
             isMinifyEnabled = false
             signingConfig = signingConfigs.findByName("release")
         }
+        // Installed beside the release, for the development instance: signed with the same key, so
+        // that each beta updates the one before it.
+        create("beta") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".beta"
+            matchingFallbacks += "release"
+        }
     }
 
     compileOptions {
@@ -50,6 +62,7 @@ android {
     }
 
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 
@@ -62,6 +75,14 @@ android {
     lint {
         warningsAsErrors = false
         abortOnError = true
+    }
+}
+
+androidComponents {
+    // The tests of the build types run on each of them, not on the debug variant only.
+    beforeVariants { it.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = true }
+    onVariants(selector().withBuildType("beta")) { variant ->
+        betaRun?.let { run -> variant.outputs.forEach { it.versionCode.set(run) } }
     }
 }
 
