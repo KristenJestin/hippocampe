@@ -139,7 +139,7 @@ jobs:
         if: steps.signing.outputs.ready == 'true'
         with:
           distribution: temurin
-          java-version: 21.0.12+8
+          java-version: 21.0.12+8.0.LTS
           cache: gradle
       - name: Build the APK, which takes its version from the tag, signed
         if: steps.signing.outputs.ready == 'true'

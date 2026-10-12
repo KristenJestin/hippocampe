@@ -73,7 +73,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21.0.12+8
+          java-version: 21.0.12+8.0.LTS
           cache: gradle
       - run: bunx turbo run typecheck
       - run: bunx turbo run lint
