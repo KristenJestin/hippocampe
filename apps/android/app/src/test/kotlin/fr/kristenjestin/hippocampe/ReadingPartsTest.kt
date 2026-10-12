@@ -8,6 +8,8 @@ import fr.kristenjestin.hippocampe.read.Marked
 import fr.kristenjestin.hippocampe.read.Node
 import fr.kristenjestin.hippocampe.read.Reference
 import fr.kristenjestin.hippocampe.read.Target
+import fr.kristenjestin.hippocampe.read.dateInWords
+import fr.kristenjestin.hippocampe.read.labelOf
 import fr.kristenjestin.hippocampe.read.marked
 import fr.kristenjestin.hippocampe.read.parseMarkdown
 import fr.kristenjestin.hippocampe.read.treeOf
@@ -178,5 +180,14 @@ class ReadingPartsTest {
             listOf(Block.Paragraph(listOf(run("snake_case_name and 2 * 3 and *not emphasis")))),
             parseMarkdown("snake_case_name and 2 * 3 and \\*not emphasis"),
         )
+    }
+
+    @Test
+    fun `a date is told in words and a field name as a label`() {
+        assertEquals("30 September 2026", dateInWords("2026-09-30T08:00:00.000Z"))
+        assertEquals("1 January 2026", dateInWords("2026-01-01"))
+        assertEquals("a value that is no date stays as it is", "next spring", dateInWords("next spring"))
+        assertEquals("Monthly cost", labelOf("monthly_cost"))
+        assertEquals("Servings", labelOf("fields.servings"))
     }
 }

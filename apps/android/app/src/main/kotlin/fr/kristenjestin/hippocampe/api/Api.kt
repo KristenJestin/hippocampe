@@ -11,15 +11,20 @@ import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
+import io.ktor.client.request.prepareGet
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
+import io.ktor.http.encodeURLPathPart
 import io.ktor.http.quote
 import io.ktor.serialization.kotlinx.json.json
+import io.ktor.util.cio.writeChannel
+import io.ktor.utils.io.copyAndClose
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
@@ -130,6 +135,57 @@ class Api(engine: HttpClientEngine) {
             }
         }
 
+    /** The entries that match [query], of one type when given. */
+    suspend fun search(server: Server, query: String, type: String?): Answer<SearchResults> =
+        call(server) {
+            http.get(url(server, "/api/search")) {
+                bearerAuth(server.key)
+                parameter("q", query)
+                if (type != null) parameter("type", type)
+            }
+        }
+
+    /** The entry of that slug or id, with its place in the tree and what it is tied to. */
+    suspend fun entry(server: Server, entry: String): Answer<EntryRead> =
+        call(server) { http.get(url(server, "/api/entries/${entry.encodeURLPathPart()}")) { bearerAuth(server.key) } }
+
+    /** A page of the history of an entry, newest first, after [cursor] when given. */
+    suspend fun history(server: Server, entry: String, cursor: String?): Answer<HistoryPage> =
+        call(server) {
+            http.get(url(server, "/api/entries/${entry.encodeURLPathPart()}/history")) {
+                bearerAuth(server.key)
+                if (cursor != null) parameter("cursor", cursor)
+            }
+        }
+
+    /** Every entry the key may see, each with the places it is part of: the whole tree. */
+    suspend fun tree(server: Server): Answer<EntryList> =
+        call(server) { http.get(url(server, "/api/entries")) { bearerAuth(server.key) } }
+
+    suspend fun types(server: Server): Answer<TypeList> =
+        call(server) { http.get(url(server, "/api/types")) { bearerAuth(server.key) } }
+
+    /** A file of Hippocampe (a medium's `url`, such as `/media/<hash>`), in memory: for an image. */
+    suspend fun medium(server: Server, path: String): Answer<ByteArray> =
+        call(server) { http.get(url(server, path)) { bearerAuth(server.key) } }
+
+    /** A file of Hippocampe written to [file] as it arrives, whatever its size. */
+    suspend fun download(server: Server, path: String, file: File): Answer<Unit> {
+        val failure = try {
+            http.prepareGet(url(server, path)) { bearerAuth(server.key) }.execute { response ->
+                if (response.status.value in 200..299) {
+                    response.bodyAsChannel().copyAndClose(file.writeChannel())
+                    null
+                } else {
+                    refusal(server, response)
+                }
+            }
+        } catch (failure: IOException) {
+            return Answer.Failed(unreachable(server))
+        }
+        return failure ?: Answer.Done(Unit)
+    }
+
     private fun url(server: Server, path: String) = server.address.trimEnd('/') + path
 
     private suspend inline fun <reified T> call(
@@ -152,9 +208,17 @@ class Api(engine: HttpClientEngine) {
                     else -> throw failure
                 }
             }
-            status == 408 || status == 429 || status >= 500 ->
-                Answer.Failed(sentence(response) ?: "Hippocampe answered $status: it will be tried again.")
-            else -> Answer.Refused(
+            else -> refusal(server, response)
+        }
+    }
+
+    /** What a response that is not a success is: a failure to try again, or a refusal, in the server's sentence. */
+    private suspend fun refusal(server: Server, response: HttpResponse): Answer<Nothing> {
+        val status = response.status.value
+        return if (status == 408 || status == 429 || status >= 500) {
+            Answer.Failed(sentence(response) ?: "Hippocampe answered $status: it will be tried again.")
+        } else {
+            Answer.Refused(
                 status,
                 sentence(response)
                     ?: if (status == 404) notHippocampe(server) else "Hippocampe refused it ($status) without saying why.",

@@ -8,6 +8,8 @@
     <string name="instance_local">Local</string>
     <string name="instance_with_label">%1$s · %2$s</string>
 
+    <string name="nav_search">Search</string>
+    <string name="nav_browse">Browse</string>
     <string name="nav_add">Add</string>
     <string name="nav_sent">Sent</string>
     <string name="nav_settings">Settings</string>
@@ -42,7 +44,7 @@
     <string name="sent_empty">Nothing was sent from this phone yet.</string>
     <string name="sent_waiting">Waiting on the phone</string>
     <string name="sent_in_inbox">In the inbox</string>
-    <string name="sent_processed">Processed: %1$s</string>
+    <string name="sent_processed">Processed into:</string>
     <string name="sent_processed_none">Processed, without an entry this key may read</string>
     <string name="sent_dismissed">Dismissed: %1$s</string>
     <string name="sent_dismissed_no_reason">Dismissed</string>
@@ -51,6 +53,73 @@
     <string name="sent_cancel">Cancel</string>
     <string name="sent_remove">Remove</string>
     <string name="sent_unfollowed">What became of each item is not known now: %1$s</string>
+
+    <string name="read_loading">Reading…</string>
+    <string name="read_retry">Try again</string>
+    <string name="read_back">Back</string>
+
+    <string name="search_label">Search Hippocampe</string>
+    <string name="search_hint">Type a few words to find an entry.</string>
+    <string name="search_all_types">All types</string>
+    <string name="search_nothing">Nothing for “%1$s”</string>
+    <plurals name="search_found">
+        <item quantity="one">%1$d entry found</item>
+        <item quantity="other">%1$d entries found</item>
+    </plurals>
+
+    <string name="browse_open">Open %1$s</string>
+    <string name="browse_close">Close %1$s</string>
+    <string name="browse_empty">Nothing is kept yet.</string>
+
+    <string name="entry_fields">Fields</string>
+    <string name="entry_links">Links</string>
+    <string name="entry_linked_from">Linked from</string>
+    <string name="entry_cited_by">Cited by</string>
+    <string name="entry_contains">Contains</string>
+    <string name="entry_dated">Dated</string>
+    <string name="entry_media">Media</string>
+    <string name="entry_history">History</string>
+    <string name="entry_show_history">Show the history</string>
+    <string name="entry_older">Older</string>
+    <string name="entry_supposed">Supposed</string>
+    <string name="entry_disputed">Sources disagree</string>
+    <string name="entry_hidden">hidden</string>
+    <string name="entry_hidden_detail">This key does not see sensitive entries.</string>
+    <string name="entry_yes">Yes</string>
+    <string name="entry_no">No</string>
+    <string name="entry_archived">Archived on %1$s</string>
+    <string name="entry_archived_reason">Archived on %1$s: %2$s</string>
+    <string name="entry_no_description">No description</string>
+    <string name="entry_image_failed">This image could not be read.</string>
+    <string name="entry_no_viewer">No application on this phone opens this file.</string>
+    <string name="entry_file_failed">This file could not be fetched: %1$s</string>
+    <string name="entry_size_kb">%1$d KB</string>
+    <string name="entry_since">since %1$s</string>
+    <string name="entry_until">until %1$s</string>
+    <string name="entry_between">from %1$s to %2$s</string>
+    <string name="entry_edited_on">Edited on %1$s</string>
+    <string name="entry_by_on">by %1$s · %2$s</string>
+    <string name="entry_change">%1$s: %2$s → %3$s</string>
+    <string name="entry_action_create">Created</string>
+    <string name="entry_action_update">Edited</string>
+    <string name="entry_action_rewrite">Rewritten after a rename</string>
+    <string name="entry_action_archive">Archived</string>
+    <string name="entry_action_link">Linked</string>
+    <string name="entry_action_unlink">Unlinked</string>
+    <string name="entry_action_attach">Media attached</string>
+    <string name="entry_action_describe">Media described</string>
+    <plurals name="entry_more_dated">
+        <item quantity="one">and %1$d more</item>
+        <item quantity="other">and %1$d more</item>
+    </plurals>
+    <plurals name="entry_more_changes">
+        <item quantity="one">and %1$d more</item>
+        <item quantity="other">and %1$d more</item>
+    </plurals>
+    <plurals name="entry_hidden_entries">
+        <item quantity="one">One hidden entry</item>
+        <item quantity="other">%1$d hidden entries</item>
+    </plurals>
 
     <string name="kept">Kept, and sent to %1$s as soon as it can be.</string>
 </resources>
