@@ -1,5 +1,6 @@
 package fr.kristenjestin.hippocampe.ui
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
@@ -19,8 +20,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -41,18 +45,33 @@ import fr.kristenjestin.hippocampe.settings.Settings
 import fr.kristenjestin.hippocampe.ui.theme.HippocampeTheme
 
 class MainActivity : ComponentActivity() {
+    /** The entry a notification asked to open, until it is opened. */
+    private var asked by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { HippocampeTheme { Hippocampe(graph) } }
+        // Not again after a rotation: the entry is already open.
+        if (savedInstanceState == null) asked = entryOf(intent)
+        setContent { HippocampeTheme { Hippocampe(graph, asked) { asked = null } } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        entryOf(intent)?.let { asked = it }
     }
 }
 
+/** The entry that a notification names: `hippocampe://entry/<slug>`. */
+private fun entryOf(intent: Intent): String? =
+    intent.data?.takeIf { it.scheme == "hippocampe" && it.host == "entry" }?.lastPathSegment
+
 /**
- * The destinations of the bottom bar, in order. The home screen takes the first place when it comes.
+ * The destinations of the bottom bar, in order; the first is where the application opens.
  * An entry is not one of them: it opens over whichever destination led to it.
  */
 private enum class Destination(val route: String, val label: Int, val icon: Int) {
+    Home("home", R.string.nav_home, R.drawable.ic_home),
     Search("search", R.string.nav_search, R.drawable.ic_search),
     Browse("browse", R.string.nav_browse, R.drawable.ic_browse),
     Add("add", R.string.nav_add, R.drawable.ic_add),
@@ -64,7 +83,7 @@ private const val ENTRY = "entry/{entry}"
 private const val ENTRY_ARGUMENT = "entry"
 
 @Composable
-private fun Hippocampe(graph: Graph) {
+private fun Hippocampe(graph: Graph, asked: String?, opened: () -> Unit) {
     val flow = remember { graph.settings.loaded() }
     val loaded by flow.collectAsStateWithLifecycle(initialValue = null)
     Surface(Modifier.fillMaxSize()) {
@@ -73,13 +92,13 @@ private fun Hippocampe(graph: Graph) {
             if (loaded != null) SettingsScreen(graph, null, Modifier.fillMaxSize().safeDrawingPadding())
             return@Surface
         }
-        Main(graph, settings)
+        Main(graph, settings, asked, opened)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Main(graph: Graph, settings: Settings) {
+private fun Main(graph: Graph, settings: Settings, asked: String?, opened: () -> Unit) {
     val navigation = rememberNavController()
     val entry by navigation.currentBackStackEntryAsState()
     val context = LocalContext.current
@@ -90,6 +109,12 @@ private fun Main(graph: Graph, settings: Settings) {
         restoreState = true
     }
     fun openEntry(entry: String) = navigation.navigate("entry/${Uri.encode(entry)}")
+    LaunchedEffect(asked) {
+        asked?.let {
+            openEntry(it)
+            opened()
+        }
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -121,7 +146,10 @@ private fun Main(graph: Graph, settings: Settings) {
             }
         },
     ) { padding ->
-        NavHost(navigation, Destination.Search.route, Modifier.padding(padding)) {
+        NavHost(navigation, Destination.Home.route, Modifier.padding(padding)) {
+            composable(Destination.Home.route) {
+                HomeScreen(viewModel { HomeModel(graph.home) }, ::openEntry, { go(Destination.Sent.route) })
+            }
             composable(Destination.Search.route) { SearchScreen(viewModel { SearchModel(graph.reading) }, ::openEntry) }
             composable(Destination.Browse.route) { BrowseScreen(viewModel { BrowseModel(graph.reading) }, ::openEntry) }
             composable(

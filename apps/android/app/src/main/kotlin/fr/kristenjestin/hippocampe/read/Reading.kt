@@ -2,6 +2,7 @@ package fr.kristenjestin.hippocampe.read
 
 import fr.kristenjestin.hippocampe.api.Answer
 import fr.kristenjestin.hippocampe.api.Api
+import fr.kristenjestin.hippocampe.api.Briefing
 import fr.kristenjestin.hippocampe.api.EntryRead
 import fr.kristenjestin.hippocampe.api.HistoryPage
 import fr.kristenjestin.hippocampe.api.SearchResults
@@ -38,6 +39,9 @@ class Reading(private val api: Api, private val server: suspend () -> Server?) {
         ask { api.history(it, entry, cursor) }
 
     suspend fun tree(): Load<List<TreeEntry>> = ask { api.tree(it).map { list -> list.entries } }
+
+    /** What is coming this week, and what waits. */
+    suspend fun briefing(): Load<Briefing> = ask { api.briefing(it, "week") }
 
     suspend fun types(): Load<List<TypeDefinition>> = ask { api.types(it).map { list -> list.types } }
 

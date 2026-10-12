@@ -8,6 +8,7 @@
     <string name="instance_local">Local</string>
     <string name="instance_with_label">%1$s · %2$s</string>
 
+    <string name="nav_home">Home</string>
     <string name="nav_search">Search</string>
     <string name="nav_browse">Browse</string>
     <string name="nav_add">Add</string>
@@ -53,6 +54,30 @@
     <string name="sent_cancel">Cancel</string>
     <string name="sent_remove">Remove</string>
     <string name="sent_unfollowed">What became of each item is not known now: %1$s</string>
+
+    <string name="home_heads_up">Heads-up</string>
+    <string name="home_week">This week</string>
+    <string name="home_nothing">Nothing is due this week, and nothing waits.</string>
+    <string name="home_last_read">Last read %1$s</string>
+    <plurals name="home_inbox">
+        <item quantity="one">%1$d item waits in the inbox</item>
+        <item quantity="other">%1$d items wait in the inbox</item>
+    </plurals>
+
+    <string name="due_line">%1$s: %2$s (%3$s)</string>
+    <string name="due_on">%1$s: %2$s</string>
+    <string name="due_today">today</string>
+    <string name="due_tomorrow">tomorrow</string>
+    <plurals name="due_in_days">
+        <item quantity="one">in %1$d day</item>
+        <item quantity="other">in %1$d days</item>
+    </plurals>
+
+    <string name="warn_title">Warn me before a due date</string>
+    <string name="warn_about">Once a day, with the network, the phone asks Hippocampe what is coming and notifies each heads-up once.</string>
+    <string name="warn_refused">Notifications are not allowed for this application: allow them in the settings of the phone, then turn this on.</string>
+    <string name="warn_channel">Due dates</string>
+    <string name="warn_channel_about">Heads-ups before a deadline or a recurring date comes.</string>
 
     <string name="read_loading">Reading…</string>
     <string name="read_retry">Try again</string>

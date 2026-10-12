@@ -2,6 +2,7 @@ package fr.kristenjestin.hippocampe
 
 import fr.kristenjestin.hippocampe.api.About
 import fr.kristenjestin.hippocampe.api.AboutInstance
+import fr.kristenjestin.hippocampe.api.Briefing
 import fr.kristenjestin.hippocampe.api.EntryList
 import fr.kristenjestin.hippocampe.api.HistoryPage
 import fr.kristenjestin.hippocampe.api.InboxGave
@@ -62,6 +63,7 @@ class FakeServer {
     var found = listOf<SearchResult>()
     var tree = listOf<TreeEntry>()
     var types = listOf<TypeDefinition>()
+    var briefing = briefingOf()
 
     /** Each entry as the API reads it, in JSON as the server writes it, by slug and by id. */
     val entries = mutableMapOf<String, String>()
@@ -94,6 +96,7 @@ class FakeServer {
                 val results = found.filter { type == null || it.type == type }
                 answer(json.encodeToString(SearchResults.serializer(), SearchResults(results, results.size.toLong())))
             }
+            "/api/briefing" -> answer(json.encodeToString(Briefing.serializer(), briefing))
             "/api/types" -> answer(json.encodeToString(TypeList.serializer(), TypeList(types)))
             "/api/entries" -> answer(json.encodeToString(EntryList.serializer(), EntryList(tree)))
             else -> readEntry(request.url.encodedPath)
