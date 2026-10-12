@@ -1,5 +1,6 @@
 package fr.kristenjestin.hippocampe.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -65,7 +67,7 @@ class SentModel(private val graph: Graph) : ViewModel() {
 
 /** What was sent from this phone, newest first, and what each became. */
 @Composable
-fun SentScreen(graph: Graph, modifier: Modifier = Modifier) {
+fun SentScreen(graph: Graph, open: (String) -> Unit, modifier: Modifier = Modifier) {
     val model = viewModel { SentModel(graph) }
     val rows by model.rows.collectAsStateWithLifecycle()
     val unfollowed by model.unfollowed.collectAsStateWithLifecycle()
@@ -88,14 +90,14 @@ fun SentScreen(graph: Graph, modifier: Modifier = Modifier) {
             }
         }
         items(rows, key = { it.item.clientId }) { row ->
-            SentLine(row) { model.cancel(row.item.clientId) }
+            SentLine(row, { model.cancel(row.item.clientId) }, open)
             HorizontalDivider()
         }
     }
 }
 
 @Composable
-private fun SentLine(row: SentRow, cancel: () -> Unit) {
+fun SentLine(row: SentRow, cancel: () -> Unit, open: (String) -> Unit) {
     val item = row.item
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
@@ -117,6 +119,16 @@ private fun SentLine(row: SentRow, cancel: () -> Unit) {
                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                 },
             )
+            // The entries it gave open, each by its slug.
+            (row.became as? Became.Processed)?.entries?.forEach { gave ->
+                Text(
+                    gave.title,
+                    Modifier.clickable { open(gave.slug) }.padding(vertical = 4.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textDecoration = TextDecoration.Underline,
+                )
+            }
         }
         when (row.became) {
             Became.Waiting, is Became.Held -> RemoveButton(stringResource(R.string.sent_cancel), cancel)
@@ -133,8 +145,8 @@ private fun became(became: Became) = when (became) {
     is Became.Held -> stringResource(R.string.sent_held, became.sentence)
     is Became.Refused -> stringResource(R.string.sent_refused, became.sentence)
     is Became.Processed ->
-        if (became.titles.isEmpty()) stringResource(R.string.sent_processed_none)
-        else stringResource(R.string.sent_processed, became.titles.joinToString(", "))
+        if (became.entries.isEmpty()) stringResource(R.string.sent_processed_none)
+        else stringResource(R.string.sent_processed)
     is Became.Dismissed ->
         became.reason?.let { stringResource(R.string.sent_dismissed, it) } ?: stringResource(R.string.sent_dismissed_no_reason)
 }
