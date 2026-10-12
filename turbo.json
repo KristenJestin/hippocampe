@@ -83,6 +83,11 @@
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/api/openapi.json"],
       "outputs": []
     },
+    "@hippocampe/android#generate": {
+      "dependsOn": ["@hippocampe/server#openapi"],
+      "inputs": ["scripts/types.ts", "$TURBO_ROOT$/packages/api/openapi.json"],
+      "outputs": ["app/src/main/kotlin/io/github/kristenjestin/hippocampe/api/Types.kt"]
+    },
     "@hippocampe/desktop#build": {
       "inputs": ["$TURBO_DEFAULT$"],
       "outputs": ["target/debug/story", "target/debug/app"]
