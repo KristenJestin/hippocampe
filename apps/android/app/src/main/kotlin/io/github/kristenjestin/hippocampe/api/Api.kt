@@ -14,11 +14,11 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentDisposition
 import io.ktor.http.ContentType
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
+import io.ktor.http.quote
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -108,12 +108,8 @@ class Api(engine: HttpClientEngine) {
                         file.readBytes(),
                         Headers.build {
                             append(HttpHeaders.ContentType, mime)
-                            append(
-                                HttpHeaders.ContentDisposition,
-                                ContentDisposition.File
-                                    .withParameter(ContentDisposition.Parameters.FileName, name)
-                                    .toString(),
-                            )
+                            // Ktor writes `form-data; name="file"` before it: a part with a file name is a file.
+                            append(HttpHeaders.ContentDisposition, "filename=${name.quote()}")
                         },
                     )
                     append("name", name)
@@ -158,7 +154,11 @@ class Api(engine: HttpClientEngine) {
             }
             status == 408 || status == 429 || status >= 500 ->
                 Answer.Failed(sentence(response) ?: "Hippocampe answered $status: it will be tried again.")
-            else -> Answer.Refused(status, sentence(response) ?: notHippocampe(server))
+            else -> Answer.Refused(
+                status,
+                sentence(response)
+                    ?: if (status == 404) notHippocampe(server) else "Hippocampe refused it ($status) without saying why.",
+            )
         }
     }
 

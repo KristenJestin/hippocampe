@@ -46,6 +46,7 @@ class FakeServer {
     var failing: Int? = null
     var refusal: String? = null
     var loseNextAnswer = false
+    var silentRefusal = false
     val inbox = mutableListOf<Received>()
     val requests = mutableListOf<HttpRequestData>()
 
@@ -74,7 +75,12 @@ class FakeServer {
 
     private suspend fun MockRequestHandleScope.add(request: HttpRequestData) = run {
         val body = request.body.toByteArray().decodeToString()
-        val item = if (request.body.contentType?.match(ContentType.MultiPart.FormData) == true) {
+        val multipart = request.body.contentType?.match(ContentType.MultiPart.FormData) == true
+        // As the server does: a file is a part named `file` with a file name, and a payload it cannot
+        // read is refused with no sentence at all.
+        if (multipart && !Regex("Content-Disposition: form-data; name=\"?file\"?; filename=").containsMatchIn(body))
+            return@run respond("", HttpStatusCode.BadRequest)
+        val item = if (multipart) {
             fun part(name: String) = Regex("name=\"?$name\"?[^\\r\\n]*\\r\\n(?:[^\\r\\n]+\\r\\n)*\\r\\n(.*?)\\r\\n--", RegexOption.DOT_MATCHES_ALL)
                 .find(body)?.groupValues?.get(1)
             Received(
@@ -101,6 +107,7 @@ class FakeServer {
             )
         }
         refusal?.let { return@run refuse(HttpStatusCode.BadRequest, it) }
+        if (silentRefusal) return@run respond("", HttpStatusCode.BadRequest)
         if (inbox.none { it.clientId == item.clientId }) inbox += item
         if (loseNextAnswer) {
             loseNextAnswer = false

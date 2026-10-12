@@ -117,4 +117,12 @@ class SendingTest {
         fixture.outbox.cancel(kept.clientId)
         assertEquals("what is in the inbox stays listed", Standing.Sent, dao.get(kept.clientId)?.standing)
     }
+
+    @Test
+    fun `a refusal without a sentence says so rather than blaming the address`() = runBlocking {
+        val item = fixture.outbox.add(listOf(Draft.Text("A note")), null).single()
+        fixture.server.silentRefusal = true
+        fixture.attempt()
+        assertEquals("Hippocampe refused it (400) without saying why.", dao.get(item.clientId)?.refusal)
+    }
 }
