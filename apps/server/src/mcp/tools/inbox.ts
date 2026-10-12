@@ -24,7 +24,7 @@ const PAGE_LIMIT = 200
 export const inboxAddTool = defineTool({
   name: 'inbox_add',
   description:
-    'Puts something in the inbox for an agent to turn into entries: a `text`, a `url`, or a `file` (base64 `data` with its `name`), with where it came from (`origin`). Nothing enters Hippocampe as a raw copy.',
+    'Puts something in the inbox for an agent to turn into entries: a `text`, a `url`, or a `file` (base64 `data` with its `name`), with where it came from (`origin`) and, if you like, why it is sent (`note`). Nothing enters Hippocampe as a raw copy.',
   input: InboxInput,
   right: 'write',
   hints: { destructive: false, idempotent: false },
@@ -72,7 +72,7 @@ export const inboxListTool = defineTool({
 export const inboxTakeTool = defineTool({
   name: 'inbox_take',
   description:
-    'Takes an item to process, the one `id` names or the oldest waiting, with its content (a long text in parts: the first here, the rest with `inbox_list` and `offset` from `next_offset`); no other agent gets it until it is closed with `inbox_finish` (done, dismissed or released). `ids` takes several at once, all or none, each text cut the same way and no image shown (each file at its `media_url`). `earlier` lists the items the same thing came as before, with the entries they gave; `same_content: true` says nothing in it changed. Then read it, search what exists, write or update the entries it gives (split it when it holds several things), and close it with `inbox_finish`. How an item becomes entries is in your instructions, under "How an inbox item becomes entries": follow it.',
+    'Takes an item to process, the one `id` names or the oldest waiting, with its content and its `note`, when its sender said why they sent it (a long text in parts: the first here, the rest with `inbox_list` and `offset` from `next_offset`); no other agent gets it until it is closed with `inbox_finish` (done, dismissed or released). `ids` takes several at once, all or none, each text cut the same way and no image shown (each file at its `media_url`). `earlier` lists the items the same thing came as before, with the entries they gave; `same_content: true` says nothing in it changed. Then read it, search what exists, write or update the entries it gives (split it when it holds several things), and close it with `inbox_finish`. How an item becomes entries is in your instructions, under "How an inbox item becomes entries": follow it.',
   input: Schema.Struct({
     id: Schema.optionalKey(Schema.String).annotate({
       description: 'The id of the item to take; without it, the oldest item waiting.',

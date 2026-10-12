@@ -445,11 +445,16 @@ export const inbox = pgTable(
     reason: text(),
     // The type of a file kept on disk, read from its content.
     mime: text(),
+    // Why the sender sent it, in a few words, for the agent that takes it.
+    note: text(),
+    // The identifier the sender chose for it: sent again, the item is kept once.
+    client_id: uuid(),
   },
   (table) => [
     check('inbox_kind', sql`kind IN ('text', 'url', 'file')`),
     check('inbox_status', sql`status IN ('pending', 'taken', 'processed', 'dismissed')`),
     index('inbox_status').on(table.status, table.received_at),
+    unique('inbox_client_id_key').on(table.client_id),
   ],
 )
 

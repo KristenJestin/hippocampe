@@ -303,6 +303,20 @@ describe('a folder dropped into the inbox', () => {
     )
     expect(await dropped()).toHaveLength(6)
   })
+
+  test('inbox_add and inbox:add take a note', async () => {
+    const noted = mkdtempSync(join(tmpdir(), 'hippocampe-noted-'))
+    writeFileSync(join(noted, 'lamp.md'), '# Lamp\n')
+    try {
+      expect(cli('inbox:add', noted, '--origin', 'noted', '--note', 'from the old laptop')).toBe(
+        'Added to the inbox, from noted: 1 items.\n',
+      )
+    } finally {
+      rmSync(noted, { recursive: true, force: true })
+    }
+    const { items } = await database.runPromise(listInbox({ origin: 'noted' }))
+    expect(items).toMatchObject([{ name: 'lamp.md', note: 'from the old laptop' }])
+  })
 })
 
 describe('the owner lifts sensitivity from the command line', () => {

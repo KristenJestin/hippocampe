@@ -6,6 +6,7 @@ export {
   DismissInput,
   finishItem,
   fileInInbox,
+  followInbox,
   FinishInput,
   InboxFilter,
   InboxInput,
@@ -15,6 +16,7 @@ export {
   peekItem,
   readItem,
   releaseItem,
+  sendToInbox,
   takeItem,
   takeItems,
 } from './operations.ts'

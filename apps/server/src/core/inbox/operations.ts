@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { Effect, Predicate, Result, Schema, Struct } from 'effect'
 import { SqlClient } from 'effect/sql'
 import { drizzle } from '../database/client.ts'
@@ -39,6 +39,10 @@ export const InboxInput = Schema.Struct({
     description:
       'Where the item comes from, such as an app or a person, to list the inbox by origin.',
   }),
+  note: Schema.optionalKey(Schema.String).annotate({
+    description:
+      'Why the item is sent, in a few words ("for the reference board"), for the agent that takes it.',
+  }),
 })
 export type InboxInput = typeof InboxInput.Type
 
@@ -57,6 +61,7 @@ export const InboxItem = Schema.Struct({
   status: Schema.Literals(ITEM_STATUSES),
   taken_by: Schema.NullOr(Schema.String),
   reason: Schema.NullOr(Schema.String),
+  note: Schema.NullOr(Schema.String),
 })
 export type InboxItem = typeof InboxItem.Type
 
@@ -86,6 +91,7 @@ const SUMMARY = {
   status: inbox.status,
   taken_by: inbox.taken_by,
   reason: inbox.reason,
+  note: inbox.note,
 }
 
 const FULL = {
@@ -182,11 +188,27 @@ export const addFileOnce = Effect.fn('addFileOnce')(function* (
   )
 })
 
-/** Puts something in the inbox, pending, for an agent to turn into entries. */
-export const addToInbox = Effect.fn('addToInbox')(function* (input: InboxInput) {
+const sentAgain = rowsOf(Schema.Struct({ ...InboxItem.fields, same: Schema.Boolean }))
+
+/** An id as the database writes it. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const clientIdRefusal = (clientId: string) =>
+  UUID.test(clientId)
+    ? undefined
+    : new Refused({ message: `The client identifier \`${clientId}\` must be a UUID.` })
+
+/**
+ * Puts something in the inbox, pending, for an agent to turn into entries. With the identifier
+ * its sender chose (`clientId`), it is kept once: sent again with the same content, the item kept
+ * is answered as it is; with another content, it is refused. The identifier is unique in the
+ * whole inbox, so two sends at the same moment keep one item.
+ */
+export const addToInbox = Effect.fn('addToInbox')(function* (input: InboxInput, clientId?: string) {
   const db = yield* drizzle
   const origin = input.origin ?? ''
-  const refused = inboxRefusalOf(input)
+  const refused =
+    inboxRefusalOf(input) ?? (clientId === undefined ? undefined : clientIdRefusal(clientId))
   if (refused !== undefined) return yield* refused
   const url = input.url ?? ''
   const data = input.data ?? ''
@@ -207,9 +229,37 @@ export const addToInbox = Effect.fn('addToInbox')(function* (input: InboxInput) 
           }
         })
       : { kind: input.kind, content: input.kind === 'url' ? url : (input.text ?? ''), origin }
-  const [item] = yield* summaries(db.insert(inbox).values(row).returning(SUMMARY))
-  if (item === undefined) return yield* Effect.die('an item just added cannot be read')
-  return item
+  const values = { ...row, note: input.note ?? null, client_id: clientId ?? null }
+  const [item] = yield* summaries(
+    db
+      .insert(inbox)
+      .values(values)
+      .onConflictDoNothing({ target: inbox.client_id })
+      .returning(SUMMARY),
+  )
+  if (item !== undefined) return item
+  if (clientId === undefined) return yield* Effect.die('an item just added cannot be read')
+  const kept = { name: null, sha256: null, ...values }
+  const [again] = yield* sentAgain(
+    db
+      .select({
+        ...SUMMARY,
+        same: sql<boolean>`${inbox.kind} = ${kept.kind}
+          AND ${inbox.name} IS NOT DISTINCT FROM ${kept.name}
+          AND ${inbox.content} IS NOT DISTINCT FROM ${kept.content}
+          AND ${inbox.sha256} IS NOT DISTINCT FROM ${kept.sha256}
+          AND ${inbox.origin} = ${kept.origin}
+          AND ${inbox.note} IS NOT DISTINCT FROM ${kept.note}`,
+      })
+      .from(inbox)
+      .where(eq(inbox.client_id, clientId)),
+  )
+  if (again === undefined) return yield* Effect.die('an item kept under its identifier is gone')
+  if (!again.same)
+    return yield* new Refused({
+      message: `The client identifier \`${clientId}\` names another item already: give each item an identifier of its own.`,
+    })
+  return Struct.omit(again, ['same'])
 })
 
 export const InboxFilter = Schema.Struct({
@@ -264,6 +314,7 @@ const listedRows = rowsOf(
   Schema.Struct({
     ...Listed.fields,
     preview: Schema.NullOr(Schema.String),
+    note: Schema.NullOr(Schema.String),
     rank: Schema.Number,
     at: Schema.String,
   }),
@@ -288,8 +339,9 @@ const placeOf = (cursor: string) =>
 /**
  * The items of the inbox, a page at a time: those waiting and those taken, pending first, oldest
  * first; or those of a status; of one origin, or of the origins that start with a prefix. Each is
- * listed small (id, name, origin, size, status); with `preview`, with the first lines of its text,
- * or its URL (none for a file that is not text). `next_cursor` gives the next page, if any.
+ * listed small (id, name, origin, size, status, and its note when it has one); with `preview`, with
+ * the first lines of its text, or its URL (none for a file that is not text). `next_cursor` gives
+ * the next page, if any.
  */
 export const listInbox = Effect.fn('listInbox')(function* (filter: InboxFilter) {
   const db = yield* drizzle
@@ -306,6 +358,7 @@ export const listInbox = Effect.fn('listInbox')(function* (filter: InboxFilter) 
         preview: sql<
           string | null
         >`CASE WHEN ${shown} THEN left(array_to_string((string_to_array(left(${inbox.content}, 2000), E'\\n'))[1:${PREVIEW_LINES}], E'\\n'), ${PREVIEW_LENGTH}) END`,
+        note: sql<string | null>`CASE WHEN ${shown} THEN ${inbox.note} END`,
         rank,
         at: SUMMARY.received_at,
       })
@@ -330,7 +383,8 @@ export const listInbox = Effect.fn('listInbox')(function* (filter: InboxFilter) 
   return {
     items: page.map((row) => {
       const item = Struct.pick(row, ['id', 'name', 'origin', 'size', 'status'])
-      return filter.preview === true ? Object.assign(item, { preview: row.preview }) : item
+      const noted = row.note === null ? item : Object.assign(item, { note: row.note })
+      return filter.preview === true ? Object.assign(noted, { preview: row.preview }) : noted
     }),
     next_cursor:
       found.length > limit && last !== undefined
@@ -378,13 +432,29 @@ const gaveRows = rowsOf(
 )
 
 /**
+ * The entries an item gave, those that cite it in their `sources`, by their identity; an entry of
+ * a type the caller may not see (`hidesType`) is left out.
+ */
+const gaveOf = Effect.fn('gaveOf')(function* (id: string, hidesType: (type: string) => boolean) {
+  const db = yield* drizzle
+  const { entries } = tables
+  const gave = yield* gaveRows(
+    db
+      .select({ id: entries.id, slug: entries.slug, type: entries.type, title: entries.title })
+      .from(entries)
+      .where(sql`${entries.sources} @> ${JSON.stringify([{ source: INBOX, item: id }])}::jsonb`)
+      .orderBy(asc(entries.title), asc(entries.id)),
+  )
+  return gave.filter(({ type }) => !hidesType(type))
+})
+
+/**
  * The items processed or dismissed before that the same thing came as: the same origin and path,
  * or, for an item without a path, the same origin and content. Each with the entries it gave, by
  * their identity; an entry the caller may not see is left out.
  */
 const earlierOf = Effect.fn('earlierOf')(function* (item: typeof Full.Type) {
   const db = yield* drizzle
-  const { entries } = tables
   const { hidesType } = yield* sensitivity
   const same =
     item.name !== null
@@ -421,18 +491,7 @@ const earlierOf = Effect.fn('earlierOf')(function* (item: typeof Full.Type) {
       .orderBy(asc(inbox.received_at), asc(inbox.id)),
   )
   return yield* Effect.forEach(found, (earlier) =>
-    Effect.map(
-      gaveRows(
-        db
-          .select({ id: entries.id, slug: entries.slug, type: entries.type, title: entries.title })
-          .from(entries)
-          .where(
-            sql`${entries.sources} @> ${JSON.stringify([{ source: INBOX, item: earlier.id }])}::jsonb`,
-          )
-          .orderBy(asc(entries.title), asc(entries.id)),
-      ),
-      (gave) => ({ ...earlier, entries: gave.filter(({ type }) => !hidesType(type)) }),
-    ),
+    Effect.map(gaveOf(earlier.id, hidesType), (gave) => ({ ...earlier, entries: gave })),
   )
 })
 
@@ -746,4 +805,109 @@ export const dismissItem = Effect.fn('dismissItem')(function* (input: DismissInp
       return { ...summaryOf(item), status: 'dismissed' as const, reason: input.reason }
     }),
   )
+})
+
+/** An item as its sender follows it: where it stands, never what it holds. */
+const SENT = {
+  id: inbox.id,
+  client_id: inbox.client_id,
+  kind: inbox.kind,
+  name: inbox.name,
+  size: SUMMARY.size,
+  mime: inbox.mime,
+  origin: inbox.origin,
+  received_at: SUMMARY.received_at,
+  status: inbox.status,
+  reason: inbox.reason,
+}
+
+const Sent = Schema.Struct({
+  ...Struct.pick(InboxItem.fields, [
+    'id',
+    'kind',
+    'name',
+    'size',
+    'mime',
+    'origin',
+    'received_at',
+    'status',
+    'reason',
+  ]),
+  client_id: Schema.NullOr(Schema.String),
+})
+
+const sentRows = rowsOf(Sent)
+
+/** Each item with the entries it gave once processed, those the caller may see. */
+const withEntries = Effect.fn('withEntries')(function* (rows: ReadonlyArray<typeof Sent.Type>) {
+  const { hidesType } = yield* sensitivity
+  return yield* Effect.forEach(rows, (row) =>
+    row.status === 'processed'
+      ? Effect.map(gaveOf(row.id, hidesType), (entries) => ({ ...row, entries }))
+      : Effect.succeed({ ...row, entries: [] }),
+  )
+})
+
+/**
+ * Puts something in the inbox as `addToInbox` does, and answers it as its sender follows it
+ * (`followInbox`): sent again under its identifier, the item kept, where it stands now.
+ */
+export const sendToInbox = Effect.fn('sendToInbox')(function* (
+  input: InboxInput,
+  clientId?: string,
+) {
+  const db = yield* drizzle
+  const { id } = yield* addToInbox(input, clientId)
+  const [sent] = yield* withEntries(
+    yield* sentRows(db.select(SENT).from(inbox).where(eq(inbox.id, id))),
+  )
+  if (sent === undefined) return yield* Effect.die('an item just kept cannot be read')
+  return sent
+})
+
+/**
+ * What became of the items sent: those of an origin, or those of the identifiers their sender
+ * gave them, newest first, a page at a time. Each says where it stands, its reason when
+ * dismissed, and, once processed, the entries it gave that the caller may see; never what it
+ * holds, which is read through those entries.
+ */
+export const followInbox = Effect.fn('followInbox')(function* (filter: {
+  readonly origin?: string | undefined
+  readonly client_id?: ReadonlyArray<string> | undefined
+  readonly limit?: number | undefined
+  readonly cursor?: string | undefined
+}) {
+  const db = yield* drizzle
+  const refused = (filter.client_id ?? []).map(clientIdRefusal).find(Predicate.isNotUndefined)
+  if (refused !== undefined) return yield* refused
+  const limit = filter.limit ?? PAGE
+  // One rank: the list is ordered by when each item arrived alone.
+  const after = filter.cursor === undefined ? undefined : yield* placeOf(filter.cursor)
+  const found = yield* sentRows(
+    db
+      .select(SENT)
+      .from(inbox)
+      .where(
+        and(
+          filter.origin === undefined ? undefined : eq(inbox.origin, filter.origin),
+          filter.client_id === undefined
+            ? undefined
+            : inArray(inbox.client_id, [...filter.client_id]),
+          after === undefined
+            ? undefined
+            : sql`(${inbox.received_at}, ${inbox.id}) < (${after.at}::timestamptz, ${after.id}::uuid)`,
+        ),
+      )
+      .orderBy(desc(inbox.received_at), desc(inbox.id))
+      .limit(limit + 1),
+  )
+  const page = found.slice(0, limit)
+  const last = page.at(-1)
+  return {
+    items: yield* withEntries(page),
+    next_cursor:
+      found.length > limit && last !== undefined
+        ? cursorOf({ rank: 0, at: last.received_at, id: last.id })
+        : null,
+  }
 })
