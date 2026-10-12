@@ -88,6 +88,28 @@
       "inputs": ["scripts/types.ts", "$TURBO_ROOT$/packages/api/openapi.json"],
       "outputs": ["app/src/main/kotlin/io/github/kristenjestin/hippocampe/api/Types.kt"]
     },
+    "@hippocampe/android#test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/vitest.config.ts",
+        "$TURBO_ROOT$/packages/api/openapi.json"
+      ],
+      "outputs": [],
+      "env": ["ANDROID_HOME", "ANDROID_SDK_ROOT", "JAVA_HOME"],
+      "passThroughEnv": ["CI", "GRADLE_USER_HOME"]
+    },
+    "@hippocampe/android#lint": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json", "$TURBO_ROOT$/tools/oxlint/**"],
+      "outputs": [],
+      "env": ["ANDROID_HOME", "ANDROID_SDK_ROOT", "JAVA_HOME"],
+      "passThroughEnv": ["CI", "GRADLE_USER_HOME"]
+    },
+    "@hippocampe/android#build": {
+      "inputs": ["$TURBO_DEFAULT$"],
+      "outputs": ["app/build/outputs/apk/debug/**"],
+      "env": ["ANDROID_HOME", "ANDROID_SDK_ROOT", "JAVA_HOME"],
+      "passThroughEnv": ["CI", "GRADLE_USER_HOME"]
+    },
     "@hippocampe/desktop#build": {
       "inputs": ["$TURBO_DEFAULT$"],
       "outputs": ["target/debug/story", "target/debug/app"]
