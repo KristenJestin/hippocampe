@@ -7,7 +7,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import fr.kristenjestin.hippocampe.api.Api
 import fr.kristenjestin.hippocampe.api.Server
-import fr.kristenjestin.hippocampe.settings.KeyCipher
 import fr.kristenjestin.hippocampe.settings.SettingsCheck
 import fr.kristenjestin.hippocampe.settings.SettingsStore
 import fr.kristenjestin.hippocampe.ui.InstanceBadge
@@ -29,24 +28,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
 import java.nio.file.Files
-import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.spec.GCMParameterSpec
-
-/** AES-GCM under a key held in memory, as the Keystore's is held in the phone's hardware. */
-private class MemoryCipher : KeyCipher {
-    private val key = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
-
-    override fun encrypt(plain: ByteArray): ByteArray {
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, key) }
-        return cipher.iv + cipher.doFinal(plain)
-    }
-
-    override fun decrypt(sealed: ByteArray): ByteArray =
-        Cipher.getInstance("AES/GCM/NoPadding")
-            .apply { init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, sealed, 0, 12)) }
-            .doFinal(sealed, 12, sealed.size - 12)
-}
 
 @RunWith(RobolectricTestRunner::class)
 class SettingsTest {

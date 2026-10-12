@@ -1,15 +1,21 @@
 package fr.kristenjestin.hippocampe.ui
 
+import android.Manifest
+import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -18,16 +24,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.kristenjestin.hippocampe.Graph
 import fr.kristenjestin.hippocampe.R
 import fr.kristenjestin.hippocampe.outbox.SendWorker
 import fr.kristenjestin.hippocampe.settings.Settings
 import fr.kristenjestin.hippocampe.settings.SettingsCheck
+import fr.kristenjestin.hippocampe.warn.Notifier
+import fr.kristenjestin.hippocampe.warn.permissionMustBeAsked
 import kotlinx.coroutines.launch
 
 /**
@@ -94,6 +105,37 @@ fun SettingsScreen(graph: Graph, saved: Settings?, modifier: Modifier = Modifier
         if (saved != null && wrong == null && !checking) {
             Text(stringResource(R.string.settings_saved), style = MaterialTheme.typography.bodyMedium)
             InstanceBadge(saved.instance)
+            val context = LocalContext.current
+            val on by graph.warnings.on.collectAsStateWithLifecycle(false)
+            var notAllowed by remember { mutableStateOf(false) }
+            val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                if (granted) scope.launch { graph.warnings.turn(true) } else notAllowed = true
+            }
+            WarningsSetting(on, notAllowed) { want ->
+                notAllowed = false
+                when {
+                    !want -> scope.launch { graph.warnings.turn(false) }
+                    permissionMustBeAsked(Build.VERSION.SDK_INT, Notifier.permitted(context)) -> ask.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    else -> scope.launch { graph.warnings.turn(true) }
+                }
+            }
         }
+    }
+}
+
+/** Whether the phone warns before a due date; [notAllowed] says the phone refused the permission to notify. */
+@Composable
+fun WarningsSetting(on: Boolean, notAllowed: Boolean, modifier: Modifier = Modifier, turn: (Boolean) -> Unit) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.warn_title), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+            Switch(on, turn)
+        }
+        Text(
+            stringResource(R.string.warn_about),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (notAllowed) Text(stringResource(R.string.warn_refused), color = MaterialTheme.colorScheme.error)
     }
 }

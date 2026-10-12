@@ -73,6 +73,12 @@
         <item quantity="other">in %1$d days</item>
     </plurals>
 
+    <string name="warn_title">Warn me before a due date</string>
+    <string name="warn_about">Once a day, with the network, the phone asks Hippocampe what is coming and notifies each heads-up once.</string>
+    <string name="warn_refused">Notifications are not allowed for this application: allow them in the settings of the phone, then turn this on.</string>
+    <string name="warn_channel">Due dates</string>
+    <string name="warn_channel_about">Heads-ups before a deadline or a recurring date comes.</string>
+
     <string name="read_loading">Reading…</string>
     <string name="read_retry">Try again</string>
     <string name="read_back">Back</string>
