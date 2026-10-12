@@ -32,8 +32,10 @@ class SharingApp : ContentProvider() {
 
     override fun getType(uri: Uri) = "image/jpeg"
 
-    override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor =
-        ParcelFileDescriptor.open(File(folder, uri.lastPathSegment!!), ParcelFileDescriptor.MODE_READ_ONLY)
+    override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
+        if (uri.lastPathSegment == "withheld.jpg") throw SecurityException("No access to $uri")
+        return ParcelFileDescriptor.open(File(folder, uri.lastPathSegment!!), ParcelFileDescriptor.MODE_READ_ONLY)
+    }
 
     override fun insert(uri: Uri, values: ContentValues?) = null
 
@@ -133,5 +135,16 @@ class ShareTest {
         assertEquals(listOf("one.jpg", "two.jpg", "three.jpg"), fixture.server.inbox.map { it.name })
         assertEquals(listOf("first", "second", "third"), fixture.server.inbox.map { it.bytes })
         assertTrue(fixture.server.inbox.all { it.note == "labels of the jars" && it.kind == InboxSentKind.File })
+    }
+
+    @Test
+    fun `a shared file the phone may not read is left out without closing the sheet`() {
+        val uris = arrayListOf(image("one.jpg", "first"), Uri.parse("content://org.example.gallery/withheld.jpg"))
+        val intent = Intent(Intent.ACTION_SEND_MULTIPLE).setType("image/*").putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+
+        val drafts = fixture.outbox.shared(intent, resolver)
+
+        assertEquals(listOf("one.jpg"), drafts.map { (it as Draft.Copy).name })
+        assertEquals("no copy is left behind for it", 1, fixture.folder.listFiles()!!.size)
     }
 }

@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import io.github.kristenjestin.hippocampe.api.InboxSentKind
 import java.io.File
+import java.io.IOException
 import java.util.UUID
 
 /** Something about to be put into the inbox, before the owner sends it. */
@@ -45,19 +46,27 @@ class Outbox(
 
     /**
      * Copies what [uri] holds into the application's storage at once: a shared file may be readable
-     * only while the share lasts. Its type is the one the provider gives, else [mime].
+     * only while the share lasts. Its type is the one the provider gives, else [mime]. A file that
+     * cannot be read gives nothing.
      */
     fun copy(resolver: ContentResolver, uri: Uri, mime: String?): Draft.Copy? {
-        val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
-            if (it.moveToFirst()) it.getString(0) else null
-        } ?: uri.lastPathSegment?.substringAfterLast('/') ?: "file"
         folder.mkdirs()
         val target = File(folder, UUID.randomUUID().toString())
-        val size = resolver.openInputStream(uri)?.use { input ->
-            target.outputStream().use { input.copyTo(it) }
-        } ?: return null
-        val type = resolver.getType(uri) ?: mime?.takeUnless { '*' in it } ?: "application/octet-stream"
-        return Draft.Copy(target.path, name, type, size)
+        return try {
+            val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                if (it.moveToFirst()) it.getString(0) else null
+            } ?: uri.lastPathSegment?.substringAfterLast('/') ?: "file"
+            val size = resolver.openInputStream(uri)?.use { input ->
+                target.outputStream().use { input.copyTo(it) }
+            } ?: throw IOException("Nothing to read at $uri")
+            val type = resolver.getType(uri) ?: mime?.takeUnless { '*' in it } ?: "application/octet-stream"
+            Draft.Copy(target.path, name, type, size)
+        } catch (failure: Exception) {
+            // A file the sharing application withholds, or took back already, is left out.
+            if (failure !is SecurityException && failure !is IOException) throw failure
+            target.delete()
+            null
+        }
     }
 
     /** A new file in the application's storage, for the camera to write a photo into. */
