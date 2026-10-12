@@ -1,6 +1,6 @@
 /**
  * Where a Hippocampe installed for one user keeps its things, by the XDG folders of Linux: its data
- * (database, media, the binaries of PostgreSQL) under `~/.local/share/hippocampe`, its configuration
+ * (database, media) under `~/.local/share/hippocampe`, its configuration
  * (the environment of the service, the first key) under `~/.config/hippocampe`. What the user keeps
  * whatever happens to the installation, the backups and the nightly export, is in `~/Hippocampe`, a
  * folder in sight that `service uninstall --purge` never deletes.
@@ -26,6 +26,7 @@ export const homeOf = (environment: Environment) => {
     environment: join(config, 'hippocampe.env'),
     key: join(config, 'key'),
     database: join(data, 'postgres'),
+    // Where 0.6.0 to 0.12.x copied the binaries of PostgreSQL: `service install` removes it.
     binaries: join(data, 'postgresql'),
     media: join(data, 'media'),
     export: join(kept, 'export'),

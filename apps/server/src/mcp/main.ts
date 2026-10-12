@@ -4,8 +4,8 @@
  *
  *   HIPPOCAMPE_ACTOR=agent-laptop bun run --cwd apps/server mcp
  *
- * `DATABASE_URL` names the database; `HIPPOCAMPE_ACTOR`, required, names the agent every write is
- * recorded under; `HIPPOCAMPE_RIGHTS` lists its rights, `read,write` unless told (add `sensitive`
+ * `DATABASE_URL` names the database, or `HIPPOCAMPE_DATABASE_DIR` the folder of the one it runs;
+ * `HIPPOCAMPE_ACTOR`, required, names the agent every write is recorded under; `HIPPOCAMPE_RIGHTS` lists its rights, `read,write` unless told (add `sensitive`
  * to see and write sensitive values); `HIPPOCAMPE_INSTANCE`, required, says whether this is the
  * `production` or the `development` instance. The database is brought to the latest version before the first request.
  */
@@ -16,6 +16,7 @@ import { layer as database, migrate } from '../core/database/index.ts'
 import { Actor } from '../core/events/index.ts'
 import { Instance, instanceFromEnvironment, mcpServerName } from '../core/instance.ts'
 import { refuseLegacyVariables } from '../core/legacy-variables.ts'
+import { commandPostgres } from '../local/postgres.ts'
 import { Config, Effect, Layer, Logger, Schema } from 'effect'
 import { McpServer } from 'effect/ai'
 import { instructions } from './instructions.ts'
@@ -73,6 +74,8 @@ const program = Effect.gen(function* () {
   )
 }).pipe(
   Effect.provide(database),
+  // In local mode, the PostgreSQL of the running server, or one of its own while it runs.
+  (serving) => Effect.scoped(Effect.andThen(commandPostgres, serving)),
   Effect.provideService(Logger.LogToStderr, true),
   Effect.catch((error) =>
     Effect.sync(() => {

@@ -26,6 +26,9 @@ repository is cloned). Any command of the `hippo` command line runs in the conta
 
 ## Configuration
 
+- The database is the PostgreSQL of compose, named by `DATABASE_URL`: the image carries no
+  PostgreSQL and never starts one (`HIPPOCAMPE_DATABASE_DIR`, the database Hippocampe runs itself,
+  is the npm install's, not Docker's).
 - `.env.production`, copied from `.env.production.example` (its comments say what each line is): the
   database URL, the port inside the container, the time zone, the search language,
   `BETTER_AUTH_SECRET`, and the nightly Markdown export (`EXPORT_DIR`, `EXPORT_REMOTE`,

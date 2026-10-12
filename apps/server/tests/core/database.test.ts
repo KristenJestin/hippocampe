@@ -54,7 +54,7 @@ describe('without DATABASE_URL the error names the missing variable', () => {
     )
     expect(error).toBeInstanceOf(DatabaseUrlMissing)
     expect(error.message).toBe(
-      'The environment variable DATABASE_URL is missing: set it to the URL of the PostgreSQL database.',
+      'The environment variable DATABASE_URL is missing: set it to the URL of the PostgreSQL database, or set HIPPOCAMPE_DATABASE_DIR to the folder of the one Hippocampe runs itself.',
     )
   })
 })

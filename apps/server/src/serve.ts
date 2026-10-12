@@ -3,8 +3,9 @@
  * Runs the server: the instance is read from `HIPPOCAMPE_INSTANCE` (required), the database is brought
  * to the latest version, then the server listens on `PORT` (3000 by default) of `HIPPOCAMPE_HOST` (`127.0.0.1`
  * by default: this machine only; `0.0.0.0` in the container), and exports everything
- * to Markdown every night when `EXPORT_DIR` is set (see `export/nightly.ts`). A PostgreSQL that is
- * still starting up is waited for. A missing or unknown instance, a database that never answers, a
+ * to Markdown every night when `EXPORT_DIR` is set (see `export/nightly.ts`). In local mode
+ * (`HIPPOCAMPE_DATABASE_DIR`), it runs its own PostgreSQL first, and stops it when it stops (see
+ * `local/postgres.ts`). A PostgreSQL that is still starting up is waited for. A missing or unknown instance, a database that never answers, a
  * failed migration or a wrong `EXPORT_SCHEDULE` stops it with its message.
  */
 import * as BunHttpServer from '@effect/platform-bun/BunHttpServer'
@@ -17,6 +18,7 @@ import { Effect, Layer } from 'effect'
 import { HttpRouter } from 'effect/http'
 import { HippocampeRoutes, MCP_BODY_LIMIT, recordingDefects } from './hippocampe.ts'
 import { nightlyExport } from './export/nightly.ts'
+import { serverPostgres } from './local/postgres.ts'
 
 /** The HTTP server, on the address of the environment as it is when it starts. */
 const server = () =>
@@ -40,7 +42,9 @@ const server = () =>
 export const serveProgram = Effect.gen(function* () {
   yield* refuseLegacyVariables
   const instance = yield* instanceFromEnvironment
-  return yield* Effect.gen(function* () {
+  // In local mode, the server's own PostgreSQL: when it ends on its own, the server ends with it.
+  const postgresEnded = yield* serverPostgres
+  const serving = Effect.gen(function* () {
     yield* awaitDatabase()
     yield* migrate.pipe(
       Effect.mapError((error) => new Error(`The database could not be migrated: ${error.message}`)),
@@ -49,7 +53,9 @@ export const serveProgram = Effect.gen(function* () {
       Layer.merge(server(), nightlyExport).pipe(Layer.provide(Layer.succeed(Instance, instance))),
     )
   }).pipe(Effect.provide(Layer.provideMerge(Auth.layer, database)))
+  return yield* Effect.raceFirst(serving, postgresEnded)
 }).pipe(
+  Effect.scoped,
   Effect.catch((error) =>
     Effect.sync(() => {
       console.error(error.message)

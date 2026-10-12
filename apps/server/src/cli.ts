@@ -31,6 +31,7 @@ import { changeField, changeType, confirmProposal, listProposals } from './core/
 import { layer as database, migrate } from './core/database/index.ts'
 import { formatSchemaError } from '@hippocampe/api/schema'
 import { homeOf, loadInstalledEnvironment } from './local/home.ts'
+import { commandPostgres } from './local/postgres.ts'
 import * as service from './local/service.ts'
 import { legacyVariableSentence } from './core/legacy-variables.ts'
 import { serveProgram } from './serve.ts'
@@ -115,17 +116,21 @@ const findingFilter = (given: {
   ).pipe(Effect.mapError((error) => ({ message: formatSchemaError(error) })))
 
 /**
- * Runs what a command does on the database of `DATABASE_URL`, migrated first, and prints what it
- * answers; a refusal is printed on standard error, and the command line ends with 1.
+ * Runs what a command does on the database, migrated first, and prints what it answers; a refusal
+ * is printed on standard error, and the command line ends with 1. In local mode, the database is
+ * the running server's, or one the command runs for its length.
  */
 const onDatabase = <E extends { readonly message: string }>(
   effect: Effect.Effect<string, E, Layer.Success<typeof services>>,
 ) =>
   Effect.gen(function* () {
-    yield* migrate
-    return yield* effect
+    yield* commandPostgres
+    return yield* Effect.gen(function* () {
+      yield* migrate
+      return yield* effect
+    }).pipe(Effect.provide(services))
   }).pipe(
-    Effect.provide(services),
+    Effect.scoped,
     Effect.matchEffect({
       onSuccess: (text) => Console.log(text),
       onFailure: (error) =>
@@ -636,9 +641,16 @@ const serviceInstall = Command.make(
     ),
     // Free of any known service (4317 is OpenTelemetry's, 5432 PostgreSQL's).
     port: Flag.Int('port').pipe(Flag.withDefault(7468)),
-    databasePort: Flag.Int('database-port').pipe(Flag.withDefault(7469)),
+    // The database has no port now: accepted, so a command written for an earlier version runs.
+    databasePort: Flag.Int('database-port').pipe(
+      Flag.optional,
+      Flag.withDescription('Ignored: the database has no port, only a socket in its folder.'),
+    ),
   },
-  (options) => onSystem(service.install(home(), options)),
+  ({ databasePort, ...options }) =>
+    onSystem(
+      service.install(home(), { ...options, databasePort: Option.getOrUndefined(databasePort) }),
+    ),
 ).pipe(
   Command.withDescription(
     'Installs Hippocampe as a service of this user: started with the session, on 127.0.0.1 only.',
@@ -665,7 +677,7 @@ const serviceCommand = Command.make('service').pipe(
       Command.withDescription('Starts the service.'),
     ),
     Command.make('stop', {}, () => onSystem(service.stop)).pipe(
-      Command.withDescription('Stops the service and its database.'),
+      Command.withDescription('Stops the service, its database with it.'),
     ),
     Command.make('status', {}, () => onSystem(service.status)).pipe(
       Command.withDescription('What systemd says of the service.'),
