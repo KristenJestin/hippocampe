@@ -20,4 +20,5 @@ export {
   takeItem,
   takeItems,
 } from './operations.ts'
+export { keepPosts, keepPostsLater, keepPostsNow, PostFetch } from './posts.ts'
 export { INBOX } from './store.ts'
