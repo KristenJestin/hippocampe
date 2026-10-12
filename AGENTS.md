@@ -100,7 +100,8 @@ and are skipped; in CI they never are.
 
 The server, in development, on `PORT` (3000 by default): `/mcp` (MCP, protocol 2026-07-28 and
 the older revisions), `/health`, `/media/<hash>`, and the API (`GET /api/about`,
-`/api/types`, `/api/entries/{slug or id}`, `/api/search?q=…`, `/api/briefing?period=today|week|weekend`
+`/api/types`, `/api/entries/{slug or id}`, `/api/entries?sort=updated` (the entries by their last
+change, each saying when and by which key), `/api/search?q=…`, `/api/briefing?period=today|week|weekend`
 (what is due, the heads-ups and what waits), and the inbox: `POST /api/inbox` to
 add a text, a link or a file, `GET /api/inbox` to follow what became of each), its OpenAPI document at
 `/api/openapi.json` and its documentation page at `/api/docs`. It needs `BETTER_AUTH_SECRET` and

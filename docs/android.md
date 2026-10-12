@@ -76,10 +76,11 @@ signature, uninstall first, which forgets the settings and what waits on the pho
 
 ## Using it
 
-- **Home** (where the application opens): from `GET /api/briefing`, the **heads-ups** (the dates
-  inside their notice period, such as a contract's notice or a birthday) and what is due **this
-  week**, each opening its entry, and how many items **wait in the inbox**, which opens **Sent**.
-  Pull down to refresh. When the server cannot be reached, Home shows the last briefing it read,
+- **Home** (where the application opens): from `GET /api/briefing`, the deadlines **overdue**, the
+  **heads-ups** (the dates inside their notice period, such as a contract's notice or a birthday)
+  and what is due **this week**, each opening its entry, and how many items **wait in the inbox**,
+  which opens **Sent**; then the first few entries **changed recently**, each with when and by which
+  key. Pull down to refresh. When the server cannot be reached, Home shows the last briefing it read,
   *Last read* on that day and at that hour, with the sentence that says why: it never shows an old
   briefing as if it were current. Reading Home warns no one.
 - **Warnings before a due date**: in the settings (the gear), *Warn me before a due date*, off until
