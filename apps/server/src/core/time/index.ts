@@ -4,6 +4,7 @@ export {
   BRIEFING_PERIODS,
   briefing,
   headsUp,
+  headsUpDue,
   Occurrence,
   TimeZone,
   Today,
