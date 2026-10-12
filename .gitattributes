@@ -1,1 +1,3 @@
 * text=auto eol=lf
+# The Gradle wrapper of apps/android runs under cmd.exe, which wants CRLF.
+*.bat text eol=crlf
