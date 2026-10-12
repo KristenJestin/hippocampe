@@ -1,0 +1,15 @@
+{
+  "name": "@hippocampe/android",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "generate": "bun scripts/types.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "bun scripts/gradle.ts assembleDebug",
+    "lint": "oxlint -c ../../.oxlintrc.json scripts tests && bun scripts/gradle.ts lintDebug",
+    "fmt:check": "oxfmt -c ../../.oxfmtrc.json --check scripts tests",
+    "test": "bun --bun vitest run --config ../../vitest.config.ts --dir . && bun scripts/gradle.ts testDebugUnitTest"
+  }
+}

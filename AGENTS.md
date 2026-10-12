@@ -7,6 +7,7 @@ this one:
 
 - `apps/server/AGENTS.md`: Effect and Schema, wherever Effect is written.
 - `apps/desktop/AGENTS.md`: the desktop viewer, its screens and their gallery.
+- `apps/android/AGENTS.md`: the Android application, its build and its tests.
 
 ## Project overview
 
@@ -54,14 +55,18 @@ apps/desktop      @hippocampe/desktop The desktop viewer, Rust and GPUI Kit, a C
                                    `crates/api` (types generated from the OpenAPI document),
                                    `crates/ui` (screens), `crates/story` (their gallery),
                                    `crates/app` (the application). See its `AGENTS.md`.
+apps/android      @hippocampe/android The Android application, Kotlin and Jetpack Compose, a Gradle
+                                   project (`app`, its version catalog in `gradle/`) behind a
+                                   `package.json` that calls the Gradle wrapper. See its
+                                   `AGENTS.md`.
 tools/            @hippocampe/tools   commit-message, branch-guard, install-hooks, boundaries, and
                                    the vendored lint rules. TypeScript run by Bun, tested by
                                    Vitest.
 ```
 
 A package or an application is created by the first issue that needs it, not before. Later in
-this monorepo: `apps/android` (Kotlin), maybe `apps/web`, each behind a `package.json` that
-calls its own toolchain for Turborepo, as `apps/desktop` calls Cargo.
+this monorepo: maybe `apps/web`, behind a `package.json` that calls its own toolchain for
+Turborepo, as `apps/desktop` calls Cargo and `apps/android` Gradle.
 
 `packages/*`, `apps/*` and `tools` form the Bun workspace; Turborepo runs their tasks. Import
 another package only through its `exports`; never reach into another package's `src`. **Every
@@ -85,11 +90,13 @@ bun run lint                     # oxlint with the vendored rules, then the boun
 bun run fmt                      # oxfmt (fmt:check in CI)
 bun run test                     # Vitest under Bun, per package (turbo run test)
 bun run check                    # typecheck, lint, fmt:check and test, in that order
-bun run generate                 # the OpenAPI document, then the Rust types, from the schemas
+bun run generate                 # the OpenAPI document, then the Rust and Kotlin types, from the schemas
 ```
 
 Turborepo caches every task: a second `bun run check` with nothing changed answers from the
 cache. Inside one package, the task is run by its own script (`bun run test` in `apps/server`).
+On a machine without an Android SDK or Java, the Gradle tasks of `apps/android` say so in one line
+and are skipped; in CI they never are.
 
 The server, in development, on `PORT` (3000 by default): `/mcp` (MCP, protocol 2026-07-28 and
 the older revisions), `/health`, `/media/<hash>`, and the API (`GET /api/about`,
@@ -188,9 +195,10 @@ inside the container, and compose publishes the port on `HIPPOCAMPE_BIND`).
 
 The clients never hand-write what they exchange with the server: `bun run generate` writes the
 OpenAPI document of the read API from the schemas (`packages/api/openapi.json`, no server needed),
-then the Rust types of `apps/desktop/crates/api` from it, with typify. Both are committed and never
-edited by hand; a test fails while either is stale, and CI regenerates them and fails on any
-difference. Kotlin follows when the Android application starts.
+then the Rust types of `apps/desktop/crates/api` from it, with typify, and the Kotlin types of
+`apps/android` (`api/Types.kt`, by `apps/android/scripts/types.ts`). All are committed and never
+edited by hand; a test fails while one is stale, and CI regenerates them and fails on any
+difference.
 
 Configuration: `.oxlintrc.json` (lint), `.oxfmtrc.json` (format), `vitest.config.ts` (tests),
 `turbo.json` (tasks, their inputs and outputs), at the root. The database URL comes from
