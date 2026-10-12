@@ -16,8 +16,9 @@ link, a photo from the camera, a file), even offline. Agents then turn each item
 
 On the phone, open the APK (from a download, or `adb install app-debug.apk` from a computer with
 the phone in USB debugging) and allow the installation from that source when Android asks. A debug
-build and a release build are signed with different keys: uninstall one before installing the
-other.
+build is signed with the debug key of the machine that built it (each CI run makes its own), and a
+release with the release key: when Android refuses an APK over the installed one for its signature,
+uninstall first, which forgets the settings and what waits on the phone.
 
 ## Pair it with a server
 
