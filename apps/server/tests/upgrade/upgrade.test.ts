@@ -67,6 +67,26 @@ const FIXTURES = [
       'public.types': 11,
     },
   },
+  {
+    version: '0.13.0',
+    rows: {
+      'public.auth_apikey': 5,
+      'public.auth_user': 1,
+      'public.entries': 26,
+      'public.events': 77,
+      'public.finding_occurrences': 3,
+      'public.findings': 2,
+      'public.heads_up': 2,
+      'public.inbox': 4,
+      'public.instance_owner': 1,
+      'public.instance_rules': 1,
+      'public.links': 21,
+      'public.media': 3,
+      'public.pending_references': 1,
+      'public.type_proposals': 2,
+      'public.types': 11,
+    },
+  },
 ]
 
 /** Whether `version` is `release` or a later one. */

@@ -445,11 +445,43 @@ export const inbox = pgTable(
     reason: text(),
     // The type of a file kept on disk, read from its content.
     mime: text(),
+    // Why the sender sent it, in a few words, for the agent that takes it.
+    note: text(),
+    // The identifier the sender chose for it: sent again, the item is kept once.
+    client_id: uuid(),
   },
   (table) => [
     check('inbox_kind', sql`kind IN ('text', 'url', 'file')`),
     check('inbox_status', sql`status IN ('pending', 'taken', 'processed', 'dismissed')`),
     index('inbox_status').on(table.status, table.received_at),
+    unique('inbox_client_id_key').on(table.client_id),
+  ],
+)
+
+/**
+ * The posts on X an inbox item links to, each copied when the item arrives: the answer of the
+ * endpoint that gave it, as it came, and what an agent reads of it (its text, author, date, quoted
+ * post and images kept by their hash); or why it could not be copied. `pending` until it is.
+ */
+export const inboxPosts = pgTable(
+  'inbox_posts',
+  {
+    item_id: uuid()
+      .notNull()
+      .references(() => inbox.id, { onDelete: 'cascade' }),
+    position: integer().notNull(),
+    url: text().notNull(),
+    status: text().notNull().default('pending'),
+    // `syndication` or `fxtwitter`: the endpoint that answered.
+    source: text(),
+    answer: text(),
+    copy: jsonb(),
+    reason: text(),
+    copied_at: timestamp(at),
+  },
+  (table) => [
+    primaryKey({ columns: [table.item_id, table.position] }),
+    check('inbox_posts_status', sql`status IN ('pending', 'kept', 'failed')`),
   ],
 )
 

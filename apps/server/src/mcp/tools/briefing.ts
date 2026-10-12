@@ -1,5 +1,4 @@
-import { countSupposed, supposedValues } from '../../core/entries/index.ts'
-import { pendingReferences } from '../../core/links/index.ts'
+import { waitingOn } from '../../core/briefing/index.ts'
 import { BRIEFING_PERIODS, briefing } from '../../core/time/index.ts'
 import { Effect, Schema } from 'effect'
 import { Refused } from '../../core/refused.ts'
@@ -9,41 +8,10 @@ const IsoDate = Schema.String.check(
   Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/, { expected: 'a date such as `2026-10-05`' }),
 )
 
-/** How many of what waits a briefing names: the rest is a `count` away, in `search` or `read`. */
-const FIRST = 5
-
-/** What waits under a name, as a count and its first few; nothing for what does not wait. */
-const counted = <A>(name: string, found: ReadonlyArray<A>) =>
-  found.length === 0 ? [] : [{ [name]: { count: found.length, first: found.slice(0, FIRST) } }]
-
-/** What waits: the suppositions to confirm and the references without an entry. */
-const waiting = Effect.gen(function* () {
-  // Counted apart, and only the first few are read with their writer and their time.
-  const count = yield* countSupposed({})
-  const first = yield* supposedValues({ limit: FIRST })
-  const references = yield* pendingReferences
-  return Object.assign(
-    {},
-    ...(count === 0
-      ? []
-      : [
-          {
-            supposed: {
-              count,
-              first: first.map(({ slug, title, what, provenance, by, when }) => ({
-                slug,
-                title,
-                what,
-                provenance,
-                by,
-                when,
-              })),
-            },
-          },
-        ]),
-    ...counted('pending_references', references),
-  )
-})
+/** What waits: the suppositions to confirm and the references without an entry, if any. */
+const waiting = Effect.map(waitingOn, (on) =>
+  Object.fromEntries(Object.entries(on).filter(([, { count }]) => count > 0)),
+)
 
 export const briefingTool = defineTool({
   name: 'briefing',

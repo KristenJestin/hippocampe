@@ -4,19 +4,27 @@
  * it, and the OpenAPI document is generated from it.
  */
 import { Schema } from 'effect'
+import { Multipart } from 'effect/http'
 import {
   HttpApi,
   HttpApiEndpoint,
   HttpApiGroup,
   HttpApiMiddleware,
+  HttpApiSchema,
   HttpApiSecurity,
   OpenApi,
 } from 'effect/http-api'
 import {
   About,
+  BRIEFING_PERIODS,
+  Briefing,
   EntryRead,
   HistoryPage,
+  InboxSend,
+  InboxSent,
+  InboxUploadFields,
   ListOptions,
+  PendingReference,
   SearchOptions,
   SearchResult,
   TreeEntry,
@@ -51,7 +59,20 @@ export class Invalid extends Schema.TaggedError<Invalid>()(
   { httpApiStatus: 400 },
 ) {}
 
-/** Every route is reached with a key with the right `read`, sent as `Authorization: Bearer <key>`. */
+/**
+ * Turns what a request's path, headers, query or payload fail to decode into `Invalid`, so a
+ * malformed request is refused in one sentence like every other. The server provides it; a client
+ * has nothing to send for it.
+ */
+export class Malformed extends HttpApiMiddleware.Service<Malformed>()(
+  '@hippocampe/api/http/Malformed',
+  { error: Invalid },
+) {}
+
+/**
+ * Every route is reached with a key sent as `Authorization: Bearer <key>`: with the right `read`
+ * to read, with the right `write` to add to the inbox.
+ */
 export class Authorization extends HttpApiMiddleware.Service<Authorization>()(
   '@hippocampe/api/http/Authorization',
   {
@@ -94,16 +115,9 @@ const entries = HttpApiGroup.make('entries')
   )
   .add(
     HttpApiEndpoint.get('pending', '/api/pending-references', {
-      success: Schema.Struct({
-        pending: Schema.Array(
-          Schema.Struct({
-            slug: Schema.String,
-            cited_by: Schema.Array(
-              Schema.Struct({ id: Schema.String, slug: Schema.String, title: Schema.String }),
-            ),
-          }).annotate({ identifier: 'PendingReference' }),
-        ),
-      }).annotate({ identifier: 'PendingReferences' }),
+      success: Schema.Struct({ pending: Schema.Array(PendingReference) }).annotate({
+        identifier: 'PendingReferences',
+      }),
     }),
   )
   .add(
@@ -132,6 +146,26 @@ const entries = HttpApiGroup.make('entries')
       title: 'Entries',
       description:
         'The tree of entries, or the entries a filter keeps; an entry with its place in it, its children and its links; and its history.',
+    }),
+  )
+
+const briefing = HttpApiGroup.make('briefing')
+  .add(
+    HttpApiEndpoint.get('briefing', '/api/briefing', {
+      query: {
+        period: Schema.optionalKey(Schema.Literals(BRIEFING_PERIODS)).annotate({
+          description:
+            '`today` (the default), `week` (the seven days from today) or `weekend` (the coming one).',
+        }),
+      },
+      success: Briefing,
+    }),
+  )
+  .annotateMerge(
+    OpenApi.annotations({
+      title: 'Briefing',
+      description:
+        'What is coming and what waits: the dates due in a period, the heads-ups inside their notice, the inbox, the suppositions to confirm and the references without an entry.',
     }),
   )
 
@@ -164,18 +198,64 @@ const search = HttpApiGroup.make('search')
     }),
   )
 
-/** The read API of Hippocampe. Writing goes through MCP. */
+const inbox = HttpApiGroup.make('inbox')
+  .add(
+    HttpApiEndpoint.post('add', '/api/inbox', {
+      payload: [
+        InboxSend,
+        Schema.Struct({
+          file: Multipart.SingleFileSchema.annotate({ description: 'The file, 20 MB at most.' }),
+          ...InboxUploadFields,
+        })
+          .pipe(HttpApiSchema.asMultipart())
+          .annotate({ identifier: 'InboxUpload' }),
+      ],
+      success: InboxSent,
+      error: Invalid,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get('follow', '/api/inbox', {
+      query: {
+        origin: Schema.optionalKey(Schema.String.annotate({ description: 'This origin exactly.' })),
+        client_id: Schema.optionalKey(
+          Schema.Array(Schema.String).annotate({
+            description: 'The items sent with these identifiers.',
+          }),
+        ),
+        limit: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 200 }))),
+        cursor: Schema.optionalKey(Schema.String),
+      },
+      success: Schema.Struct({
+        items: Schema.Array(InboxSent),
+        next_cursor: Schema.NullOr(Schema.String),
+      }).annotate({ identifier: 'InboxSentPage' }),
+      error: Invalid,
+    }),
+  )
+  .annotateMerge(
+    OpenApi.annotations({
+      title: 'Inbox',
+      description:
+        'Puts a text, a link or a file into the inbox, for an agent to turn into entries, and follows what became of each item, newest first.',
+    }),
+  )
+
+/** The API of Hippocampe: it reads, and adds to the inbox. Every other write goes through MCP. */
 export class HippocampeApi extends HttpApi.make('hippocampe')
   .add(about)
   .add(types)
   .add(entries)
+  .add(briefing)
   .add(search)
+  .add(inbox)
   .middleware(Authorization)
+  .middleware(Malformed)
   .annotateMerge(
     OpenApi.annotations({
       title: 'Hippocampe',
       version: '0.0.0',
       description:
-        'The read API of Hippocampe is experimental: only the desktop viewer uses it, it still moves, and changing it is never a breaking change.',
+        'The API of Hippocampe is experimental: only its own clients use it, it still moves, and changing it is never a breaking change.',
     }),
   ) {}

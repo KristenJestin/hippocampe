@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name">Hippocampe</string>
+    <string name="share_label">Hippocampe inbox</string>
+
+    <string name="instance_production">Production</string>
+    <string name="instance_development">Development</string>
+    <string name="instance_local">Local</string>
+    <string name="instance_with_label">%1$s · %2$s</string>
+
+    <string name="nav_home">Home</string>
+    <string name="nav_search">Search</string>
+    <string name="nav_browse">Browse</string>
+    <string name="nav_add">Add</string>
+    <string name="nav_sent">Sent</string>
+    <string name="nav_settings">Settings</string>
+
+    <string name="settings_title">Connect to Hippocampe</string>
+    <string name="settings_intro" tools:ignore="TypographyDashes">The address of the server and a key with the rights read and write (hippo key:create --rights read,write).</string>
+    <string name="settings_address">Server address</string>
+    <string name="settings_key">Key</string>
+    <string name="settings_key_saved">A key is saved: leave empty to keep it</string>
+    <string name="settings_save">Check and save</string>
+    <string name="settings_checking">Checking with the server…</string>
+    <string name="settings_saved">Saved. This phone sends to:</string>
+
+    <string name="add_text">A note or a link</string>
+    <string name="add_note">Why (optional)</string>
+    <string name="add_photo">Take a photo</string>
+    <string name="add_files">Choose files</string>
+    <string name="add_send">Send to the inbox</string>
+    <string name="add_remove">Remove</string>
+
+    <string name="share_preparing">Preparing what was shared…</string>
+    <string name="share_nothing">Nothing here can be sent to the inbox.</string>
+    <string name="share_unset">Connect this phone to Hippocampe first.</string>
+    <string name="share_open">Open Hippocampe</string>
+    <string name="share_cancel">Cancel</string>
+    <string name="share_send">Send</string>
+    <plurals name="share_files">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+
+    <string name="sent_empty">Nothing was sent from this phone yet.</string>
+    <string name="sent_waiting">Waiting on the phone</string>
+    <string name="sent_in_inbox">In the inbox</string>
+    <string name="sent_processed">Processed into:</string>
+    <string name="sent_processed_none">Processed, without an entry this key may read</string>
+    <string name="sent_dismissed">Dismissed: %1$s</string>
+    <string name="sent_dismissed_no_reason">Dismissed</string>
+    <string name="sent_held">Waiting for the settings: %1$s</string>
+    <string name="sent_refused">Refused: %1$s</string>
+    <string name="sent_cancel">Cancel</string>
+    <string name="sent_remove">Remove</string>
+    <string name="sent_unfollowed">What became of each item is not known now: %1$s</string>
+
+    <string name="home_overdue">Overdue</string>
+    <string name="home_heads_up">Heads-up</string>
+    <string name="home_week">This week</string>
+    <string name="home_nothing">Nothing is due this week, and nothing waits.</string>
+    <string name="home_recent">Recently changed</string>
+    <string name="home_recent_by">by %1$s</string>
+    <string name="home_last_read">Last read %1$s</string>
+    <plurals name="home_inbox">
+        <item quantity="one">%1$d item waits in the inbox</item>
+        <item quantity="other">%1$d items wait in the inbox</item>
+    </plurals>
+
+    <string name="due_line">%1$s: %2$s (%3$s)</string>
+    <string name="due_on">%1$s: %2$s</string>
+    <string name="due_today">today</string>
+    <string name="due_tomorrow">tomorrow</string>
+    <string name="due_yesterday">yesterday</string>
+    <plurals name="due_days_ago">
+        <item quantity="one">%1$d day ago</item>
+        <item quantity="other">%1$d days ago</item>
+    </plurals>
+    <plurals name="due_in_days">
+        <item quantity="one">in %1$d day</item>
+        <item quantity="other">in %1$d days</item>
+    </plurals>
+
+    <string name="warn_title">Warn me before a due date</string>
+    <string name="warn_about">Once a day, with the network, the phone asks Hippocampe what is coming and notifies each heads-up once.</string>
+    <string name="warn_refused">Notifications are not allowed for this application: allow them in the settings of the phone, then turn this on.</string>
+    <string name="warn_channel">Due dates</string>
+    <string name="warn_channel_about">Heads-ups before a deadline or a recurring date comes.</string>
+
+    <string name="read_loading">Reading…</string>
+    <string name="read_retry">Try again</string>
+    <string name="read_back">Back</string>
+
+    <string name="search_label">Search Hippocampe</string>
+    <string name="search_hint">Type a few words to find an entry.</string>
+    <string name="search_all_types">All types</string>
+    <string name="search_nothing">Nothing for “%1$s”</string>
+    <plurals name="search_found">
+        <item quantity="one">%1$d entry found</item>
+        <item quantity="other">%1$d entries found</item>
+    </plurals>
+
+    <string name="browse_open">Open %1$s</string>
+    <string name="browse_close">Close %1$s</string>
+    <string name="browse_empty">Nothing is kept yet.</string>
+
+    <string name="entry_fields">Fields</string>
+    <string name="entry_links">Links</string>
+    <string name="entry_linked_from">Linked from</string>
+    <string name="entry_cited_by">Cited by</string>
+    <string name="entry_contains">Contains</string>
+    <string name="entry_dated">Dated</string>
+    <string name="entry_media">Media</string>
+    <string name="entry_history">History</string>
+    <string name="entry_show_history">Show the history</string>
+    <string name="entry_older">Older</string>
+    <string name="entry_supposed">Supposed</string>
+    <string name="entry_disputed">Sources disagree</string>
+    <string name="entry_hidden">hidden</string>
+    <string name="entry_hidden_detail">This key does not see sensitive entries.</string>
+    <string name="entry_yes">Yes</string>
+    <string name="entry_no">No</string>
+    <string name="entry_archived">Archived on %1$s</string>
+    <string name="entry_archived_reason">Archived on %1$s: %2$s</string>
+    <string name="entry_no_description">No description</string>
+    <string name="entry_image_failed">This image could not be read.</string>
+    <string name="entry_no_viewer">No application on this phone opens this file.</string>
+    <string name="entry_file_failed">This file could not be fetched: %1$s</string>
+    <string name="entry_size_kb">%1$d KB</string>
+    <string name="entry_since">since %1$s</string>
+    <string name="entry_until">until %1$s</string>
+    <string name="entry_between">from %1$s to %2$s</string>
+    <string name="entry_edited_on">Edited on %1$s</string>
+    <string name="entry_by_on">by %1$s · %2$s</string>
+    <string name="entry_change">%1$s: %2$s → %3$s</string>
+    <string name="entry_action_create">Created</string>
+    <string name="entry_action_update">Edited</string>
+    <string name="entry_action_rewrite">Rewritten after a rename</string>
+    <string name="entry_action_archive">Archived</string>
+    <string name="entry_action_link">Linked</string>
+    <string name="entry_action_unlink">Unlinked</string>
+    <string name="entry_action_attach">Media attached</string>
+    <string name="entry_action_describe">Media described</string>
+    <plurals name="entry_more_dated">
+        <item quantity="one">and %1$d more</item>
+        <item quantity="other">and %1$d more</item>
+    </plurals>
+    <plurals name="entry_more_changes">
+        <item quantity="one">and %1$d more</item>
+        <item quantity="other">and %1$d more</item>
+    </plurals>
+    <plurals name="entry_hidden_entries">
+        <item quantity="one">One hidden entry</item>
+        <item quantity="other">%1$d hidden entries</item>
+    </plurals>
+
+    <string name="kept">Kept, and sent to %1$s as soon as it can be.</string>
+</resources>

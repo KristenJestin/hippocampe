@@ -6,6 +6,7 @@ export {
   DismissInput,
   finishItem,
   fileInInbox,
+  followInbox,
   FinishInput,
   InboxFilter,
   InboxInput,
@@ -15,7 +16,10 @@ export {
   peekItem,
   readItem,
   releaseItem,
+  sendToInbox,
   takeItem,
   takeItems,
 } from './operations.ts'
+export { countPending } from './pending.ts'
+export { keepPosts, keepPostsLater, keepPostsNow, PostFetch } from './posts.ts'
 export { INBOX } from './store.ts'

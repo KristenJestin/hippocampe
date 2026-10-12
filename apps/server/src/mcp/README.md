@@ -27,9 +27,9 @@ name is refused.
 | `attach_media` | write | Attaches an image, a video, a sound or a PDF to an entry; with `media` and `alt`, describes a medium already attached. |
 | `define_type` | write | Defines a type of entry and its fields, or adds fields to an existing type. An agent defines the type it lacks instead of asking the user. |
 | `change_type` | write | Changes the label, the description or the flags of a type, or one of its fields (`field`); `propose` proposes to delete it or merge it into another. |
-| `inbox_add` | write | Puts a text, a URL or a file in the inbox. |
+| `inbox_add` | write | Puts a text, a URL or a file in the inbox, with an optional `note` saying why. |
 | `inbox_list` | read | Lists the items of the inbox, a page at a time; with an `id`, reads one item without taking it, and with `offset` the rest of its text. |
-| `inbox_take` | write | Takes an item to process (a file that is an image comes with its picture). |
+| `inbox_take` | write | Takes an item to process (a file that is an image comes with its picture, a link to a post on X with its copy in `posts`). |
 | `inbox_finish` | write | Closes an item taken: `done` with the entries it produced, `dismissed` with a reason, or `released` to wait again. |
 | `report` | write | Reports a problem with Hippocampe itself (diagnostics). |
 | `reports` | read | Lists the findings recorded so far (diagnostics). |

@@ -43,7 +43,8 @@ import type { DatedPart, Source, TypeDefinition, WriteEntryInput } from '@hippoc
 import { INBOX, inboxHolds } from '../inbox/store.ts'
 import { refusingContention } from './contention.ts'
 import { holding, wantedOf } from './certainty.ts'
-import { DateText, fieldsOf, isDate, Provenance, Slug, Text } from './values.ts'
+import { LAST_WRITER, UPDATED_TEXT } from './last-writer.ts'
+import { DateText, fieldsOf, isDate, isDateTime, Provenance, Slug, Text } from './values.ts'
 import { DATED_READ, datedOn } from './dated.ts'
 import { slugsOf } from './slugs.ts'
 
@@ -516,7 +517,7 @@ export const listEntries = Effect.fn('listEntries')(function* () {
 
 /**
  * What a listing keeps: entries of a type, with every tag given, holding supposed (or unstated)
- * values, under one.
+ * values, under one; by title, or the most recently changed first.
  */
 export type EntryFilter = {
   readonly type?: string | undefined
@@ -524,32 +525,49 @@ export type EntryFilter = {
   readonly supposed?: boolean | undefined
   readonly unstated?: boolean | undefined
   readonly under?: string | undefined
+  readonly sort?: 'title' | 'updated' | undefined
   readonly limit?: number | undefined
   readonly cursor?: string | undefined
 }
 
-/** Where a page of a listing ended: the title and the id of its last entry. */
+/** Where a page of a listing by title ended: the title and the id of its last entry. */
 const ListCursor = Schema.fromJsonString(Schema.Tuple([Schema.String, Schema.String]))
 
-const cursorOf = (entry: { readonly title: string; readonly id: string }) =>
-  Buffer.from(Schema.encodeSync(ListCursor)([entry.title, entry.id])).toString('base64url')
+/**
+ * Where a page of a listing by last change ended: when its last entry changed, and its id. It
+ * names the order, so that a cursor of one listing is never taken for the other's.
+ */
+const ChangeCursor = Schema.fromJsonString(
+  Schema.Tuple([Schema.Literal('updated'), Schema.String, Schema.String]),
+)
+
+const encodeCursor = (cursor: string) => Buffer.from(cursor).toString('base64url')
 
 /**
- * The entries a filter keeps, not archived, the caller may see, by title, a page at a time
+ * The entries a filter keeps, not archived, the caller may see, by title or by last change (the
+ * most recent first, each saying when it changed and which key changed it), a page at a time
  * (`limit`, 50 by default and 200 at most; then `cursor` with the `next_cursor` given).
  */
 export const filterEntries = Effect.fn('filterEntries')(function* (filter: EntryFilter) {
   const client = yield* SqlClient.SqlClient
   const { hiddenTypes } = yield* sensitivity
   const under = filter.under === undefined ? null : (yield* findEntry(filter.under)).id
+  const byChange = filter.sort === 'updated'
+  // Where the page starts: the sort key and the id of the last entry before it.
+  const given =
+    filter.cursor === undefined ? null : Buffer.from(filter.cursor, 'base64url').toString('utf8')
   const after =
-    filter.cursor === undefined
+    given === null
       ? null
-      : Result.getOrUndefined(
-          Schema.decodeUnknownResult(ListCursor)(
-            Buffer.from(filter.cursor, 'base64url').toString('utf8'),
-          ),
-        )
+      : byChange
+        ? Result.match(Schema.decodeUnknownResult(ChangeCursor)(given), {
+            onFailure: () => undefined,
+            onSuccess: ([, key, id]) => (isDateTime(key) ? { key, id } : undefined),
+          })
+        : Result.match(Schema.decodeUnknownResult(ListCursor)(given), {
+            onFailure: () => undefined,
+            onSuccess: ([key, id]) => ({ key, id }),
+          })
   if (after === undefined)
     return yield* new Refused({
       message: `The cursor \`${filter.cursor ?? ''}\` is not one a listing gave: start again without it.`,
@@ -558,9 +576,18 @@ export const filterEntries = Effect.fn('filterEntries')(function* (filter: Entry
   const certain = yield* holding(wantedOf(filter))
   const places = yield* treePlaces(hiddenTypes)
   const subtree = yield* subtreeOf(under)
+  const past =
+    after === null
+      ? client`true`
+      : byChange
+        ? client`(e.updated, e.id::text) < (${after.key}::timestamptz, ${after.id})`
+        : client`(e.title, e.id::text) > (${after.key}, ${after.id})`
+  const lastChange = byChange
+    ? client`, ${client.literal(UPDATED_TEXT)} AS updated, ${client.literal(LAST_WRITER)} AS by`
+    : client``
   const rows = yield* listed(client`
     WITH RECURSIVE ${subtree}
-    SELECT e.id::text AS id, e.slug, e.type, e.title, ${places}
+    SELECT e.id::text AS id, e.slug, e.type, e.title, ${places}${lastChange}
     FROM entries e
     WHERE e.archived_at IS NULL
       AND NOT (${JSON.stringify(hiddenTypes)}::jsonb ? e.type)
@@ -568,15 +595,21 @@ export const filterEntries = Effect.fn('filterEntries')(function* (filter: Entry
       AND e.tags @> ${JSON.stringify(filter.tags ?? [])}::jsonb
       AND ${certain}
       AND (${under}::uuid IS NULL OR e.id IN (SELECT id FROM subtree))
-      AND (${after?.[0] ?? null}::text IS NULL
-        OR (e.title, e.id::text) > (${after?.[0] ?? null}, ${after?.[1] ?? null}))
-    ORDER BY e.title, e.id::text
+      AND ${past}
+    ORDER BY ${byChange ? client`e.updated DESC, e.id::text DESC` : client`e.title, e.id::text`}
     LIMIT ${limit + 1}`)
   const page = rows.slice(0, limit)
   const last = page.at(-1)
   return {
     entries: page,
-    next_cursor: rows.length > limit && last !== undefined ? cursorOf(last) : null,
+    next_cursor:
+      rows.length > limit && last !== undefined
+        ? encodeCursor(
+            byChange
+              ? Schema.encodeSync(ChangeCursor)(['updated', last.updated ?? '', last.id])
+              : Schema.encodeSync(ListCursor)([last.title, last.id]),
+          )
+        : null,
   }
 })
 

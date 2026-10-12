@@ -3,7 +3,7 @@
   "info": {
     "title": "Hippocampe",
     "version": "0.0.0",
-    "description": "The read API of Hippocampe is experimental: only the desktop viewer uses it, it still moves, and changing it is never a breaking change."
+    "description": "The API of Hippocampe is experimental: only its own clients use it, it still moves, and changing it is never a breaking change."
   },
   "paths": {
     "/api/about": {
@@ -25,6 +25,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/About"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidEncoded"
                 }
               }
             }
@@ -71,6 +81,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TypeList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidEncoded"
                 }
               }
             }
@@ -153,6 +173,19 @@
             "in": "query",
             "schema": {
               "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "title",
+                "updated"
+              ],
+              "description": "`title` (the default), or `updated`: the most recently changed first, each entry saying when it changed (`updated`) and which key changed it last (`by`)."
             },
             "required": false
           },
@@ -242,6 +275,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PendingReferences"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidEncoded"
                 }
               }
             }
@@ -404,6 +447,16 @@
               }
             }
           },
+          "400": {
+            "description": "Invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidEncoded"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -430,6 +483,77 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NotFoundEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/briefing": {
+      "get": {
+        "tags": [
+          "Briefing"
+        ],
+        "operationId": "briefing.briefing",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "today",
+                "week",
+                "weekend"
+              ],
+              "description": "`today` (the default), `week` (the seven days from today) or `weekend` (the coming one)."
+            },
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Briefing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Briefing"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenEncoded"
                 }
               }
             }
@@ -577,6 +701,170 @@
           }
         }
       }
+    },
+    "/api/inbox": {
+      "post": {
+        "tags": [
+          "Inbox"
+        ],
+        "operationId": "inbox.add",
+        "parameters": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "InboxSent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxSent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenEncoded"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InboxSend"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/InboxUpload"
+              }
+            }
+          },
+          "required": true
+        }
+      },
+      "get": {
+        "tags": [
+          "Inbox"
+        ],
+        "operationId": "inbox.follow",
+        "parameters": [
+          {
+            "name": "origin",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "description": "This origin exactly."
+            },
+            "required": false
+          },
+          {
+            "name": "client_id",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The items sent with these identifiers."
+            },
+            "required": false
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[+-]?\\d*\\.?\\d+(?:[Ee][+-]?\\d+)?$"
+            },
+            "required": false
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "InboxSentPage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxSentPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -635,6 +923,226 @@
         "required": [
           "_tag",
           "message"
+        ],
+        "additionalProperties": false
+      },
+      "InboxSentPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboxSent"
+            }
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "InboxSent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "url",
+              "file"
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The size of a file, or the length of a text, in bytes."
+          },
+          "mime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin": {
+            "type": "string"
+          },
+          "received_at": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "taken",
+              "processed",
+              "dismissed"
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it was dismissed."
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboxGave"
+            },
+            "description": "Once processed, the entries it gave that the key may read."
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "kind",
+          "name",
+          "size",
+          "mime",
+          "origin",
+          "received_at",
+          "status",
+          "reason",
+          "entries"
+        ],
+        "additionalProperties": false
+      },
+      "InboxGave": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "title",
+          "type"
+        ],
+        "additionalProperties": false
+      },
+      "InboxUpload": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the file, with its extension; the name of the part when not given."
+          },
+          "origin": {
+            "type": "string",
+            "description": "Where the item comes from, such as an app or a device, to follow it by origin."
+          },
+          "note": {
+            "type": "string",
+            "description": "Why the item is sent, in a few words (\"for the reference board\"), for the agent that takes it."
+          },
+          "client_id": {
+            "type": "string",
+            "description": "An identifier the sender chose for the item, a UUID: sent again with it, the item is kept once; with another content, it is refused."
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "additionalProperties": false
+      },
+      "InboxSend": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "url"
+            ],
+            "description": "What the item is: a `text` (with `text`) or a `url` (with `url`). A file is sent as multipart/form-data."
+          },
+          "text": {
+            "type": "string",
+            "description": "For a `text` item: the text."
+          },
+          "url": {
+            "type": "string",
+            "description": "For a `url` item: an http or https address, kept as given."
+          },
+          "origin": {
+            "type": "string",
+            "description": "Where the item comes from, such as an app or a device, to follow it by origin."
+          },
+          "note": {
+            "type": "string",
+            "description": "Why the item is sent, in a few words (\"for the reference board\"), for the agent that takes it."
+          },
+          "client_id": {
+            "type": "string",
+            "description": "An identifier the sender chose for the item, a UUID: sent again with it, the item is kept once; with another content, it is refused."
+          }
+        },
+        "required": [
+          "kind"
         ],
         "additionalProperties": false
       },
@@ -760,6 +1268,319 @@
           "provenance",
           "by",
           "when"
+        ],
+        "additionalProperties": false
+      },
+      "Briefing": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "upcoming": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BriefingOccurrence"
+            },
+            "description": "The occurrences in the period that no entry fulfills yet, by date."
+          },
+          "overdue": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BriefingOccurrence"
+            },
+            "description": "The deadlines past and not fulfilled."
+          },
+          "heads_up": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BriefingOccurrence"
+            },
+            "description": "The occurrences inside their notice period today, whatever the period asked. Reading them tells no one: the same occurrence is given each day until it is fulfilled or past."
+          },
+          "waiting": {
+            "type": "object",
+            "properties": {
+              "inbox": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "integer"
+                  },
+                  "first": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "origin": {
+                          "type": "string"
+                        },
+                        "size": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "taken",
+                            "processed",
+                            "dismissed"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "origin",
+                        "size",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "count",
+                  "first"
+                ],
+                "additionalProperties": false,
+                "description": "The items pending in the inbox, oldest first."
+              },
+              "supposed": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "integer"
+                  },
+                  "first": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "slug": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "what": {
+                          "type": "string"
+                        },
+                        "provenance": {
+                          "type": "string",
+                          "description": "`inferred` or `ambiguous`."
+                        },
+                        "by": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "when": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "slug",
+                        "title",
+                        "what",
+                        "provenance",
+                        "by",
+                        "when"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "count",
+                  "first"
+                ],
+                "additionalProperties": false,
+                "description": "The values and links still supposed, the latest changes first."
+              },
+              "pending_references": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "integer"
+                  },
+                  "first": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PendingReference"
+                    }
+                  }
+                },
+                "required": [
+                  "count",
+                  "first"
+                ],
+                "additionalProperties": false,
+                "description": "The `[[references]]` still waiting for their entry."
+              }
+            },
+            "required": [
+              "inbox",
+              "supposed",
+              "pending_references"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "upcoming",
+          "overdue",
+          "heads_up",
+          "waiting"
+        ],
+        "additionalProperties": false
+      },
+      "PendingReference": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "cited_by": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "slug",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "slug",
+          "cited_by"
+        ],
+        "additionalProperties": false
+      },
+      "BriefingOccurrence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The same each time the occurrence is read: `<entry id>:<field>:<date>`."
+          },
+          "entry": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "slug",
+              "title",
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          "field": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string"
+          },
+          "days_left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deadline": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "entry",
+          "field",
+          "date",
+          "period",
+          "days_left",
+          "age",
+          "deadline"
         ],
         "additionalProperties": false
       },
@@ -1669,42 +2490,6 @@
         ],
         "additionalProperties": false
       },
-      "PendingReference": {
-        "type": "object",
-        "properties": {
-          "slug": {
-            "type": "string"
-          },
-          "cited_by": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "slug": {
-                  "type": "string"
-                },
-                "title": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "slug",
-                "title"
-              ],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": [
-          "slug",
-          "cited_by"
-        ],
-        "additionalProperties": false
-      },
       "EntryList": {
         "type": "object",
         "properties": {
@@ -1750,6 +2535,19 @@
             "items": {
               "$ref": "#/components/schemas/TreePlace"
             }
+          },
+          "updated": {
+            "type": "string"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2007,8 +2805,16 @@
       "description": "The tree of entries, or the entries a filter keeps; an entry with its place in it, its children and its links; and its history."
     },
     {
+      "name": "Briefing",
+      "description": "What is coming and what waits: the dates due in a period, the heads-ups inside their notice, the inbox, the suppositions to confirm and the references without an entry."
+    },
+    {
       "name": "Search",
       "description": "Full-text search: titles, aliases, tags and summaries first, then bodies."
+    },
+    {
+      "name": "Inbox",
+      "description": "Puts a text, a link or a file into the inbox, for an agent to turn into entries, and follows what became of each item, newest first."
     }
   ]
 }
