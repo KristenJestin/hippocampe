@@ -194,6 +194,120 @@ enum class SupposedProvenance {
 }
 
 @Serializable
+data class Briefing(
+    val from: String,
+    val to: String,
+    /** The occurrences in the period that no entry fulfills yet, by date. */
+    val upcoming: List<BriefingOccurrence>,
+    /** The deadlines past and not fulfilled. */
+    val overdue: List<BriefingOccurrence>,
+    /** The occurrences inside their notice period today, whatever the period asked. Reading them tells no one: the same occurrence is given each day until it is fulfilled or past. */
+    @SerialName("heads_up")
+    val headsUp: List<BriefingOccurrence>,
+    val waiting: BriefingWaiting,
+)
+
+@Serializable
+data class BriefingWaiting(
+    /** The items pending in the inbox, oldest first. */
+    val inbox: BriefingWaitingInbox,
+    /** The values and links still supposed, the latest changes first. */
+    val supposed: BriefingWaitingSupposed,
+    /** The `[[references]]` still waiting for their entry. */
+    @SerialName("pending_references")
+    val pendingReferences: BriefingWaitingPendingReferences,
+)
+
+/** The items pending in the inbox, oldest first. */
+@Serializable
+data class BriefingWaitingInbox(
+    val count: Long,
+    val first: List<BriefingWaitingInboxFirstItem>,
+)
+
+@Serializable
+data class BriefingWaitingInboxFirstItem(
+    val id: String,
+    val name: String?,
+    val origin: String,
+    val size: Long?,
+    val status: BriefingWaitingInboxFirstItemStatus,
+)
+
+@Serializable
+enum class BriefingWaitingInboxFirstItemStatus {
+    @SerialName("pending")
+    Pending,
+    @SerialName("taken")
+    Taken,
+    @SerialName("processed")
+    Processed,
+    @SerialName("dismissed")
+    Dismissed,
+}
+
+/** The values and links still supposed, the latest changes first. */
+@Serializable
+data class BriefingWaitingSupposed(
+    val count: Long,
+    val first: List<BriefingWaitingSupposedFirstItem>,
+)
+
+@Serializable
+data class BriefingWaitingSupposedFirstItem(
+    val slug: String,
+    val title: String,
+    val what: String,
+    /** `inferred` or `ambiguous`. */
+    val provenance: String,
+    val by: String?,
+    val `when`: String?,
+)
+
+/** The `[[references]]` still waiting for their entry. */
+@Serializable
+data class BriefingWaitingPendingReferences(
+    val count: Long,
+    val first: List<PendingReference>,
+)
+
+@Serializable
+data class PendingReference(
+    val slug: String,
+    @SerialName("cited_by")
+    val citedBy: List<PendingReferenceCitedByItem>,
+)
+
+@Serializable
+data class PendingReferenceCitedByItem(
+    val id: String,
+    val slug: String,
+    val title: String,
+)
+
+@Serializable
+data class BriefingOccurrence(
+    /** The same each time the occurrence is read: `<entry id>:<field>:<date>`. */
+    val id: String,
+    val entry: BriefingOccurrenceEntry,
+    val field: String,
+    val date: String,
+    val period: String,
+    @SerialName("days_left")
+    val daysLeft: Long?,
+    val age: Long?,
+    val deadline: Boolean,
+)
+
+@Serializable
+data class BriefingOccurrenceEntry(
+    val id: String,
+    val slug: String,
+    val title: String,
+    val type: String,
+)
+
+@Serializable
 data class NotFoundEncoded(
     @SerialName("_tag")
     val tag: NotFoundEncodedTag,
@@ -482,20 +596,6 @@ data class HistoryChange(
 @Serializable
 data class PendingReferences(
     val pending: List<PendingReference>,
-)
-
-@Serializable
-data class PendingReference(
-    val slug: String,
-    @SerialName("cited_by")
-    val citedBy: List<PendingReferenceCitedByItem>,
-)
-
-@Serializable
-data class PendingReferenceCitedByItem(
-    val id: String,
-    val slug: String,
-    val title: String,
 )
 
 @Serializable
