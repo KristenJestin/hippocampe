@@ -171,6 +171,29 @@ describe('diagnostics over HTTP', () => {
     }
   })
 
+  test('a malformed request is not recorded as an unexpected error', async () => {
+    const { base, database, secret, errors } = server(on)
+    const headers = { authorization: `Bearer ${secret}` }
+    const answers = await Promise.all([
+      fetch(`${base}/api/inbox`, {
+        method: 'POST',
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify({ text: 'No kind' }),
+      }),
+      fetch(`${base}/api/inbox?limit=many`, { headers }),
+      fetch(`${base}/api/search?q=seeds&limit=many`, { headers }),
+    ])
+    expect(answers.map(({ status }) => status)).toEqual([400, 400, 400])
+    // A finding would be written just after the answer: give it the time to appear.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    const places = (await database.runPromise(findingsWithOccurrences({}))).map(
+      ({ finding }) => finding.place,
+    )
+    for (const place of ['POST /api/inbox', 'GET /api/inbox', 'GET /api/search'])
+      expect(places).not.toContain(place)
+    expect(errors()).not.toContain('HttpApiSchemaError')
+  })
+
   test('a forced defect writes one line to standard error with the stack, diagnostics on or off', async () => {
     const { database, base, secret, errors } = server(off)
     // Only what the server writes from here: a line of an earlier request may still be arriving.
