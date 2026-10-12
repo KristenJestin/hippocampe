@@ -627,6 +627,15 @@ newest first, a page at a time, each with its status, its reason when dismissed 
 the entries it gave that the key may read (slug, title, type). Never what an item holds, nor its
 note: a processed item is listed to any key that may read, its content read only through its entries.
 
+A client reads what `briefing` gives agents over HTTP too (`GET /api/briefing?period=today|week|weekend`,
+today by default, a key with the right `read`): `upcoming` and `overdue` as the tool computes them, `heads_up`
+(the occurrences inside their notice period today), and `waiting`, always present: `inbox` (the items
+pending), `supposed` and `pending_references`, each with its `count` and its first five. Each occurrence
+has an `id`, `<entry id>:<field>:<date>`, the same each time, so a client that warns the owner once keeps
+the identifiers it warned of. Reading the heads-ups tells no one: `heads_up` here is not the once-a-day
+list an agent is told, it is every occurrence inside its notice, until it is fulfilled or past. What the key
+may not read is left out before anything is counted, as in the tool.
+
 ## Sources
 
 An entry made from an inbox item cites it as `{ "source": "inbox", "item": "<id>" }`:

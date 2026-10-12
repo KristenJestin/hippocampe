@@ -16,12 +16,15 @@ import {
 } from 'effect/http-api'
 import {
   About,
+  BRIEFING_PERIODS,
+  Briefing,
   EntryRead,
   HistoryPage,
   InboxSend,
   InboxSent,
   InboxUploadFields,
   ListOptions,
+  PendingReference,
   SearchOptions,
   SearchResult,
   TreeEntry,
@@ -102,16 +105,9 @@ const entries = HttpApiGroup.make('entries')
   )
   .add(
     HttpApiEndpoint.get('pending', '/api/pending-references', {
-      success: Schema.Struct({
-        pending: Schema.Array(
-          Schema.Struct({
-            slug: Schema.String,
-            cited_by: Schema.Array(
-              Schema.Struct({ id: Schema.String, slug: Schema.String, title: Schema.String }),
-            ),
-          }).annotate({ identifier: 'PendingReference' }),
-        ),
-      }).annotate({ identifier: 'PendingReferences' }),
+      success: Schema.Struct({ pending: Schema.Array(PendingReference) }).annotate({
+        identifier: 'PendingReferences',
+      }),
     }),
   )
   .add(
@@ -140,6 +136,26 @@ const entries = HttpApiGroup.make('entries')
       title: 'Entries',
       description:
         'The tree of entries, or the entries a filter keeps; an entry with its place in it, its children and its links; and its history.',
+    }),
+  )
+
+const briefing = HttpApiGroup.make('briefing')
+  .add(
+    HttpApiEndpoint.get('briefing', '/api/briefing', {
+      query: {
+        period: Schema.optionalKey(Schema.Literals(BRIEFING_PERIODS)).annotate({
+          description:
+            '`today` (the default), `week` (the seven days from today) or `weekend` (the coming one).',
+        }),
+      },
+      success: Briefing,
+    }),
+  )
+  .annotateMerge(
+    OpenApi.annotations({
+      title: 'Briefing',
+      description:
+        'What is coming and what waits: the dates due in a period, the heads-ups inside their notice, the inbox, the suppositions to confirm and the references without an entry.',
     }),
   )
 
@@ -220,6 +236,7 @@ export class HippocampeApi extends HttpApi.make('hippocampe')
   .add(about)
   .add(types)
   .add(entries)
+  .add(briefing)
   .add(search)
   .add(inbox)
   .middleware(Authorization)

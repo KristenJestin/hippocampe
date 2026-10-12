@@ -6,14 +6,18 @@ import {
   NotFound,
   Unauthorized,
 } from '@hippocampe/api/http'
+import { FIRST, waitingOn } from './core/briefing/index.ts'
 import { Auth, Rights } from './core/auth/index.ts'
 import { filterEntries, listEntries, readEntry } from './core/entries/index.ts'
 import { cursorRefusal, historyPage } from './core/events/index.ts'
-import { followInbox, sendToInbox } from './core/inbox/index.ts'
+import { followInbox, listInbox, sendToInbox } from './core/inbox/index.ts'
+import { countPending } from './core/inbox/pending.ts'
 import { Instance } from './core/instance.ts'
 import { pendingReferences } from './core/links/index.ts'
 import { Refused } from './core/refused.ts'
 import { searchWithTotal } from './core/search/index.ts'
+import { briefing, headsUpDue } from './core/time/index.ts'
+import type { Occurrence } from './core/time/index.ts'
 import { listTypes } from './core/types/index.ts'
 import { Effect, FileSystem, Layer, Redacted } from 'effect'
 import { HttpApiBuilder } from 'effect/http-api'
@@ -117,6 +121,44 @@ const entries = HttpApiBuilder.group(HippocampeApi, 'entries', (handlers) =>
   ),
 )
 
+/** An occurrence with its identity: the entry, the field and the date, the same each time. */
+const identified = (each: Occurrence) => ({
+  id: `${each.entry.id}:${each.field}:${each.date}`,
+  ...each,
+})
+
+const briefed = HttpApiBuilder.group(HippocampeApi, 'briefing', (handlers) =>
+  Effect.succeed(
+    handlers.handle('briefing', ({ query }) =>
+      Effect.gen(function* () {
+        // The computation of the `briefing` tool; reading the heads-ups here tells no one.
+        const { from, to, upcoming, overdue } = yield* briefing(query.period ?? 'today')
+        const { items } = yield* listInbox({ status: 'pending', limit: FIRST })
+        return {
+          from,
+          to,
+          upcoming: upcoming.map(identified),
+          overdue: overdue.map(identified),
+          heads_up: (yield* headsUpDue).map(identified),
+          waiting: {
+            inbox: {
+              count: yield* countPending,
+              first: items.map(({ id, name, origin, size, status }) => ({
+                id,
+                name,
+                origin,
+                size,
+                status,
+              })),
+            },
+            ...(yield* waitingOn),
+          },
+        }
+      }).pipe(Effect.orDie),
+    ),
+  ),
+)
+
 const searching = HttpApiBuilder.group(HippocampeApi, 'search', (handlers) =>
   Effect.succeed(
     handlers.handle('search', ({ query: { q, ...options } }) =>
@@ -176,4 +218,7 @@ const inbox = HttpApiBuilder.group(HippocampeApi, 'inbox', (handlers) =>
  */
 export const ApiRoutes = HttpApiBuilder.layer(HippocampeApi, {
   openapiPath: '/api/openapi.json',
-}).pipe(Layer.provide([about, types, entries, searching, inbox]), Layer.provide(AuthorizationLayer))
+}).pipe(
+  Layer.provide([about, types, entries, briefed, searching, inbox]),
+  Layer.provide(AuthorizationLayer),
+)
