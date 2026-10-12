@@ -1,0 +1,19 @@
+{
+  "__typename": "Tweet",
+  "lang": "en",
+  "created_at": "2026-09-15T17:05:00.000Z",
+  "id_str": "1834567890123450001",
+  "text": "Our flour went into this one.",
+  "user": { "id_str": "4200", "name": "Valley Mill", "screen_name": "valley_mill" },
+  "quoted_tweet": {
+    "lang": "en",
+    "created_at": "2026-09-14T08:30:00.000Z",
+    "id_str": "1834567890123456789",
+    "text": "The rye loaf is back on Saturdays, baked in the old oven.",
+    "user": { "id_str": "4100", "name": "Harbour Bakery", "screen_name": "harbour_bakery" },
+    "mediaDetails": [
+      { "type": "photo", "media_url_https": "https://pbs.twimg.com/media/LoafPhoto.jpg" }
+    ]
+  },
+  "conversation_count": 0
+}

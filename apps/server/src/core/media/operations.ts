@@ -9,6 +9,7 @@ import { rowsOf } from '../database/rows.ts'
 import * as tables from '../database/schema.ts'
 import { findEntry } from '../entries/operations.ts'
 import { currentActor } from '../events/actor.ts'
+import { keptImageOf } from '../inbox/posts.ts'
 import { recordEvent } from '../events/record.ts'
 import { Refused } from '../refused.ts'
 import { sensitivity } from '../sensitive.ts'
@@ -19,7 +20,8 @@ const BYTES_LIMIT = 20 * 1024 * 1024
 
 /**
  * What an attachment says: the entry, and the file as base64 `data`, as a `url` to fetch, or as
- * the `item` of the inbox it came in.
+ * the `item` of the inbox it came in: its file, or, with `sha256`, an image kept from a post it
+ * links to.
  */
 export const AttachMediaInput = Schema.Struct({
   entry: Schema.String,
@@ -28,6 +30,12 @@ export const AttachMediaInput = Schema.Struct({
   item: Schema.optionalKey(
     Schema.String.annotate({
       description: 'The id of an inbox item you took, or just processed: its file, not sent again.',
+    }),
+  ),
+  sha256: Schema.optionalKey(
+    Schema.String.annotate({
+      description:
+        'With `item`: the `sha256` of an image kept from a post on X it links to (its `posts`).',
     }),
   ),
   alt: Schema.optionalKey(Schema.String),
@@ -74,10 +82,11 @@ const owned = rowsOf(
 )
 
 /**
- * The bytes of the file of an item the caller has taken, or has just marked processed: what an
- * agent attaches to an entry without sending it again.
+ * The bytes of the file of an item the caller has taken, or has just marked processed, or of the
+ * image `sha256` kept from a post it links to: what an agent attaches to an entry without sending
+ * or fetching it again.
  */
-const itemFile = Effect.fn('itemFile')(function* (id: string) {
+const itemFile = Effect.fn('itemFile')(function* (id: string, sha256: string | undefined) {
   const db = yield* drizzle
   const { inbox } = tables
   const actor = yield* currentActor
@@ -102,6 +111,13 @@ const itemFile = Effect.fn('itemFile')(function* (id: string) {
     (item.status === 'processed' && item.closed_by === actor)
   if (!mine)
     return yield* new Refused({ message: `Take the item \`${id}\` before attaching its file.` })
+  if (sha256 !== undefined) {
+    if ((yield* keptImageOf(sha256, eq(inbox.id, id))) === undefined)
+      return yield* new Refused({
+        message: `The item \`${id}\` kept no image \`${sha256}\` from a post: give one of its \`posts\`.`,
+      })
+    return new Uint8Array(yield* readFileOf(sha256))
+  }
   if (item.kind !== 'file')
     return yield* new Refused({ message: `The item \`${id}\` holds no file to attach.` })
   return item.sha256 === null
@@ -137,6 +153,9 @@ export const attachMedia = Effect.fn('attachMedia')(function* (input: AttachMedi
   const db = yield* drizzle
   const actor = yield* currentActor
   const entry = yield* findEntry(input.entry)
+  if (input.sha256 !== undefined && input.item === undefined) {
+    return yield* new Refused({ message: 'Give `sha256` with the inbox `item` that kept it.' })
+  }
   const given = [input.data, input.url, input.item].filter((source) => source !== undefined)
   if (given.length !== 1) {
     return yield* new Refused({
@@ -151,7 +170,7 @@ export const attachMedia = Effect.fn('attachMedia')(function* (input: AttachMedi
   }
   const { hash, size, mime, kind, width, height } =
     input.item !== undefined
-      ? yield* keptFromBytes(yield* itemFile(input.item))
+      ? yield* keptFromBytes(yield* itemFile(input.item, input.sha256))
       : input.data === undefined
         ? yield* keptFromUrl(input.url ?? '')
         : yield* keptFromBytes(new Uint8Array(Buffer.from(input.data, 'base64')))
@@ -266,7 +285,12 @@ export const readMedia = Effect.fn('readMedia')(function* (hash: string) {
             .limit(1),
         )
       : []
-  const mime = medium?.mime ?? waiting?.mime
+  // Or an image kept from a post on X an item waiting or taken links to, for the same key.
+  const kept =
+    medium === undefined && waiting === undefined && (yield* Rights).includes('write')
+      ? yield* keptImageOf(hash, inArray(tables.inbox.status, ['pending', 'taken']))
+      : undefined
+  const mime = medium?.mime ?? waiting?.mime ?? kept
   if (mime === undefined || mime === null)
     return yield* new Refused({ message: `There is no file \`${hash}\`.` })
   return { mime, bytes: yield* readFileOf(hash) }
