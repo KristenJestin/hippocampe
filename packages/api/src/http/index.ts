@@ -4,11 +4,13 @@
  * it, and the OpenAPI document is generated from it.
  */
 import { Schema } from 'effect'
+import { Multipart } from 'effect/http'
 import {
   HttpApi,
   HttpApiEndpoint,
   HttpApiGroup,
   HttpApiMiddleware,
+  HttpApiSchema,
   HttpApiSecurity,
   OpenApi,
 } from 'effect/http-api'
@@ -16,6 +18,9 @@ import {
   About,
   EntryRead,
   HistoryPage,
+  InboxSend,
+  InboxSent,
+  InboxUploadFields,
   ListOptions,
   SearchOptions,
   SearchResult,
@@ -51,7 +56,10 @@ export class Invalid extends Schema.TaggedError<Invalid>()(
   { httpApiStatus: 400 },
 ) {}
 
-/** Every route is reached with a key with the right `read`, sent as `Authorization: Bearer <key>`. */
+/**
+ * Every route is reached with a key sent as `Authorization: Bearer <key>`: with the right `read`
+ * to read, with the right `write` to add to the inbox.
+ */
 export class Authorization extends HttpApiMiddleware.Service<Authorization>()(
   '@hippocampe/api/http/Authorization',
   {
@@ -164,18 +172,62 @@ const search = HttpApiGroup.make('search')
     }),
   )
 
-/** The read API of Hippocampe. Writing goes through MCP. */
+const inbox = HttpApiGroup.make('inbox')
+  .add(
+    HttpApiEndpoint.post('add', '/api/inbox', {
+      payload: [
+        InboxSend,
+        Schema.Struct({
+          file: Multipart.SingleFileSchema.annotate({ description: 'The file, 20 MB at most.' }),
+          ...InboxUploadFields,
+        })
+          .pipe(HttpApiSchema.asMultipart())
+          .annotate({ identifier: 'InboxUpload' }),
+      ],
+      success: InboxSent,
+      error: Invalid,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get('follow', '/api/inbox', {
+      query: {
+        origin: Schema.optionalKey(Schema.String.annotate({ description: 'This origin exactly.' })),
+        client_id: Schema.optionalKey(
+          Schema.Array(Schema.String).annotate({
+            description: 'The items sent with these identifiers.',
+          }),
+        ),
+        limit: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 200 }))),
+        cursor: Schema.optionalKey(Schema.String),
+      },
+      success: Schema.Struct({
+        items: Schema.Array(InboxSent),
+        next_cursor: Schema.NullOr(Schema.String),
+      }).annotate({ identifier: 'InboxSentPage' }),
+      error: Invalid,
+    }),
+  )
+  .annotateMerge(
+    OpenApi.annotations({
+      title: 'Inbox',
+      description:
+        'Puts a text, a link or a file into the inbox, for an agent to turn into entries, and follows what became of each item, newest first.',
+    }),
+  )
+
+/** The API of Hippocampe: it reads, and adds to the inbox. Every other write goes through MCP. */
 export class HippocampeApi extends HttpApi.make('hippocampe')
   .add(about)
   .add(types)
   .add(entries)
   .add(search)
+  .add(inbox)
   .middleware(Authorization)
   .annotateMerge(
     OpenApi.annotations({
       title: 'Hippocampe',
       version: '0.0.0',
       description:
-        'The read API of Hippocampe is experimental: only the desktop viewer uses it, it still moves, and changing it is never a breaking change.',
+        'The API of Hippocampe is experimental: only its own clients use it, it still moves, and changing it is never a breaking change.',
     }),
   ) {}

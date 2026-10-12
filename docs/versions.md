@@ -28,7 +28,7 @@ Its commands and flags, the same way.
 Breaking: a command or a flag removed or renamed, or one that no longer does what it did.
 Not breaking: a new command, a new optional flag.
 
-## The read API is experimental
+## The HTTP API is experimental
 
-`/api/*` and its OpenAPI document are not covered. Only the desktop viewer uses them, they still
+`/api/*` and its OpenAPI document are not covered. Only Hippocampe's own clients use them, they still
 move, and changing them is never breaking. The document says so in its description.

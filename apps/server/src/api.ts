@@ -9,31 +9,42 @@ import {
 import { Auth, Rights } from './core/auth/index.ts'
 import { filterEntries, listEntries, readEntry } from './core/entries/index.ts'
 import { cursorRefusal, historyPage } from './core/events/index.ts'
+import { followInbox, sendToInbox } from './core/inbox/index.ts'
 import { Instance } from './core/instance.ts'
 import { pendingReferences } from './core/links/index.ts'
 import { Refused } from './core/refused.ts'
 import { searchWithTotal } from './core/search/index.ts'
 import { listTypes } from './core/types/index.ts'
-import { Effect, Layer, Redacted } from 'effect'
+import { Effect, FileSystem, Layer, Redacted } from 'effect'
 import { HttpApiBuilder } from 'effect/http-api'
 
 /** The sentence a key without the right `read` is refused with, over HTTP as over MCP. */
 export const MAY_NOT_READ =
   'This key may not read: ask the owner of Hippocampe for a key with the right `read`.'
 
-/** The key of a request, verified by Better Auth: it must hold the right `read`. */
+/** The sentence a key without the right `write` is refused with when it adds to the inbox. */
+export const MAY_NOT_WRITE =
+  'This key may not write: ask the owner of Hippocampe for a key with the right `write`.'
+
+/**
+ * The key of a request, verified by Better Auth: it must hold the right `read` to read, and the
+ * right `write` to add to the inbox.
+ */
 const AuthorizationLayer = Layer.effect(
   Authorization,
   Effect.gen(function* () {
     const auth = yield* Auth
     return Authorization.of({
-      bearer: (route, { credential }) =>
+      bearer: (route, { credential, endpoint }) =>
         Effect.gen(function* () {
           const secret = Redacted.value(credential)
           const { rights } = yield* auth
             .verifyKey(secret === '' ? undefined : secret)
             .pipe(Effect.mapError(({ message }) => new Unauthorized({ message })))
-          if (!rights.includes('read')) return yield* new Forbidden({ message: MAY_NOT_READ })
+          if (endpoint.method === 'GET' ? !rights.includes('read') : !rights.includes('write'))
+            return yield* new Forbidden({
+              message: endpoint.method === 'GET' ? MAY_NOT_READ : MAY_NOT_WRITE,
+            })
           return yield* Effect.provideService(route, Rights, rights)
         }),
     })
@@ -120,10 +131,49 @@ const searching = HttpApiBuilder.group(HippocampeApi, 'search', (handlers) =>
   ),
 )
 
+/** A refusal of the rules of Hippocampe is the request's mistake: 400 with its sentence. */
+const invalid = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  effect.pipe(
+    Effect.catch((error) =>
+      error instanceof Refused
+        ? Effect.fail(new Invalid({ message: error.message }))
+        : Effect.die(error),
+    ),
+  )
+
+const inbox = HttpApiBuilder.group(HippocampeApi, 'inbox', (handlers) =>
+  Effect.succeed(
+    handlers
+      .handle('add', ({ payload }) =>
+        invalid(
+          Effect.gen(function* () {
+            if (!('file' in payload)) {
+              const { client_id, ...item } = payload
+              return yield* sendToInbox(item, client_id)
+            }
+            const { file, client_id, name, ...given } = payload
+            // A file comes as itself, not as base64; the inbox keeps it under the same rules.
+            const bytes = yield* (yield* FileSystem.FileSystem).readFile(file.path)
+            return yield* sendToInbox(
+              {
+                kind: 'file',
+                name: name ?? file.name,
+                data: Buffer.from(bytes).toString('base64'),
+                ...given,
+              },
+              client_id,
+            )
+          }),
+        ),
+      )
+      .handle('follow', ({ query }) => invalid(followInbox(query))),
+  ),
+)
+
 /**
  * The read API, its OpenAPI document at `/api/openapi.json`, behind the keys of Better Auth. It
  * runs on the database and the authentication the server provides once.
  */
 export const ApiRoutes = HttpApiBuilder.layer(HippocampeApi, {
   openapiPath: '/api/openapi.json',
-}).pipe(Layer.provide([about, types, entries, searching]), Layer.provide(AuthorizationLayer))
+}).pipe(Layer.provide([about, types, entries, searching, inbox]), Layer.provide(AuthorizationLayer))

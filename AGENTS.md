@@ -92,12 +92,13 @@ Turborepo caches every task: a second `bun run check` with nothing changed answe
 cache. Inside one package, the task is run by its own script (`bun run test` in `apps/server`).
 
 The server, in development, on `PORT` (3000 by default): `/mcp` (MCP, protocol 2026-07-28 and
-the older revisions), `/health`, `/media/<hash>`, and the read API (`GET /api/about`,
-`/api/types`, `/api/entries/{slug or id}`, `/api/search?q=…`), its OpenAPI document at
+the older revisions), `/health`, `/media/<hash>`, and the API (`GET /api/about`,
+`/api/types`, `/api/entries/{slug or id}`, `/api/search?q=…`, and the inbox: `POST /api/inbox` to
+add a text, a link or a file, `GET /api/inbox` to follow what became of each), its OpenAPI document at
 `/api/openapi.json` and its documentation page at `/api/docs`. It needs `BETTER_AUTH_SECRET` and
 `HIPPOCAMPE_INSTANCE` in `.env`; every request to
 `/mcp` and to the API carries a key, whose name is the actor of its writes (the API needs the
-right `read`). A refused key is answered 401 with its reason, in the body and in
+right `read`, and `write` to add to the inbox). A refused key is answered 401 with its reason, in the body and in
 `WWW-Authenticate`; Hippocampe offers no OAuth. From `apps/server`:
 
 ```
@@ -120,7 +121,7 @@ today, in one event. `owner:entry <slug or id>` names that entry (`--clear` none
 it): what you said is then cited as said by it, and agents are told to read it. `entry:unarchive <slug or id>`
 brings an archived entry back, as the owner: it is written to and listed again, in one event of its
 history (an agent's `write` cannot). In the container: `docker compose exec hippocampe bun src/cli.ts supposed`.
-`inbox:add <folder> [--origin <name>] [--dry-run] [--again]` drops a folder
+`inbox:add <folder> [--origin <name>] [--note <text>] [--dry-run] [--again]` drops a folder
 into the inbox, one item per file, sub-folders included (hidden files and links are skipped), for
 agents to process (`inbox_take`, then `inbox_finish`); `--dry-run` says what it would add, and a file
 already in the inbox (same path, origin and content) is added again only with `--again`.

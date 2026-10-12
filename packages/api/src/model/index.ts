@@ -21,6 +21,7 @@ export {
   WriteEntryInput,
   WRITER,
 } from './entries.ts'
+export { InboxSend, InboxSent, InboxUploadFields } from './inbox.ts'
 export {
   HistoryEvent,
   HistoryPage,

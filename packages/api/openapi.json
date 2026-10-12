@@ -3,7 +3,7 @@
   "info": {
     "title": "Hippocampe",
     "version": "0.0.0",
-    "description": "The read API of Hippocampe is experimental: only the desktop viewer uses it, it still moves, and changing it is never a breaking change."
+    "description": "The API of Hippocampe is experimental: only its own clients use it, it still moves, and changing it is never a breaking change."
   },
   "paths": {
     "/api/about": {
@@ -577,6 +577,170 @@
           }
         }
       }
+    },
+    "/api/inbox": {
+      "post": {
+        "tags": [
+          "Inbox"
+        ],
+        "operationId": "inbox.add",
+        "parameters": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "InboxSent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxSent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenEncoded"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InboxSend"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/InboxUpload"
+              }
+            }
+          },
+          "required": true
+        }
+      },
+      "get": {
+        "tags": [
+          "Inbox"
+        ],
+        "operationId": "inbox.follow",
+        "parameters": [
+          {
+            "name": "origin",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "description": "This origin exactly."
+            },
+            "required": false
+          },
+          {
+            "name": "client_id",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The items sent with these identifiers."
+            },
+            "required": false
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[+-]?\\d*\\.?\\d+(?:[Ee][+-]?\\d+)?$"
+            },
+            "required": false
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "InboxSentPage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxSentPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -635,6 +799,226 @@
         "required": [
           "_tag",
           "message"
+        ],
+        "additionalProperties": false
+      },
+      "InboxSentPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboxSent"
+            }
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "InboxSent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "url",
+              "file"
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The size of a file, or the length of a text, in bytes."
+          },
+          "mime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin": {
+            "type": "string"
+          },
+          "received_at": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "taken",
+              "processed",
+              "dismissed"
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it was dismissed."
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboxGave"
+            },
+            "description": "Once processed, the entries it gave that the key may read."
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "kind",
+          "name",
+          "size",
+          "mime",
+          "origin",
+          "received_at",
+          "status",
+          "reason",
+          "entries"
+        ],
+        "additionalProperties": false
+      },
+      "InboxGave": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "title",
+          "type"
+        ],
+        "additionalProperties": false
+      },
+      "InboxUpload": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the file, with its extension; the name of the part when not given."
+          },
+          "origin": {
+            "type": "string",
+            "description": "Where the item comes from, such as an app or a device, to follow it by origin."
+          },
+          "note": {
+            "type": "string",
+            "description": "Why the item is sent, in a few words (\"for the reference board\"), for the agent that takes it."
+          },
+          "client_id": {
+            "type": "string",
+            "description": "An identifier the sender chose for the item, a UUID: sent again with it, the item is kept once; with another content, it is refused."
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "additionalProperties": false
+      },
+      "InboxSend": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "url"
+            ],
+            "description": "What the item is: a `text` (with `text`) or a `url` (with `url`). A file is sent as multipart/form-data."
+          },
+          "text": {
+            "type": "string",
+            "description": "For a `text` item: the text."
+          },
+          "url": {
+            "type": "string",
+            "description": "For a `url` item: an http or https address, kept as given."
+          },
+          "origin": {
+            "type": "string",
+            "description": "Where the item comes from, such as an app or a device, to follow it by origin."
+          },
+          "note": {
+            "type": "string",
+            "description": "Why the item is sent, in a few words (\"for the reference board\"), for the agent that takes it."
+          },
+          "client_id": {
+            "type": "string",
+            "description": "An identifier the sender chose for the item, a UUID: sent again with it, the item is kept once; with another content, it is refused."
+          }
+        },
+        "required": [
+          "kind"
         ],
         "additionalProperties": false
       },
@@ -2009,6 +2393,10 @@
     {
       "name": "Search",
       "description": "Full-text search: titles, aliases, tags and summaries first, then bodies."
+    },
+    {
+      "name": "Inbox",
+      "description": "Puts a text, a link or a file into the inbox, for an agent to turn into entries, and follows what became of each item, newest first."
     }
   ]
 }
