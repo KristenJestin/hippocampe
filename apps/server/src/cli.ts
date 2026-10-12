@@ -22,7 +22,13 @@ import {
   mergeFindings,
   mergedInto,
 } from './core/findings/index.ts'
-import { addFileOnce, addToInbox, fileInInbox, inboxRefusalOf } from './core/inbox/index.ts'
+import {
+  addFileOnce,
+  addToInbox,
+  fileInInbox,
+  inboxRefusalOf,
+  keepPostsNow,
+} from './core/inbox/index.ts'
 import { confirmLink, misfiledPeriods } from './core/links/index.ts'
 import { exportMarkdown } from './export/markdown.ts'
 import { ownerEntry, setOwnerEntry } from './core/owner.ts'
@@ -349,7 +355,10 @@ const inboxAdd = Command.make(
             continue
           }
           // The check and the write together: two drops at once add each file once.
-          const adding = again ? addToInbox(input) : addFileOnce(input, bytes)
+          const adding = (again ? addToInbox(input) : addFileOnce(input, bytes)).pipe(
+            // The command ends when the folder is added: a post on X a file links to is copied first.
+            Effect.tap((item) => (item === null ? Effect.void : keepPostsNow(item.id))),
+          )
           const outcome = yield* asOwner(adding).pipe(
             Effect.map((item) => (item === null ? 'already' : 'added')),
             Effect.catchTag('Refused', ({ message }) => Effect.succeed(message)),
