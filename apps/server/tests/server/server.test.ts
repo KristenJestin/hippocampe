@@ -876,18 +876,17 @@ describe('the read API lists, filters and tells the history', () => {
 })
 
 describe('the API documentation', () => {
-  test('/api/openapi.json is a valid OpenAPI document of the seven read routes, behind a bearer key', async () => {
+  test('/api/openapi.json is a valid OpenAPI document of its routes, behind a bearer key', async () => {
     const document = await fetch(`${base}/api/openapi.json`).then((response) => response.json())
     expect(await new Validator().validate(document)).toMatchObject({ valid: true })
+    const Operation = Schema.Struct({
+      security: Schema.Array(Schema.Record(Schema.String, Schema.Array(Schema.String))),
+      responses: Schema.Record(Schema.String, Schema.Json),
+    })
     const Document = Schema.Struct({
       paths: Schema.Record(
         Schema.String,
-        Schema.Struct({
-          get: Schema.Struct({
-            security: Schema.Array(Schema.Record(Schema.String, Schema.Array(Schema.String))),
-            responses: Schema.Record(Schema.String, Schema.Json),
-          }),
-        }),
+        Schema.Struct({ get: Operation, post: Schema.optionalKey(Operation) }),
       ),
       components: Schema.Struct({
         securitySchemes: Schema.Struct({
@@ -901,14 +900,18 @@ describe('the API documentation', () => {
       '/api/entries',
       '/api/entries/{entry}',
       '/api/entries/{entry}/history',
+      '/api/inbox',
       '/api/pending-references',
       '/api/search',
       '/api/types',
     ])
-    for (const { get } of Object.values(paths)) {
-      expect(get.security).toEqual([{ bearer: [] }])
-      expect(get.responses['200']).toBeDefined()
+    for (const operation of Object.values(paths).flatMap(({ get, post }) =>
+      post === undefined ? [get] : [get, post],
+    )) {
+      expect(operation.security).toEqual([{ bearer: [] }])
+      expect(operation.responses['200']).toBeDefined()
     }
+    expect(paths['/api/inbox']?.post).toBeDefined()
     const { type, scheme } = components.securitySchemes.bearer
     expect({ type, scheme: scheme.toLowerCase() }).toEqual({ type: 'http', scheme: 'bearer' })
   })

@@ -576,7 +576,9 @@ creation; the value it was created with is the `before` of the first change.
 
 Nothing enters Hippocampe as a raw copy. What arrives (a text, a link, a file, a shared page) goes
 into the **inbox** as an item: its kind, its content (a file is kept as its text when it is
-text, else on disk by its hash with its type), where it came from, when it arrived, and where it stands:
+text, else on disk by its hash with its type), where it came from, when it arrived, a `note` when
+whoever sent it said why in a few words ("for the reference board", given to the agent that takes it
+and shown in the list), and where it stands:
 `pending`, `taken` by one agent, `processed` or `dismissed` (with a reason). An agent takes an
 item (no other agent gets it), reads it, searches what exists, and writes or updates the entries
 it gives, splitting it when it holds several things (an image file comes with the item as an
@@ -604,7 +606,7 @@ without a path, with the same content), each with when it was received and close
 and the entries it gave (those that cite it), by their identity (id, slug, type, title); an entry
 of a sensitive type is left out for a key without the right `sensitive`. The agent reads those
 entries, compares them with the item and completes them; it does not take them as complete. A collection (a folder of notes, a whole wiki) is brought in the same way:
-the owner drops its folder into the inbox with `inbox:add <folder> [--origin <name>]`, one item
+the owner drops its folder into the inbox with `inbox:add <folder> [--origin <name>] [--note <text>]`, one item
 per file. Sub-folders are walked, and each item keeps the file's path from the folder as its
 name, so an agent can rebuild the tree; hidden files and folders (`.gitkeep`, `.obsidian/`) are
 skipped, and what is skipped or refused is listed at the end. `--dry-run` says what would be
@@ -612,6 +614,18 @@ added; a file the inbox holds already (same content, same path, same origin, wha
 it) is not added again unless `--again`. The folder must be on the server's machine: for the
 container, copy it in first (`docker compose cp <folder> hippocampe:/tmp/<name>`), then run
 `docker compose exec hippocampe bun src/cli.ts inbox:add /tmp/<name> --origin <name>`.
+
+A client that is not an agent, such as an application on a phone, adds to the inbox over HTTP
+(`POST /api/inbox`, a key with the right `write`): a text or a link as JSON, a file as a multipart
+upload (20 MB at most), each with its `origin` and its `note`, under the rules of `inbox_add`. It may
+give each item an identifier of its own, a UUID it chose (`client_id`): sent again with it, after an
+answer was lost, the item is kept once and answered as it stands; with another content, it is
+refused. The identifier is unique in the whole inbox, not per key: a UUID names one thing, and two
+sends of the same one at the same moment keep one item. The client then follows what it sent
+(`GET /api/inbox`, a key with the right `read`): the items of an origin, or of the identifiers given,
+newest first, a page at a time, each with its status, its reason when dismissed and, once processed,
+the entries it gave that the key may read (slug, title, type). Never what an item holds, nor its
+note: a processed item is listed to any key that may read, its content read only through its entries.
 
 ## Sources
 

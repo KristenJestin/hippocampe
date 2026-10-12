@@ -323,10 +323,11 @@ const inboxAdd = Command.make(
   {
     folder: Argument.String('folder'),
     origin: optionalText('origin'),
+    note: optionalText('note'),
     dryRun: Flag.Boolean('dry-run').pipe(Flag.withDefault(false)),
     again: Flag.Boolean('again').pipe(Flag.withDefault(false)),
   },
-  ({ folder, origin: named, dryRun, again }) =>
+  ({ folder, origin: named, note, dryRun, again }) =>
     onDatabase(
       Effect.gen(function* () {
         const origin = given(named) ?? basename(resolve(folder))
@@ -336,12 +337,8 @@ const inboxAdd = Command.make(
         let already = 0
         for (const file of files) {
           const bytes = readFileSync(join(folder, file))
-          const input = {
-            kind: 'file' as const,
-            name: file,
-            data: bytes.toString('base64'),
-            origin,
-          }
+          const sent = { kind: 'file' as const, name: file, data: bytes.toString('base64'), origin }
+          const input = Option.isSome(note) ? { ...sent, note: note.value } : sent
           if (dryRun) {
             if (!again && (yield* fileInInbox({ name: file, origin, bytes }))) already += 1
             else {
