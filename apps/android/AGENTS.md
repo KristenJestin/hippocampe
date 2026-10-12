@@ -8,7 +8,8 @@ checksum).
 ## What it is
 
 The application puts things into the inbox from the phone and shows what each became; and it reads:
-search, an entry, browsing the tree. It never writes an entry and knows nothing of bookmarks or X: a
+home (what is due and what waits), search, an entry, browsing the tree, and a notification before a
+due date. It never writes an entry and knows nothing of bookmarks or X: a
 shared link is a link, the server and its agents do the rest. Of types it knows only what the read API
 says (`/api/types`: a label, the kind of each field), never a type by name.
 
@@ -19,11 +20,16 @@ app/src/main/kotlin/fr/kristenjestin/hippocampe/
   settings/        the address and the key (DataStore; the key sealed by the Android Keystore),
                    checked against /api/about, and the right write without writing anything
   outbox/          what waits to be sent (Room), the share intents, the sending (WorkManager)
+  home/            the home screen's data: the last briefing read, kept with the address of its server
+                   (`HomeStore`, DataStore) and what Home shows of it (`Home`); a due date as a line (`dueLine`)
+  warn/            the notifications before a due date: the choice and the dates already warned of
+                   (`Warnings`, DataStore), the daily job (`HeadsUpWorker`, WorkManager), what it does
+                   (`Warner`) and the notification (`Notifier`)
   read/            reading: the calls of the read API as a `Load` (`Reading`), the tree from its
                    entries (`treeOf`, a port of the desktop viewer's), a body in Markdown
                    (`parseMarkdown`), the words found in an excerpt (`marked`)
   sent/            what each item sent from the phone became, from GET /api/inbox
-  ui/              the screens (search, browse, an entry, sent, add, settings), the share sheet, the theme
+  ui/              the screens (home, search, browse, an entry, sent, add, settings), the share sheet, the theme
   Graph.kt         what the application is made of, built once; WorkManager's configuration
 ```
 
@@ -37,10 +43,25 @@ app/src/main/kotlin/fr/kristenjestin/hippocampe/
 - **The key is never shown again** once saved, nor printed: `Server.toString()` leaves it out.
 - **Screens** take their words from `res/values/strings.xml`, in English, and their colours from
   `ui/theme/Theme.kt`, which follows `apps/desktop/crates/ui/src/theme.json`, dark and light, as
-  the phone is set. The bottom bar holds the destinations (Search, Browse, Add, Sent; the home screen
-  joins it first when its issue comes), as routes of the `NavHost` in `ui/MainActivity.kt`; an entry
-  is a route of its own, `entry/{entry}`, opened over whichever destination led to it, by its slug or
-  id, with its own back stack.
+  the phone is set. The bottom bar holds the destinations (Home, Search, Browse, Add, Sent), as routes
+  of the `NavHost` in `ui/MainActivity.kt`, which opens on Home; an entry is a route of its own,
+  `entry/{entry}`, opened over whichever destination led to it, by its slug or id, with its own back
+  stack.
+- **Home never shows the old as current.** It asks `GET /api/briefing?period=week`; what it read last
+  is kept (`HomeStore`) with its time and the address of its server, and shown, with that time and
+  the reason, only while the server cannot be asked. A briefing read from another address is not
+  shown. A date inside its notice that also falls this week is shown once, as a heads-up. Of what
+  changed recently, Home shows nothing yet: the read API has no way to ask for it.
+- **A heads-up warns once.** The daily job (`HeadsUpWorker`, `PeriodicWorkRequest` of one day, network
+  required, started by the switch of the settings and cancelled by it) asks `GET /api/briefing` and
+  notifies each `heads_up` whose `id` (`<entry id>:<field>:<date>`) is not in the set `Warnings`
+  keeps, then adds it. Nothing is added while the phone cannot show a notification (the permission
+  refused, or the notifications off), so the date is warned of once it can. The switch is off by
+  default; on Android 13 and later, turning it on asks `POST_NOTIFICATIONS` (`permissionMustBeAsked`),
+  never at start. A server that cannot be reached is tried again later (`Result.retry`); a refusal
+  (a revoked key) is not, until the next day. A notification opens `MainActivity` with
+  `hippocampe://entry/<slug>`, which opens the entry over Home (`singleTop`, `onNewIntent`). Exact
+  alarms are not needed and no push service is used.
 - **A screen is a ViewModel and a composable.** The model (`SearchModel`, `BrowseModel`,
   `EntryModel`) asks `Reading` and holds the `Load` the screen draws: reading, ready, or the one
   sentence that says why it failed, which the screen shows with *Try again*. What is only supposed

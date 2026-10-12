@@ -3,9 +3,9 @@
 The Android application puts things into the inbox from the phone: from any application's share
 menu (a link, a text, a file, several images at once) or from the application itself (a note, a
 link, a photo from the camera, a file), even offline. Agents then turn each item into entries; the
-**Sent** tab shows what each became. It also reads Hippocampe: **Search**, **Browse** and the page of
-an entry, with the key it already holds (the right `read`). It needs Android 8 or later. There is no
-Play Store version.
+**Sent** tab shows what each became. It also reads Hippocampe: **Home**, **Search**, **Browse** and the
+page of an entry, with the key it already holds (the right `read`), and it can warn before a date is
+due. It needs Android 8 or later. There is no Play Store version.
 
 ## Which APK is which
 
@@ -76,6 +76,21 @@ signature, uninstall first, which forgets the settings and what waits on the pho
 
 ## Using it
 
+- **Home** (where the application opens): from `GET /api/briefing`, the **heads-ups** (the dates
+  inside their notice period, such as a contract's notice or a birthday) and what is due **this
+  week**, each opening its entry, and how many items **wait in the inbox**, which opens **Sent**.
+  Pull down to refresh. When the server cannot be reached, Home shows the last briefing it read,
+  *Last read* on that day and at that hour, with the sentence that says why: it never shows an old
+  briefing as if it were current. Reading Home warns no one.
+- **Warnings before a due date**: in the settings (the gear), *Warn me before a due date*, off until
+  the owner turns it on. On, the phone asks the server once a day, when it is online, for the
+  briefing, and gives one notification, in a channel of its own (*Due dates*), for each heads-up it
+  has not warned of yet: the entry's title and what is due when (`End: in 39 days (20 November
+  2026)`). An occurrence warns once, not each day (the briefing names each by the entry, the field
+  and the date, so a date that comes back next year warns again). The notification opens the entry;
+  back goes to Home. On Android 13 and later, Android asks the permission to notify when the switch
+  is turned on, not at the first start; refused, the switch stays off and says so. No server pushes
+  anything: the phone asks, and a server that cannot be reached is asked again later.
 - **Search**: the server's own search, as you type, with a chip per type to narrow it. Each result
   shows its title, its type, where it is (its path) and its excerpt, the words found marked.
 - **Browse**: the tree from the top-level entries down, as the desktop viewer's sidebar: the arrow
