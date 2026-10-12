@@ -192,7 +192,8 @@ difference. Kotlin follows when the Android application starts.
 
 Configuration: `.oxlintrc.json` (lint), `.oxfmtrc.json` (format), `vitest.config.ts` (tests),
 `turbo.json` (tasks, their inputs and outputs), at the root. The database URL comes from
-`DATABASE_URL` (see `.env.example`).
+`DATABASE_URL` (see `.env.example`); `HIPPOCAMPE_DATABASE_DIR` instead, never both, makes Hippocampe
+run its own PostgreSQL on that folder, on a socket and no port (the npm install, `docs/install.md`).
 
 ## Principles
 

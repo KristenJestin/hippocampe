@@ -104,8 +104,9 @@ HIPPOCAMPE_ACTOR=agent-laptop HIPPOCAMPE_INSTANCE=local bun --env-file=.env apps
   reporting; then the rules the owner set (`rules:set`; past 4,000 characters, only their opening,
   and `types` with `rules: true` gives them whole); and, for a key that may write, how to
   write an entry and how an inbox item becomes entries.
-- `DATABASE_URL` names the database; `SEARCH_LANGUAGE` the search language (`simple` by
-  default).
+- `DATABASE_URL` names the database, or `HIPPOCAMPE_DATABASE_DIR` the folder of the one Hippocampe
+  runs itself (it reaches the PostgreSQL of the running service, or starts its own for as long as it
+  runs); `SEARCH_LANGUAGE` the search language (`simple` by default).
 - At start, the database is brought to the latest version.
 
 Start it with `bun` directly rather than through a package script: stdout carries the protocol,
