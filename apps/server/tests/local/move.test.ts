@@ -8,18 +8,14 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative } from 'node:path'
+import { join, relative } from 'node:path'
 import { Effect, Layer } from 'effect'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { homeOf } from '../../src/local/home.ts'
 import * as service from '../../src/local/service.ts'
+import { binariesForTests } from './postgres.ts'
 
-const native = join(
-  dirname(createRequire(import.meta.url).resolve('@embedded-postgres/linux-x64/package.json')),
-  'native',
-)
 const scratch = mkdtempSync(join(tmpdir(), 'hippocampe-move-'))
 const dwelling = join(scratch, 'home')
 const home = homeOf({ HOME: dwelling })
@@ -32,7 +28,7 @@ const old = {
   units: join(dwelling, '.config', 'systemd', 'user'),
 }
 const OLD_PASSWORD = 'a-password-for-the-tests-only'
-const options = { email: 'owner@example.org', instance: 'local', port: 7468, databasePort: 7469 }
+const options = { email: 'owner@example.org', instance: 'local', port: 7468 }
 
 /** Each command the service ran. */
 const ran: Array<string> = []
@@ -63,12 +59,13 @@ const git = (folder: string, ...args: ReadonlyArray<string>) =>
  * What the database of a data folder answers to `statements`, one per line, in the single-user mode
  * of PostgreSQL (the server is not started): a client of the database is the core's alone.
  */
-const asked = (binaries: string, data: string, statements: ReadonlyArray<string>) =>
+const asked = (data: string, statements: ReadonlyArray<string>) =>
   execFileSync(
-    join(binaries, 'bin', 'postgres'),
+    binaries.binary('postgres'),
     ['--single', '-D', join(data, 'postgres'), 'postgres'],
     {
       encoding: 'utf8',
+      env: { ...process.env, ...binaries.environment },
       input: `${statements.join('\n')}\n`,
       stdio: 'pipe',
     },
@@ -89,22 +86,25 @@ const snapshotOf = (folder: string) =>
     .toSorted()
     .map((path) => `${path}: ${readFileSync(join(folder, path), 'utf8')}`)
 
+let binaries: Awaited<ReturnType<typeof binariesForTests>>
 let passwordBefore = ''
 let historyBefore: Array<string> = []
 
-beforeAll(() => {
-  process.env['HIPPOCAMPE_POSTGRES_BINARIES'] = native
+beforeAll(async () => {
+  binaries = await binariesForTests()
   process.env['HIPPOCAMPE_EXECUTABLE'] = '/opt/hippocampe/bin/hippo'
   for (const folder of [old.data, old.config, old.kept, old.units])
     mkdirSync(folder, { recursive: true })
   mkdirSync(join(old.data, 'media'))
   mkdirSync(join(old.kept, 'backups'))
-  service.copyBinaries({ binaries: join(old.data, 'postgresql') })
+  // The copy of the binaries its database unit ran.
+  mkdirSync(join(old.data, 'postgresql', 'bin'), { recursive: true })
+  writeFileSync(join(old.data, 'postgresql', 'bin', 'postgres'), '')
   // The database of the installation, as it was made: a role `grenier`, SCRAM, one table.
   const passwordFile = join(scratch, 'password')
   writeFileSync(passwordFile, OLD_PASSWORD)
   execFileSync(
-    join(old.data, 'postgresql', 'bin', 'initdb'),
+    binaries.binary('initdb'),
     [
       '-D',
       join(old.data, 'postgres'),
@@ -117,16 +117,14 @@ beforeAll(() => {
       'UTF8',
       '--locale=C',
     ],
-    { stdio: 'pipe' },
+    { env: { ...process.env, ...binaries.environment }, stdio: 'pipe' },
   )
-  asked(join(old.data, 'postgresql'), old.data, [
+  asked(old.data, [
     'CREATE TABLE notes (title text NOT NULL)',
     "INSERT INTO notes VALUES ('Lantern by the door')",
   ])
   passwordBefore = valuesOf(
-    asked(join(old.data, 'postgresql'), old.data, [
-      "SELECT rolpassword FROM pg_authid WHERE rolname = 'grenier'",
-    ]),
+    asked(old.data, ["SELECT rolpassword FROM pg_authid WHERE rolname = 'grenier'"]),
     'rolpassword',
   ).join()
   writeFileSync(join(old.data, 'media', 'lamp.txt'), 'a lamp')
@@ -136,7 +134,7 @@ beforeAll(() => {
       'GRENIER_INSTANCE=production',
       'GRENIER_HOST=127.0.0.1',
       'PORT=7468',
-      `DATABASE_URL=postgres://grenier:${OLD_PASSWORD}@127.0.0.1:${options.databasePort}/postgres`,
+      `DATABASE_URL=postgres://grenier:${OLD_PASSWORD}@127.0.0.1:7469/postgres`,
       'BETTER_AUTH_SECRET=a-secret-for-the-tests-only',
       `MEDIA_DIR=${join(old.data, 'media')}`,
       `EXPORT_DIR=${join(old.kept, 'export')}`,
@@ -175,8 +173,8 @@ beforeAll(() => {
   historyBefore = git(exported, 'rev-list', '--all').trim().split('\n')
 })
 
-afterAll(() => {
-  delete process.env['HIPPOCAMPE_POSTGRES_BINARIES']
+afterAll(async () => {
+  await binaries.release()
   delete process.env['HIPPOCAMPE_EXECUTABLE']
   rmSync(scratch, { recursive: true, force: true })
 })
@@ -190,8 +188,8 @@ describe('hippo service install, on an installation made under the name Grenier'
       expect({ gone, there: existsSync(gone) }).toEqual({ gone, there: false })
     expect(existsSync(join(old.units, 'grenier.service'))).toBe(false)
     expect(existsSync(join(old.units, 'grenier-postgres.service'))).toBe(false)
-    expect(existsSync(join(home.units, 'hippocampe.service'))).toBe(true)
-    expect(existsSync(join(home.units, 'hippocampe-postgres.service'))).toBe(true)
+    expect(readdirSync(home.units)).toEqual(['hippocampe.service'])
+    expect(existsSync(home.binaries)).toBe(false)
     expect(ran).toContain('systemctl --user disable --now grenier.service grenier-postgres.service')
     expect(readFileSync(join(home.media, 'lamp.txt'), 'utf8')).toBe('a lamp')
     expect(readFileSync(home.key, 'utf8')).toBe('grenier_a-key-for-the-tests\n')
@@ -208,21 +206,20 @@ describe('hippo service install, on an installation made under the name Grenier'
     )
   })
 
-  test('the environment follows: new variables, new role, new folders, the same password', () => {
+  test('the environment follows: new variables, new folders, the local mode on the same database', () => {
     const environment = readFileSync(home.environment, 'utf8')
     expect(environment).toContain('HIPPOCAMPE_INSTANCE=production')
     expect(environment).toContain('HIPPOCAMPE_HOST=127.0.0.1')
     expect(environment).not.toMatch(/GRENIER|grenier|Grenier/)
-    expect(environment).toContain(
-      `DATABASE_URL=postgres://hippocampe:${OLD_PASSWORD}@127.0.0.1:${options.databasePort}/postgres`,
-    )
+    expect(environment).not.toContain('DATABASE_URL')
+    expect(environment).toContain(`HIPPOCAMPE_DATABASE_DIR=${home.database}`)
     expect(environment).toContain(`MEDIA_DIR=${home.media}`)
     expect(environment).toContain(`EXPORT_DIR=${home.export}`)
     expect(existsSync(join(home.config, 'grenier.env'))).toBe(false)
   })
 
   test('the entries are readable, the old role is gone, and the password is the one it was', () => {
-    const answer = asked(home.binaries, home.data, [
+    const answer = asked(home.data, [
       'SELECT title FROM notes',
       "SELECT rolname, rolpassword FROM pg_authid WHERE rolname !~ '^pg_'",
     ])

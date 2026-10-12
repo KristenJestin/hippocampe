@@ -641,9 +641,16 @@ const serviceInstall = Command.make(
     ),
     // Free of any known service (4317 is OpenTelemetry's, 5432 PostgreSQL's).
     port: Flag.Int('port').pipe(Flag.withDefault(7468)),
-    databasePort: Flag.Int('database-port').pipe(Flag.withDefault(7469)),
+    // The database has no port now: accepted, so a command written for an earlier version runs.
+    databasePort: Flag.Int('database-port').pipe(
+      Flag.optional,
+      Flag.withDescription('Ignored: the database has no port, only a socket in its folder.'),
+    ),
   },
-  (options) => onSystem(service.install(home(), options)),
+  ({ databasePort, ...options }) =>
+    onSystem(
+      service.install(home(), { ...options, databasePort: Option.getOrUndefined(databasePort) }),
+    ),
 ).pipe(
   Command.withDescription(
     'Installs Hippocampe as a service of this user: started with the session, on 127.0.0.1 only.',
@@ -670,7 +677,7 @@ const serviceCommand = Command.make('service').pipe(
       Command.withDescription('Starts the service.'),
     ),
     Command.make('stop', {}, () => onSystem(service.stop)).pipe(
-      Command.withDescription('Stops the service and its database.'),
+      Command.withDescription('Stops the service, its database with it.'),
     ),
     Command.make('status', {}, () => onSystem(service.status)).pipe(
       Command.withDescription('What systemd says of the service.'),
