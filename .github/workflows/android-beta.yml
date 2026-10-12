@@ -1,0 +1,82 @@
+# The beta of the Android app: every push to `dev` builds it and publishes it as a GitHub
+# pre-release with one fixed tag, `android-beta`, replaced each time.
+#
+# The tag does not look like a version (no `v`), so semantic-release never reads it, and a
+# pre-release is never the latest release. The beta is signed with the release key of the
+# repository's secrets, under its own application id (`fr.kristenjestin.hippocampe.beta`), so it is
+# installed beside the release and each beta updates the one before it: its version code is the run
+# number of this workflow, which only grows. Until the secrets are set, the job says so in one line
+# and publishes nothing, without failing.
+
+name: android-beta
+
+on:
+  push:
+    branches: [dev]
+
+# One beta at a time per branch, the newest push wins: an older run still going is cancelled.
+concurrency:
+  group: android-beta-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  beta:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Whether there is an APK to sign
+        id: signing
+        run: |
+          if [ ! -f apps/android/gradlew ]; then
+            echo "::notice::This commit has no Android app: no beta is published."
+          elif [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "::notice::The Android signing secrets are not set: no beta is published."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-java@v4
+        if: steps.signing.outputs.ready == 'true'
+        with:
+          distribution: temurin
+          java-version: 21.0.12+8.0.LTS
+          cache: gradle
+      # The version name says what the beta was built from: the last released version, this run
+      # and this commit, such as 0.9.0-beta.57+3f2a1bc.
+      - name: Build the beta APK, signed
+        id: build
+        if: steps.signing.outputs.ready == 'true'
+        working-directory: apps/android
+        run: |
+          last=$(git tag --list 'v*' --sort=-version:refname | head -n 1)
+          version="${last#v}"
+          version="${version:-0.0.0}-beta.${GITHUB_RUN_NUMBER}+$(git rev-parse --short HEAD)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/release.jks" HIPPOCAMPE_VERSION="$version" HIPPOCAMPE_BETA_RUN="$GITHUB_RUN_NUMBER" ./gradlew assembleBeta
+          rm "$RUNNER_TEMP/release.jks"
+      # The pre-release is deleted with its tag and made again on this commit, so that it always
+      # holds the newest beta and nothing else. A pre-release is never marked latest.
+      - name: Replace the pre-release
+        if: steps.signing.outputs.ready == 'true'
+        working-directory: apps/android
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.build.outputs.version }}
+        run: |
+          apk="hippocampe-android-beta.apk"
+          cp app/build/outputs/apk/beta/app-beta.apk "$apk"
+          sha256sum "$apk" > "$apk.sha256"
+          printf 'Hippocampe Beta %s, built from `%s` on `dev`. It is installed beside the release, for the development instance, and replaced at each push to `dev`.\n' "$VERSION" "${GITHUB_SHA::7}" > "$RUNNER_TEMP/notes.md"
+          if gh release view android-beta >/dev/null 2>&1; then gh release delete android-beta --cleanup-tag --yes; fi
+          gh release create android-beta "$apk" "$apk.sha256" --prerelease --latest=false --target "$GITHUB_SHA" --title "Android beta" --notes-file "$RUNNER_TEMP/notes.md"
