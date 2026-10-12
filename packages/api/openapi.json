@@ -177,6 +177,19 @@
             "required": false
           },
           {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "title",
+                "updated"
+              ],
+              "description": "`title` (the default), or `updated`: the most recently changed first, each entry saying when it changed (`updated`) and which key changed it last (`by`)."
+            },
+            "required": false
+          },
+          {
             "name": "limit",
             "in": "query",
             "schema": {
@@ -2522,6 +2535,19 @@
             "items": {
               "$ref": "#/components/schemas/TreePlace"
             }
+          },
+          "updated": {
+            "type": "string"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

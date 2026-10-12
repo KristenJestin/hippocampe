@@ -90,6 +90,10 @@ export const ListOptions = Schema.Struct({
   supposed: Schema.optionalKey(Schema.Boolean),
   unstated: Schema.optionalKey(Schema.Boolean),
   under: Schema.optionalKey(Schema.String),
+  sort: Schema.optionalKey(Schema.Literals(['title', 'updated'])).annotate({
+    description:
+      '`title` (the default), or `updated`: the most recently changed first, each entry saying when it changed (`updated`) and which key changed it last (`by`).',
+  }),
   limit: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 200 }))),
   cursor: Schema.optionalKey(Schema.String),
 })

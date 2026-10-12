@@ -217,7 +217,8 @@ export type TreePlace = typeof TreePlace.Type
 
 /**
  * An entry as the tree shows it: what it is, and the entries it is part of today, the oldest
- * first. An entry with several places stands under each, an entry with none at the top.
+ * first. An entry with several places stands under each, an entry with none at the top. Listed
+ * by its last change, it also says when and by which key.
  */
 export const TreeEntry = Schema.Struct({
   id: Schema.String,
@@ -225,6 +226,9 @@ export const TreeEntry = Schema.Struct({
   type: Schema.String,
   title: Schema.String,
   part_of: Schema.Array(TreePlace),
+  /** With `sort=updated`: when the entry last changed, and the key that changed it (`null` if unknown). */
+  updated: Schema.optionalKey(Schema.String),
+  by: Schema.optionalKey(Schema.NullOr(Schema.String)),
 }).annotate({ identifier: 'TreeEntry' })
 export type TreeEntry = typeof TreeEntry.Type
 
