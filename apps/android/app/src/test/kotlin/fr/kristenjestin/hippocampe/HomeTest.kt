@@ -90,6 +90,79 @@ class HomeTest {
     }
 
     @Test
+    fun `home shows what changed recently`() {
+        server.briefing = briefingOf(headsUp = listOf(warrantyEnds))
+        server.recent = recentlyChanged
+        show()
+        compose.waitUntil(5_000) { has("Garage shelf") }
+
+        compose.onNodeWithText("Recently changed").assertExists()
+        compose.onNodeWithText("Internet plan").assertExists()
+        compose.onNodeWithText("Contract · 12 October 2026 at ", substring = true).assertExists()
+        compose.onNodeWithText("by agent-laptop", substring = true).assertExists()
+        compose.onNodeWithText("Recipe · 11 October 2026 at ", substring = true).assertExists()
+        assertTrue("an entry whose key is not known is not said to be by anyone", !has("Recipe · 11 October 2026 at 18:45 · by", substring = true))
+        val asked = server.requests.single { it.url.encodedPath == "/api/entries" }.url.parameters
+        assertEquals("the first few changed entries are asked for", listOf("updated", "5"), listOf(asked["sort"], asked["limit"]))
+
+        compose.onNodeWithText("Garage shelf").performClick()
+        assertEquals(listOf("garage-shelf"), entries)
+    }
+
+    @Test
+    fun `home says nothing of what changed recently while nothing changed`() {
+        server.briefing = briefingOf(headsUp = listOf(warrantyEnds))
+        show()
+        compose.waitUntil(5_000) { has("Washing machine") }
+
+        assertTrue(!has("Recently changed"))
+    }
+
+    @Test
+    fun `home keeps what changed recently with the last briefing read`() {
+        server.recent = recentlyChanged
+        val model = show()
+        compose.waitUntil(5_000) { has("Internet plan") }
+
+        server.reachable = false
+        model.refresh()
+        compose.waitUntil(5_000) { has("Last read", substring = true) }
+
+        compose.onNodeWithText("Recently changed").assertExists()
+        compose.onNodeWithText("Internet plan").assertExists()
+    }
+
+    @Test
+    fun `home shows the deadlines past apart from what is coming`() {
+        server.briefing = briefingOf(
+            overdue = listOf(lapsedInsurance, lapsedPermit),
+            headsUp = listOf(internetPlanEnds),
+            upcoming = listOf(camilleBirthday),
+        )
+        show()
+        compose.waitUntil(5_000) { has("Flat insurance") }
+
+        compose.onNodeWithText("Overdue").assertExists()
+        compose.onNodeWithText("End: 3 days ago (9 October 2026)").assertExists()
+        compose.onNodeWithText("Valid until: yesterday (11 October 2026)").assertExists()
+        compose.onNodeWithText("Heads-up").assertExists()
+        compose.onNodeWithText("This week").assertExists()
+        compose.onAllNodesWithText("Flat insurance").assertCountEquals(1)
+
+        compose.onNodeWithText("Flat insurance").performClick()
+        assertEquals(listOf("flat-insurance"), entries)
+    }
+
+    @Test
+    fun `home says nothing of deadlines past while none is past`() {
+        server.briefing = briefingOf(headsUp = listOf(internetPlanEnds))
+        show()
+        compose.waitUntil(5_000) { has("Internet plan") }
+
+        assertTrue(!has("Overdue"))
+    }
+
+    @Test
     fun `home shows how many items wait in the inbox`() {
         server.briefing = briefingOf(inbox = 3)
         show()

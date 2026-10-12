@@ -43,6 +43,9 @@ class Reading(private val api: Api, private val server: suspend () -> Server?) {
     /** What is coming this week, and what waits. */
     suspend fun briefing(): Load<Briefing> = ask { api.briefing(it, "week") }
 
+    /** The [limit] entries changed most recently, newest first. */
+    suspend fun recent(limit: Int): Load<List<TreeEntry>> = ask { api.recent(it, limit).map { list -> list.entries } }
+
     suspend fun types(): Load<List<TypeDefinition>> = ask { api.types(it).map { list -> list.types } }
 
     /** An image of Hippocampe, by the `url` of its medium. */

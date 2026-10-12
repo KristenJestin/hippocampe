@@ -47,11 +47,14 @@ app/src/main/kotlin/fr/kristenjestin/hippocampe/
   of the `NavHost` in `ui/MainActivity.kt`, which opens on Home; an entry is a route of its own,
   `entry/{entry}`, opened over whichever destination led to it, by its slug or id, with its own back
   stack.
-- **Home never shows the old as current.** It asks `GET /api/briefing?period=week`; what it read last
-  is kept (`HomeStore`) with its time and the address of its server, and shown, with that time and
-  the reason, only while the server cannot be asked. A briefing read from another address is not
-  shown. A date inside its notice that also falls this week is shown once, as a heads-up. Of what
-  changed recently, Home shows nothing yet: the read API has no way to ask for it.
+- **Home never shows the old as current.** It asks `GET /api/briefing?period=week`, then
+  `GET /api/entries?sort=updated&limit=5`; what it read last is kept (`HomeStore`) with its time and the
+  address of its server, and shown, with that time and the reason, only while the server cannot be
+  asked. A briefing read from another address is not shown. It lists the deadlines past (`overdue`)
+  first and apart, then the heads-ups and what is due this week; a date inside its notice that also
+  falls this week is shown once, as a heads-up. The entries changed recently come last, each with its
+  type, when it changed and the key that changed it; they are secondary, so a briefing read while they
+  could not be is shown without them.
 - **A heads-up warns once.** The daily job (`HeadsUpWorker`, `PeriodicWorkRequest` of one day, network
   required, started by the switch of the settings and cancelled by it) asks `GET /api/briefing` and
   notifies each `heads_up` whose `id` (`<entry id>:<field>:<date>`) is not in the set `Warnings`
@@ -107,7 +110,9 @@ on a machine made for the server; with `CI` set, it fails instead.
 
 The tests are unit tests on the JVM, with Robolectric (Android 16: `src/test/resources/robolectric.properties`)
 for Room, WorkManager, DataStore and Compose, and the server simulated by Ktor's mock engine
-(`FakeServer`). Each is named after the scenario it covers.
+(`FakeServer`). Each is named after the scenario it covers. A wait for the application (`AppTest`) is
+bounded by a hang, not by what it should take: the application reads on threads Compose's clock does
+not drive, and the first test of a JVM loads everything.
 
 ## Releases and the beta
 

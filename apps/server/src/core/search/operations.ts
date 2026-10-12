@@ -4,7 +4,7 @@ import type { Fragment } from 'effect/sql/Statement'
 import { rowsOf } from '../database/rows.ts'
 import { NAMES, SEARCHABLE } from '../database/schema.ts'
 import { holding, wantedOf } from '../entries/certainty.ts'
-import { LAST_WRITER } from '../entries/last-writer.ts'
+import { LAST_WRITER, UPDATED_TEXT } from '../entries/last-writer.ts'
 import { datedOn } from '../entries/dated.ts'
 import { findEntry, pathOf, slugOf } from '../entries/operations.ts'
 import { supposedIn } from '../entries/supposed.ts'
@@ -158,7 +158,7 @@ export const searchWithTotal = Effect.fn('search')(function* (
       AND (${options.by ?? null}::text IS NULL OR ${wanted.length > 0}::boolean
         OR ${sql.literal(LAST_WRITER)} = ${options.by ?? null})`
   // When the entry last changed, and who changed it.
-  const lastChange = sql`to_char(e.updated AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated,
+  const lastChange = sql`${sql.literal(UPDATED_TEXT)} AS updated,
       ${dated} AS date,
       ${sql.literal(LAST_WRITER)} AS by,
       CASE WHEN e.provenance ->> 'summary' IN ('inferred', 'ambiguous')

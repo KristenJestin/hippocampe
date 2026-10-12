@@ -594,6 +594,8 @@ mod tests {
             title: id.into(),
             type_: "note".into(),
             part_of: places,
+            updated: None,
+            by: None,
         }
     }
 

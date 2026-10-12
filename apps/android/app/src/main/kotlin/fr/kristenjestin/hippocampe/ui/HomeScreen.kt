@@ -24,14 +24,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import fr.kristenjestin.hippocampe.R
 import fr.kristenjestin.hippocampe.api.BriefingOccurrence
+import fr.kristenjestin.hippocampe.api.TreeEntry
 import fr.kristenjestin.hippocampe.home.Home
 import fr.kristenjestin.hippocampe.home.Seen
 import fr.kristenjestin.hippocampe.home.dueLine
 import fr.kristenjestin.hippocampe.read.Load
+import fr.kristenjestin.hippocampe.read.dateInWords
+import fr.kristenjestin.hippocampe.read.labelOf
 import fr.kristenjestin.hippocampe.read.momentInWords
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.format.DateTimeParseException
 
 /** What is coming and what waits, as the server says it, or as it last said it. */
 class HomeModel(private val home: Home) : ViewModel() {
@@ -74,14 +79,38 @@ private fun Due(occurrence: BriefingOccurrence, open: (String) -> Unit) {
     HorizontalDivider()
 }
 
+/** An entry changed recently, as a row that opens it: what it is, when it changed and by which key. */
+@Composable
+private fun Changed(entry: TreeEntry, open: (String) -> Unit) {
+    val resources = LocalContext.current.resources
+    val line = listOfNotNull(
+        labelOf(entry.type),
+        entry.updated?.let(::whenIn),
+        entry.by?.let { resources.getString(R.string.home_recent_by, it) },
+    ).joinToString(" · ")
+    Column(Modifier.fillMaxWidth().clickable { open(entry.slug) }.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(entry.title)
+        Text(line, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+    }
+    HorizontalDivider()
+}
+
+/** The moment the API gives (`2026-10-12T09:30:00.000000Z`) as it reads best; the date alone if it is not one. */
+private fun whenIn(updated: String): String =
+    try {
+        momentInWords(Instant.parse(updated))
+    } catch (failure: DateTimeParseException) {
+        dateInWords(updated)
+    }
+
 @Composable
 private fun Heading(text: String) =
     Text(text, Modifier.padding(start = 16.dp, top = 20.dp, bottom = 4.dp), style = MaterialTheme.typography.titleSmall)
 
 /**
- * The heads-ups (each opens its entry), what is due this week, and how many items wait in the inbox
- * (which opens Sent). Pulled to refresh; when the server cannot be reached, what was read last, with
- * when and why.
+ * The deadlines past, the heads-ups (each opens its entry), what is due this week, how many items wait
+ * in the inbox (which opens Sent), and the entries changed recently. Pulled to refresh; when the server
+ * cannot be reached, what was read last, with when and why.
  */
 @Composable
 fun HomeScreen(model: HomeModel, open: (String) -> Unit, openSent: () -> Unit, modifier: Modifier = Modifier) {
@@ -92,6 +121,7 @@ fun HomeScreen(model: HomeModel, open: (String) -> Unit, openSent: () -> Unit, m
         val headsUp = briefing.headsUp
         // A date inside its notice that also falls this week is shown once, as a heads-up.
         val week = briefing.upcoming.filter { upcoming -> headsUp.none { it.id == upcoming.id } }
+        val overdue = briefing.overdue
         val waiting = briefing.waiting.inbox.count.toInt()
         PullToRefreshBox(refreshing, model::refresh, Modifier.fillMaxSize().testTag("home")) {
             LazyColumn(Modifier.fillMaxWidth()) {
@@ -105,6 +135,10 @@ fun HomeScreen(model: HomeModel, open: (String) -> Unit, openSent: () -> Unit, m
                             )
                         }
                     }
+                }
+                if (overdue.isNotEmpty()) {
+                    item { Heading(stringResource(R.string.home_overdue)) }
+                    items(overdue, key = { "overdue/${it.id}" }) { Due(it, open) }
                 }
                 if (headsUp.isNotEmpty()) {
                     item { Heading(stringResource(R.string.home_heads_up)) }
@@ -123,8 +157,12 @@ fun HomeScreen(model: HomeModel, open: (String) -> Unit, openSent: () -> Unit, m
                         HorizontalDivider()
                     }
                 }
-                if (headsUp.isEmpty() && week.isEmpty() && waiting == 0) {
+                if (overdue.isEmpty() && headsUp.isEmpty() && week.isEmpty() && waiting == 0) {
                     item { Text(stringResource(R.string.home_nothing), Modifier.padding(16.dp)) }
+                }
+                if (seen.recent.isNotEmpty()) {
+                    item { Heading(stringResource(R.string.home_recent)) }
+                    items(seen.recent, key = { "recent/${it.id}" }) { Changed(it, open) }
                 }
             }
         }

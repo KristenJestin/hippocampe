@@ -171,6 +171,16 @@ class Api(engine: HttpClientEngine) {
     suspend fun tree(server: Server): Answer<EntryList> =
         call(server) { http.get(url(server, "/api/entries")) { bearerAuth(server.key) } }
 
+    /** The [limit] entries changed most recently, newest first, each with when and by which key. */
+    suspend fun recent(server: Server, limit: Int): Answer<EntryList> =
+        call(server) {
+            http.get(url(server, "/api/entries")) {
+                bearerAuth(server.key)
+                parameter("sort", "updated")
+                parameter("limit", limit)
+            }
+        }
+
     suspend fun types(server: Server): Answer<TypeList> =
         call(server) { http.get(url(server, "/api/types")) { bearerAuth(server.key) } }
 

@@ -1591,12 +1591,16 @@ impl ::std::convert::TryFrom<::std::string::String> for SupposedProvenance {
 #[doc = "`TreeEntry`"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 pub struct TreeEntry {
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub by: ::std::option::Option<::std::string::String>,
     pub id: ::std::string::String,
     pub part_of: ::std::vec::Vec<TreePlace>,
     pub slug: ::std::string::String,
     pub title: ::std::string::String,
     #[serde(rename = "type")]
     pub type_: ::std::string::String,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub updated: ::std::option::Option<::std::string::String>,
 }
 #[doc = "`TreePlace`"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]

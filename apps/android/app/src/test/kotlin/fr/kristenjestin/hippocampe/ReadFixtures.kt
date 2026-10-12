@@ -178,3 +178,16 @@ fun briefingOf(
 val internetPlanEnds = occurrence("internet-plan", "Internet plan", "contract", "end", "2026-11-20", 39)
 val camilleBirthday = occurrence("camille-test", "Camille Test", "person", "birthday", "2026-10-18", 6, deadline = false)
 val warrantyEnds = occurrence("washing-machine", "Washing machine", "appliance", "warranty_end", "2026-10-14", 2)
+
+/** An entry as `GET /api/entries?sort=updated` lists it: when it last changed, and the key that changed it. */
+fun changed(slug: String, title: String, type: String, updated: String, by: String?) =
+    TreeEntry("id-$slug", slug, type, title, emptyList(), updated = updated, by = by)
+
+val recentlyChanged = listOf(
+    changed("internet-plan", "Internet plan", "contract", "2026-10-12T09:30:00.000000Z", "agent-laptop"),
+    changed("plum-tart", "Plum tart", "recipe", "2026-10-11T18:45:00.000000Z", null),
+    changed("garage-shelf", "Garage shelf", "project", "2026-10-09T12:00:00.000000Z", "agent-phone"),
+)
+
+val lapsedInsurance = occurrence("flat-insurance", "Flat insurance", "contract", "end", "2026-10-09", -3)
+val lapsedPermit = occurrence("parking-permit", "Parking permit", "document", "valid_until", "2026-10-11", -1)

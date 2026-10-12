@@ -786,6 +786,42 @@ describe('the read API lists, filters and tells the history', () => {
     })
   })
 
+  test('GET /api/entries?sort=updated lists the entries by their last change, with when and by which key, in pages, and not what the key may not read', async () => {
+    const slugsOf = (body: { entries: ReadonlyArray<{ slug: string }> }) =>
+      body.entries.map(({ slug }) => slug)
+    const plain = await get('/api/entries?sort=updated&limit=2', reader)
+    expect(plain.status).toBe(200)
+    expect(slugsOf(plain.body)).toEqual(['oil-the-gate', 'polish-the-kettle'])
+    expect(plain.body.entries[0]).toMatchObject({ type: 'chore', title: 'Oil the gate' })
+    expect(plain.body.entries[0].by).toBe('api-lister')
+    expect(plain.body.entries[0].updated).toMatch(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/)
+    expect(Date.parse(plain.body.entries[0].updated)).toBeGreaterThanOrEqual(
+      Date.parse(plain.body.entries[1].updated),
+    )
+    const next = await get(
+      `/api/entries?sort=updated&limit=2&cursor=${plain.body.next_cursor}`,
+      reader,
+    )
+    expect(slugsOf(next.body)[0]).toBe('sweep-the-yard')
+    // The tree and a listing by title say nothing of the last change.
+    expect((await get('/api/entries?type=chore', reader)).body.entries[0]).not.toHaveProperty(
+      'updated',
+    )
+    const trustedList = await get('/api/entries?sort=updated&limit=3', trusted)
+    expect(slugsOf(trustedList.body)).toEqual(['oil-the-gate', 'hide-the-key', 'polish-the-kettle'])
+    expect(slugsOf((await get('/api/entries?sort=updated&limit=4', reader)).body)).not.toContain(
+      'hide-the-key',
+    )
+    const refused = await get(`/api/entries?sort=updated&cursor=${plain.body.next_cursor}x`, reader)
+    expect(refused.status).toBe(400)
+    const wrongOrder = await get(
+      `/api/entries?cursor=${Buffer.from(JSON.stringify(['a', 'b'])).toString('base64url')}&sort=updated`,
+      reader,
+    )
+    expect(wrongOrder.status).toBe(400)
+    expect((await get('/api/entries?sort=oldest', reader)).status).toBe(400)
+  })
+
   test('the history of an entry comes newest first, in pages, a long body as an excerpt', async () => {
     const first = await get('/api/entries/oil-the-gate/history?limit=2', trusted)
     expect(first.status).toBe(200)

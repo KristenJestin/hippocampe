@@ -613,6 +613,8 @@ data class TreeEntry(
     val title: String,
     @SerialName("part_of")
     val partOf: List<TreePlace>,
+    val updated: String? = null,
+    val by: String? = null,
 )
 
 @Serializable
