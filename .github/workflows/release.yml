@@ -106,6 +106,59 @@ jobs:
           ARCHIVE: ${{ steps.pack.outputs.archive }}
         run: gh release upload "$TAG" "$ARCHIVE" "$ARCHIVE.sha256" --clobber
 
+  # The Android app of the tag: an APK signed with the key the repository's secrets hold, attached
+  # to its release beside the viewer with its checksum. Until those secrets are set, the job says so
+  # in one line and attaches nothing, and the release does not fail for it.
+  android:
+    needs: release
+    if: needs.release.outputs.tag != ''
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+          persist-credentials: false
+      # A tag cut before the Android app has no apps/android: nothing to build either.
+      - name: Whether there is an APK to sign
+        id: signing
+        run: |
+          if [ ! -f apps/android/gradlew ]; then
+            echo "::notice::$TAG has no Android app: no APK is attached."
+          elif [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "::notice::The Android signing secrets are not set: no APK is attached to $TAG."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-java@v4
+        if: steps.signing.outputs.ready == 'true'
+        with:
+          distribution: temurin
+          java-version: 21.0.12+8
+          cache: gradle
+      - name: Build the APK, which takes its version from the tag, signed
+        if: steps.signing.outputs.ready == 'true'
+        working-directory: apps/android
+        run: |
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/release.jks" HIPPOCAMPE_VERSION="${TAG#v}" ./gradlew assembleRelease
+          rm "$RUNNER_TEMP/release.jks"
+      - name: Attach it to the release with its checksum
+        if: steps.signing.outputs.ready == 'true'
+        working-directory: apps/android
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          apk="hippocampe-android-${TAG#v}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$apk"
+          sha256sum "$apk" > "$apk.sha256"
+          gh release upload "$TAG" "$apk" "$apk.sha256" --clobber
+
   # The npm package of the tag: the executable of Linux x64, then the launcher that needs it
   # (`npm i -g @netsirk/hippocampe`). Only a release from a push to `main` publishes, never the dry run
   # of the viewer. Nothing is published before both tarballs are installed and answer /health with

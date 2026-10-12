@@ -69,6 +69,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libfontconfig-dev libwayland-dev libxkbcommon-x11-dev \
             libx11-xcb-dev libssl-dev libzstd-dev libasound2-dev libvulkan1
+      # The Java of the Android app's Gradle; the runner holds the Android SDK (ANDROID_HOME).
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21.0.12+8
+          cache: gradle
       - run: bunx turbo run typecheck
       - run: bunx turbo run lint
       - run: bunx turbo run fmt:check
@@ -77,6 +83,14 @@ jobs:
         run: bunx turbo run test
       - name: Build the desktop app
         run: bunx turbo run build --filter=@hippocampe/desktop
+      - name: Build the Android app
+        run: bunx turbo run build --filter=@hippocampe/android
+      # The debug APK of the pull request, to try it on a phone before it is merged.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hippocampe-android-debug
+          path: apps/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
 
   # The desktop app on Windows, its other platform: both binaries built (rustup installs the Rust
   # of rust-toolchain.toml).
@@ -90,7 +104,8 @@ jobs:
       - run: cargo build --locked -p story -p app
 
   # The clients' types are generated from the schemas (the OpenAPI document, then the Rust types
-  # of apps/desktop): regenerated here, they must be what is committed.
+  # of apps/desktop and the Kotlin types of apps/android): regenerated here, they must be what is
+  # committed.
   generated:
     runs-on: ubuntu-latest
     steps:
