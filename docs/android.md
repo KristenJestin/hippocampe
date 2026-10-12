@@ -5,11 +5,30 @@ menu (a link, a text, a file, several images at once) or from the application it
 link, a photo from the camera, a file), even offline. Agents then turn each item into entries; the
 **Sent** tab shows what each became. It needs Android 8 or later. There is no Play Store version.
 
+## Which APK is which
+
+| | Release | Beta | Debug |
+|---|---|---|---|
+| Application id | `fr.kristenjestin.hippocampe` | `fr.kristenjestin.hippocampe.beta` | `fr.kristenjestin.hippocampe` |
+| Name, launcher | Hippocampe | Hippocampe Beta, another background colour | Hippocampe |
+| For | the real instance (production) | the development instance | trying a pull request |
+| Where | the release, `hippocampe-android-<version>.apk` | the pre-release `android-beta`, `hippocampe-android-beta.apk`, replaced at each push to `dev` | the artifact `hippocampe-android-debug` of a CI run |
+| Signed with | the release key | the same release key | the debug key of the machine that built it |
+| Plain HTTP | refused: the server is reached over HTTPS | allowed | allowed |
+
+The release and the beta are two applications: they are installed side by side, each with its own
+settings and its own queue, and one never replaces the other.
+
 ## Install it
 
 - **A release**: each release of Hippocampe carries `hippocampe-android-<version>.apk` and its
   `.sha256`, once the owner has set the signing key (see `apps/android/AGENTS.md`). A newer APK
   installs over the older one.
+- **The beta**: the [pre-release `android-beta`](https://github.com/KristenJestin/hippocampe/releases/tag/android-beta)
+  holds `hippocampe-android-beta.apk` and its `.sha256`, built from the last push to `dev` (its
+  version says from which release, which run and which commit: `0.9.0-beta.57+3f2a1bc`). Its version
+  code is the number of the run, so each beta installs over the one before it, with the same key.
+  Until the signing secrets are set, nothing is published.
 - **A build of a pull request or a branch**: the `verify` job of CI uploads the debug APK as the
   artifact `hippocampe-android-debug` (Actions, the run, Artifacts; it is a zip holding
   `app-debug.apk`). Or build it: `bun run build` in `apps/android`, with an Android SDK.
@@ -17,18 +36,20 @@ link, a photo from the camera, a file), even offline. Agents then turn each item
 On the phone, open the APK (from a download, or `adb install app-debug.apk` from a computer with
 the phone in USB debugging) and allow the installation from that source when Android asks. A debug
 build is signed with the debug key of the machine that built it (each CI run makes its own), and a
-release with the release key: when Android refuses an APK over the installed one for its signature,
-uninstall first, which forgets the settings and what waits on the phone.
+release or a beta with the release key: when Android refuses an APK over the installed one for its
+signature, uninstall first, which forgets the settings and what waits on the phone.
 
 ## Pair it with a server
 
 1. Make the server reachable from the phone. It speaks plain HTTP and, by default, listens on
-   `127.0.0.1` only. Reach it through an encrypted path, as for any client:
+   `127.0.0.1` only. Reach it through an encrypted path, as for any client. The release only talks
+   to an `https://` address; the beta and the debug build also accept `http://`, for a server on a
+   private network during development:
    - with **Tailscale** on both machines, `tailscale serve --bg 3000` on the server's machine gives
      `https://<machine>.<tailnet>.ts.net`, in TLS, with nothing else to change (use the port of your
      installation: 7468 for `hippo service install`);
    - or set `HIPPOCAMPE_HOST` to the server machine's address on a private network (with Docker,
-     `HIPPOCAMPE_BIND`), and use `http://<that address>:3000`;
+     `HIPPOCAMPE_BIND`), and use `http://<that address>:3000` (the beta and the debug build only);
    - or a reverse proxy that terminates TLS in front of it.
 2. Create a key for the phone, with the rights `read` and `write`, on the server's machine:
 
@@ -59,11 +80,16 @@ uninstall first, which forgets the settings and what waits on the phone.
 - **Add**: a note or a link (a text that is only a link is sent as a link), photos from the camera
   and files, with an optional note.
 - **Sent**: what was sent from this phone, newest first: waiting on the phone (it may be
-  cancelled), in the inbox, processed (with the titles of the entries it gave), dismissed (with the
-  reason), or refused by the server (with its sentence; it is not tried again).
+  cancelled), waiting for the settings (with the server's sentence), in the inbox, processed (with
+  the titles of the entries it gave), dismissed (with the reason), or refused by the server (with
+  its sentence; it is not tried again).
 
 Nothing is lost offline: each item is kept on the phone first (a shared file is copied at once) and
 sent when the network is there, again later while the server cannot be reached or fails, across a
 restart of the phone. Each carries an identifier, so a retry after a lost answer adds nothing twice.
+A key the server does not accept (unknown, revoked, or without the right `write`: a 401 or a 403)
+is a problem of the settings, not of the item: the item stays on the phone with its file, **Sent**
+shows it as waiting for the settings with the server's sentence, and it is sent once the settings
+are saved with a key that works. Any other refusal (a content the server cannot take) is final.
 Items are sent with the origin `android`, so `GET /api/inbox?origin=android` and the agents see
 where they came from.

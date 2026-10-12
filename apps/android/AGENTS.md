@@ -36,6 +36,17 @@ app/src/main/kotlin/fr/kristenjestin/hippocampe/
   the phone is set. The bottom bar holds the destinations; reading and the home screen join it
   when their issues come, as new routes of the `NavHost` in `ui/MainActivity.kt`.
 
+## Build types
+
+`release` is the application of the owner's real instance (`fr.kristenjestin.hippocampe`). `beta`
+is installed beside it, for the development instance: `applicationIdSuffix = ".beta"`, named
+"Hippocampe Beta" and with another launcher background (`src/beta/res`), signed with the same key.
+`debug` is for trying a pull request. The release refuses plain HTTP and the other two allow it,
+through a network security config per build type (`src/main/res/xml/` for the release, `src/beta/`
+and `src/debug/` for the others), never `usesCleartextTraffic`. `BuildTypesTest` checks both on
+each variant, which is why `bun run test` runs it on `testDebugUnitTest`, `testBetaUnitTest` and
+`testReleaseUnitTest`.
+
 ## Commands
 
 From the root through Turborepo (`bun run check` runs the lint and the tests), or from
@@ -43,7 +54,7 @@ From the root through Turborepo (`bun run check` runs the lint and the tests), o
 
 ```
 bun run generate                  # api/Types.kt from packages/api/openapi.json
-bun run test                      # the staleness test of the types, then ./gradlew testDebugUnitTest
+bun run test                      # the staleness test of the types, then the unit tests (BuildTypesTest on all three build types)
 bun run lint                      # oxlint on the scripts, then ./gradlew lintDebug
 bun run build                     # ./gradlew assembleDebug: app/build/outputs/apk/debug/app-debug.apk
 ./gradlew testDebugUnitTest --tests '*SendingTest*'
@@ -58,7 +69,7 @@ The tests are unit tests on the JVM, with Robolectric (Android 16: `src/test/res
 for Room, WorkManager, DataStore and Compose, and the server simulated by Ktor's mock engine
 (`FakeServer`). Each is named after the scenario it covers.
 
-## Releases
+## Releases and the beta
 
 The release workflow builds `assembleRelease` from the tag (`HIPPOCAMPE_VERSION` gives the version
 name; the version code is `major·10000 + minor·100 + patch`), signs it with the key the repository's
@@ -76,5 +87,14 @@ base64 -w0 hippocampe-release.jks     # the value of ANDROID_KEYSTORE_BASE64
 
 Keep the keystore and its passwords safe: an APK signed with another key cannot update the
 installed one.
+
+The beta is built by `.github/workflows/android-beta.yml` at each push to `dev`, with the same
+secrets: `assembleBeta` with `HIPPOCAMPE_VERSION` (`<last tag>-beta.<run>+<short commit>`) and
+`HIPPOCAMPE_BETA_RUN` (the run number of the workflow, which is the version code, so it always
+grows), then it deletes the pre-release `android-beta` and makes it again on that commit with
+`hippocampe-android-beta.apk` and its `.sha256`. It is a pre-release, never the latest, and its tag
+is not a version, so semantic-release never reads it. One beta job runs at a time per branch, the
+newest push wins. Without the secrets, it says so in one line and publishes nothing. The release
+and the beta are two applications, so their version codes never meet.
 
 Installing it on a phone and pairing it with a server: [`docs/android.md`](../../docs/android.md).
