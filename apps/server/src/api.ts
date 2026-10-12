@@ -3,6 +3,7 @@ import {
   Forbidden,
   HippocampeApi,
   Invalid,
+  Malformed,
   NotFound,
   Unauthorized,
 } from '@hippocampe/api/http'
@@ -18,8 +19,9 @@ import { searchWithTotal } from './core/search/index.ts'
 import { briefing, headsUpDue } from './core/time/index.ts'
 import type { Occurrence } from './core/time/index.ts'
 import { listTypes } from './core/types/index.ts'
+import { formatSchemaError } from '@hippocampe/api/schema'
 import { Effect, FileSystem, Layer, Redacted } from 'effect'
-import { HttpApiBuilder } from 'effect/http-api'
+import { HttpApiBuilder, HttpApiMiddleware } from 'effect/http-api'
 
 /** The sentence a key without the right `read` is refused with, over HTTP as over MCP. */
 export const MAY_NOT_READ =
@@ -52,6 +54,17 @@ const AuthorizationLayer = Layer.effect(
         }),
     })
   }),
+)
+
+/**
+ * A request that cannot be decoded (a payload without its `kind`, a `limit` that is no number) is
+ * the client's mistake: 400 with one sentence naming the field, never a defect of the server. What
+ * the server itself fails to encode in its answer stays one.
+ */
+const MalformedLayer = HttpApiMiddleware.layerSchemaErrorTransform(Malformed, (error) =>
+  error.kind === 'Body' || error.kind === 'ResponseHeaders'
+    ? Effect.fail(error)
+    : Effect.fail(new Invalid({ message: formatSchemaError(error.cause) })),
 )
 
 const about = HttpApiBuilder.group(HippocampeApi, 'about', (handlers) =>
@@ -219,5 +232,5 @@ export const ApiRoutes = HttpApiBuilder.layer(HippocampeApi, {
   openapiPath: '/api/openapi.json',
 }).pipe(
   Layer.provide([about, types, entries, briefed, searching, inbox]),
-  Layer.provide(AuthorizationLayer),
+  Layer.provide([AuthorizationLayer, MalformedLayer]),
 )

@@ -209,6 +209,42 @@ describe('adding to the inbox over HTTP', () => {
     expect((await follow(keys.plain, 'origin=phone-refused')).items).toEqual([])
   })
 
+  test('a json item without kind is refused in one sentence', async () => {
+    const answer = await send(keys.plain, { text: 'Buy seeds', origin: 'phone-nokind' })
+    expect(answer).toEqual({
+      status: 400,
+      body: expect.objectContaining({ message: 'The field `kind` is missing.' }),
+    })
+    expect((await follow(keys.plain, 'origin=phone-nokind')).items).toEqual([])
+    // Without a key, the refusal is the key's, not the payload's.
+    expect((await send('', { text: 'Buy seeds' })).status).toBe(401)
+  })
+
+  test('an upload without a file is refused in one sentence', async () => {
+    const form = new FormData()
+    form.append('origin', 'phone-nofile')
+    const response = await fetch(`${base}/api/inbox`, {
+      method: 'POST',
+      headers: bearer(keys.plain),
+      body: form,
+    })
+    expect({ status: response.status, body: await response.json() }).toEqual({
+      status: 400,
+      body: expect.objectContaining({ message: 'The field `file` is missing.' }),
+    })
+    expect((await follow(keys.plain, 'origin=phone-nofile')).items).toEqual([])
+  })
+
+  test('a malformed query is refused in one sentence', async () => {
+    const response = await fetch(`${base}/api/inbox?limit=many`, { headers: bearer(keys.plain) })
+    expect({ status: response.status, body: await response.json() }).toEqual({
+      status: 400,
+      body: expect.objectContaining({
+        message: 'The field `limit` must be a string representing a finite number.',
+      }),
+    })
+  })
+
   test('a file larger than 20 MB is refused in one sentence', async () => {
     const answer = await upload(
       keys.plain,

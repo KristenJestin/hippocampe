@@ -60,6 +60,16 @@ export class Invalid extends Schema.TaggedError<Invalid>()(
 ) {}
 
 /**
+ * Turns what a request's path, headers, query or payload fail to decode into `Invalid`, so a
+ * malformed request is refused in one sentence like every other. The server provides it; a client
+ * has nothing to send for it.
+ */
+export class Malformed extends HttpApiMiddleware.Service<Malformed>()(
+  '@hippocampe/api/http/Malformed',
+  { error: Invalid },
+) {}
+
+/**
  * Every route is reached with a key sent as `Authorization: Bearer <key>`: with the right `read`
  * to read, with the right `write` to add to the inbox.
  */
@@ -240,6 +250,7 @@ export class HippocampeApi extends HttpApi.make('hippocampe')
   .add(search)
   .add(inbox)
   .middleware(Authorization)
+  .middleware(Malformed)
   .annotateMerge(
     OpenApi.annotations({
       title: 'Hippocampe',
