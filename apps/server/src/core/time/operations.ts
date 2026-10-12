@@ -186,16 +186,12 @@ export const upcoming = Effect.fn('upcoming')(function* (from: string, to: strin
 })
 
 /**
- * The occurrences inside their notice period today that the current actor was not told about
- * today. Each is told once a day per actor: telling it records it.
+ * The occurrences inside their notice period today, that no entry fulfills, by date: what the
+ * caller may see, told to no one.
  */
-export const headsUp = Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient
-  const actor = yield* Actor
+export const headsUpDue = Effect.gen(function* () {
   const today = (yield* Today)()
-  if (actor === undefined) return []
   const { dates, closed } = yield* datesAndClosures
-  // What the caller may not see is left out before it is recorded as told.
   const due = (yield* visible)
     .dates(dates)
     .flatMap((each) =>
@@ -211,6 +207,20 @@ export const headsUp = Effect.gen(function* () {
         .map((date) => occurrence(today, each, date)),
     )
     .filter((each) => !closed.has(`${each.entry.id} ${each.field} ${each.period}`))
+  return due.toSorted(byDate)
+})
+
+/**
+ * The occurrences inside their notice period today that the current actor was not told about
+ * today. Each is told once a day per actor: telling it records it.
+ */
+export const headsUp = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient
+  const actor = yield* Actor
+  const today = (yield* Today)()
+  if (actor === undefined) return []
+  // What the caller may not see is left out before it is recorded as told.
+  const due = yield* headsUpDue
   if (due.length === 0) return []
   const told = yield* shown(sql`
     INSERT INTO heads_up (actor, entry_id, field, period, day)
@@ -221,9 +231,7 @@ export const headsUp = Effect.gen(function* () {
     ON CONFLICT DO NOTHING
     RETURNING entry_id::text AS entry_id, field, period`)
   const fresh = new Set(told.map(({ entry_id, field, period }) => `${entry_id} ${field} ${period}`))
-  return due
-    .filter(({ entry, field, period }) => fresh.has(`${entry.id} ${field} ${period}`))
-    .toSorted(byDate)
+  return due.filter(({ entry, field, period }) => fresh.has(`${entry.id} ${field} ${period}`))
 })
 
 /** How far back a recurring deadline is looked for: its last occurrence before today. */

@@ -20,4 +20,6 @@ export {
   takeItem,
   takeItems,
 } from './operations.ts'
+export { countPending } from './pending.ts'
+export { keepPosts, keepPostsLater, keepPostsNow, PostFetch } from './posts.ts'
 export { INBOX } from './store.ts'

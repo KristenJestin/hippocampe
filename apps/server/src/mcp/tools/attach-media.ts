@@ -20,6 +20,10 @@ export const attachMediaTool = defineTool({
     item: Schema.optionalKey(Schema.String).annotate({
       description: 'The id of an inbox item you took, or just processed: its file is attached.',
     }),
+    sha256: Schema.optionalKey(Schema.String).annotate({
+      description:
+        'With `item`: the `sha256` of an image kept from a post on X it links to (its `posts`), attached instead of its file.',
+    }),
     alt: Schema.optionalKey(Schema.String).annotate({
       description: 'What the file shows, in words: it is searched with the entry.',
     }),

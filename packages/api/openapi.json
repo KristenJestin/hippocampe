@@ -437,6 +437,67 @@
         }
       }
     },
+    "/api/briefing": {
+      "get": {
+        "tags": [
+          "Briefing"
+        ],
+        "operationId": "briefing.briefing",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "today",
+                "week",
+                "weekend"
+              ],
+              "description": "`today` (the default), `week` (the seven days from today) or `weekend` (the coming one)."
+            },
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Briefing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Briefing"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/search": {
       "get": {
         "tags": [
@@ -1144,6 +1205,319 @@
           "provenance",
           "by",
           "when"
+        ],
+        "additionalProperties": false
+      },
+      "Briefing": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "upcoming": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BriefingOccurrence"
+            },
+            "description": "The occurrences in the period that no entry fulfills yet, by date."
+          },
+          "overdue": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BriefingOccurrence"
+            },
+            "description": "The deadlines past and not fulfilled."
+          },
+          "heads_up": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BriefingOccurrence"
+            },
+            "description": "The occurrences inside their notice period today, whatever the period asked. Reading them tells no one: the same occurrence is given each day until it is fulfilled or past."
+          },
+          "waiting": {
+            "type": "object",
+            "properties": {
+              "inbox": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "integer"
+                  },
+                  "first": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "origin": {
+                          "type": "string"
+                        },
+                        "size": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "taken",
+                            "processed",
+                            "dismissed"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "origin",
+                        "size",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "count",
+                  "first"
+                ],
+                "additionalProperties": false,
+                "description": "The items pending in the inbox, oldest first."
+              },
+              "supposed": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "integer"
+                  },
+                  "first": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "slug": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "what": {
+                          "type": "string"
+                        },
+                        "provenance": {
+                          "type": "string",
+                          "description": "`inferred` or `ambiguous`."
+                        },
+                        "by": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "when": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "slug",
+                        "title",
+                        "what",
+                        "provenance",
+                        "by",
+                        "when"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "count",
+                  "first"
+                ],
+                "additionalProperties": false,
+                "description": "The values and links still supposed, the latest changes first."
+              },
+              "pending_references": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "integer"
+                  },
+                  "first": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PendingReference"
+                    }
+                  }
+                },
+                "required": [
+                  "count",
+                  "first"
+                ],
+                "additionalProperties": false,
+                "description": "The `[[references]]` still waiting for their entry."
+              }
+            },
+            "required": [
+              "inbox",
+              "supposed",
+              "pending_references"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "upcoming",
+          "overdue",
+          "heads_up",
+          "waiting"
+        ],
+        "additionalProperties": false
+      },
+      "PendingReference": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "cited_by": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "slug",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "slug",
+          "cited_by"
+        ],
+        "additionalProperties": false
+      },
+      "BriefingOccurrence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The same each time the occurrence is read: `<entry id>:<field>:<date>`."
+          },
+          "entry": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "slug",
+              "title",
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          "field": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string"
+          },
+          "days_left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deadline": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "entry",
+          "field",
+          "date",
+          "period",
+          "days_left",
+          "age",
+          "deadline"
         ],
         "additionalProperties": false
       },
@@ -2053,42 +2427,6 @@
         ],
         "additionalProperties": false
       },
-      "PendingReference": {
-        "type": "object",
-        "properties": {
-          "slug": {
-            "type": "string"
-          },
-          "cited_by": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "slug": {
-                  "type": "string"
-                },
-                "title": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "slug",
-                "title"
-              ],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": [
-          "slug",
-          "cited_by"
-        ],
-        "additionalProperties": false
-      },
       "EntryList": {
         "type": "object",
         "properties": {
@@ -2389,6 +2727,10 @@
     {
       "name": "Entries",
       "description": "The tree of entries, or the entries a filter keeps; an entry with its place in it, its children and its links; and its history."
+    },
+    {
+      "name": "Briefing",
+      "description": "What is coming and what waits: the dates due in a period, the heads-ups inside their notice, the inbox, the suppositions to confirm and the references without an entry."
     },
     {
       "name": "Search",

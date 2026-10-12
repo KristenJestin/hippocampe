@@ -541,7 +541,8 @@ on the server's disk, stored by content hash; the database keeps its record (kin
 size, hash, dimensions or duration, source URL, alternative text). Media never go into git.
 
 How the server does it: a file comes as base64 (20 MB at most), as the file of an inbox item the
-caller has taken or just processed (`item`, so an agent never sends it again; or, when the
+caller has taken or just processed (`item`, so an agent never sends it again, with the `sha256` of
+an image it kept from a post on X to attach that image instead; or, when the
 item is done, `inbox_finish` with `outcome: "done"` and `{ "entry": "<slug>", "attach": { "alt": "…" } }` among its
 entries), or as an http(s) URL the server
 fetches (200 MB, 30 seconds, every redirect checked, never a private address unless
@@ -626,6 +627,35 @@ sends of the same one at the same moment keep one item. The client then follows 
 newest first, a page at a time, each with its status, its reason when dismissed and, once processed,
 the entries it gave that the key may read (slug, title, type). Never what an item holds, nor its
 note: a processed item is listed to any key that may read, its content read only through its entries.
+
+A client reads what `briefing` gives agents over HTTP too (`GET /api/briefing?period=today|week|weekend`,
+today by default, a key with the right `read`): `upcoming` and `overdue` as the tool computes them, `heads_up`
+(the occurrences inside their notice period today), and `waiting`, always present: `inbox` (the items
+pending), `supposed` and `pending_references`, each with its `count` and its first five. Each occurrence
+has an `id`, `<entry id>:<field>:<date>`, the same each time, so a client that warns the owner once keeps
+the identifiers it warned of. Reading the heads-ups tells no one: `heads_up` here is not the once-a-day
+list an agent is told, it is every occurrence inside its notice, until it is fulfilled or past. What the key
+may not read is left out before anything is counted, as in the tool.
+
+A post on X disappears when its author deletes it, so the inbox keeps a **copy of each post on X**
+an item links to, from the moment the item arrives, whatever brought it (`inbox_add`, `POST
+/api/inbox`, `inbox:add`, whose text files are read too). A link is `x.com/<user>/status/<id>` or
+`twitter.com/…`, `mobile.` or not, with or without what follows the id (`?s=20`, `/photo/1`); a
+text may name several posts, each kept once, five at most; any other link is left as it is. The
+server keeps; it decides nothing: it writes no entry and chooses no type. The post is read without
+any account, never through the owner's session or the paid API: first from the endpoint behind the
+posts X embeds (`cdn.syndication.twimg.com/tweet-result`, with the token computed from the id as
+Vercel's `react-tweet` does), then from `api.fxtwitter.com` when the first fails. What is kept: the
+answer as it came, and what an agent reads of it, its text, author, date, the post it quotes, and
+each image (a photo, a video's poster), kept on disk by its hash like a medium. The add answers at
+once: the copy is made beside it, a minute at most; a copy that fails (both endpoints down, a post
+deleted or protected) is noted with its reason, and the link stays. The posts of an item are given
+with it as `posts` (`inbox_take`, `inbox_list` with an `id`), each `kept` with its `copy`, `failed`
+with its `reason`, or `pending` while its copy is made; a post still pending when an agent takes the
+item (the server stopped before copying it) is copied by the take. Each image is served at its
+`media_url` while the item is pending or taken, and `attach_media` with the `item` and the image's
+`sha256` attaches it to an entry without fetching it again. `inbox:add` copies the posts of each
+file before it ends, since the command does not outlive its folder.
 
 ## Sources
 

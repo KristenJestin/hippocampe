@@ -459,6 +459,33 @@ export const inbox = pgTable(
 )
 
 /**
+ * The posts on X an inbox item links to, each copied when the item arrives: the answer of the
+ * endpoint that gave it, as it came, and what an agent reads of it (its text, author, date, quoted
+ * post and images kept by their hash); or why it could not be copied. `pending` until it is.
+ */
+export const inboxPosts = pgTable(
+  'inbox_posts',
+  {
+    item_id: uuid()
+      .notNull()
+      .references(() => inbox.id, { onDelete: 'cascade' }),
+    position: integer().notNull(),
+    url: text().notNull(),
+    status: text().notNull().default('pending'),
+    // `syndication` or `fxtwitter`: the endpoint that answered.
+    source: text(),
+    answer: text(),
+    copy: jsonb(),
+    reason: text(),
+    copied_at: timestamp(at),
+  },
+  (table) => [
+    primaryKey({ columns: [table.item_id, table.position] }),
+    check('inbox_posts_status', sql`status IN ('pending', 'kept', 'failed')`),
+  ],
+)
+
+/**
  * What diagnostics found wrong with Hippocampe itself, one row per problem: reports of agents and
  * unexpected errors of the server, the same problem counted once with its occurrences.
  */

@@ -68,6 +68,151 @@ impl ::std::convert::TryFrom<::std::string::String> for AboutInstance {
         value.parse()
     }
 }
+#[doc = "`Briefing`"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct Briefing {
+    pub from: ::std::string::String,
+    #[doc = "The occurrences inside their notice period today, whatever the period asked. Reading them tells no one: the same occurrence is given each day until it is fulfilled or past."]
+    pub heads_up: ::std::vec::Vec<BriefingOccurrence>,
+    #[doc = "The deadlines past and not fulfilled."]
+    pub overdue: ::std::vec::Vec<BriefingOccurrence>,
+    pub to: ::std::string::String,
+    #[doc = "The occurrences in the period that no entry fulfills yet, by date."]
+    pub upcoming: ::std::vec::Vec<BriefingOccurrence>,
+    pub waiting: BriefingWaiting,
+}
+#[doc = "`BriefingOccurrence`"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct BriefingOccurrence {
+    #[serde(deserialize_with = "::std::option::Option::deserialize")]
+    pub age: ::std::option::Option<i64>,
+    pub date: ::std::string::String,
+    #[serde(deserialize_with = "::std::option::Option::deserialize")]
+    pub days_left: ::std::option::Option<i64>,
+    pub deadline: bool,
+    pub entry: BriefingOccurrenceEntry,
+    pub field: ::std::string::String,
+    #[doc = "The same each time the occurrence is read: `<entry id>:<field>:<date>`."]
+    pub id: ::std::string::String,
+    pub period: ::std::string::String,
+}
+#[doc = "`BriefingOccurrenceEntry`"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct BriefingOccurrenceEntry {
+    pub id: ::std::string::String,
+    pub slug: ::std::string::String,
+    pub title: ::std::string::String,
+    #[serde(rename = "type")]
+    pub type_: ::std::string::String,
+}
+#[doc = "`BriefingWaiting`"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct BriefingWaiting {
+    pub inbox: BriefingWaitingInbox,
+    pub pending_references: BriefingWaitingPendingReferences,
+    pub supposed: BriefingWaitingSupposed,
+}
+#[doc = "The items pending in the inbox, oldest first."]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct BriefingWaitingInbox {
+    pub count: i64,
+    pub first: ::std::vec::Vec<BriefingWaitingInboxFirstItem>,
+}
+#[doc = "`BriefingWaitingInboxFirstItem`"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct BriefingWaitingInboxFirstItem {
+    pub id: ::std::string::String,
+    #[serde(deserialize_with = "::std::option::Option::deserialize")]
+    pub name: ::std::option::Option<::std::string::String>,
+    pub origin: ::std::string::String,
+    #[serde(deserialize_with = "::std::option::Option::deserialize")]
+    pub size: ::std::option::Option<i64>,
+    pub status: BriefingWaitingInboxFirstItemStatus,
+}
+#[doc = "`BriefingWaitingInboxFirstItemStatus`"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum BriefingWaitingInboxFirstItemStatus {
+    #[serde(rename = "pending")]
+    Pending,
+    #[serde(rename = "taken")]
+    Taken,
+    #[serde(rename = "processed")]
+    Processed,
+    #[serde(rename = "dismissed")]
+    Dismissed,
+}
+impl ::std::fmt::Display for BriefingWaitingInboxFirstItemStatus {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Pending => f.write_str("pending"),
+            Self::Taken => f.write_str("taken"),
+            Self::Processed => f.write_str("processed"),
+            Self::Dismissed => f.write_str("dismissed"),
+        }
+    }
+}
+impl ::std::str::FromStr for BriefingWaitingInboxFirstItemStatus {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "pending" => Ok(Self::Pending),
+            "taken" => Ok(Self::Taken),
+            "processed" => Ok(Self::Processed),
+            "dismissed" => Ok(Self::Dismissed),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for BriefingWaitingInboxFirstItemStatus {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for BriefingWaitingInboxFirstItemStatus {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "The `[[references]]` still waiting for their entry."]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct BriefingWaitingPendingReferences {
+    pub count: i64,
+    pub first: ::std::vec::Vec<PendingReference>,
+}
+#[doc = "The values and links still supposed, the latest changes first."]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct BriefingWaitingSupposed {
+    pub count: i64,
+    pub first: ::std::vec::Vec<BriefingWaitingSupposedFirstItem>,
+}
+#[doc = "`BriefingWaitingSupposedFirstItem`"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+pub struct BriefingWaitingSupposedFirstItem {
+    #[serde(deserialize_with = "::std::option::Option::deserialize")]
+    pub by: ::std::option::Option<::std::string::String>,
+    #[doc = "`inferred` or `ambiguous`."]
+    pub provenance: ::std::string::String,
+    pub slug: ::std::string::String,
+    pub title: ::std::string::String,
+    pub what: ::std::string::String,
+    #[serde(deserialize_with = "::std::option::Option::deserialize")]
+    pub when: ::std::option::Option<::std::string::String>,
+}
 #[doc = "`Child`"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 pub struct Child {

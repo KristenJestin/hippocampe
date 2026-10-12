@@ -1,0 +1,41 @@
+{
+  "code": 200,
+  "message": "OK",
+  "tweet": {
+    "url": "https://x.com/harbour_bakery/status/1834567890123456789",
+    "id": "1834567890123456789",
+    "text": "The rye loaf is back on Saturdays, baked in the old oven.",
+    "author": {
+      "screen_name": "harbour_bakery",
+      "url": "https://x.com/harbour_bakery",
+      "id": "4100",
+      "name": "Harbour Bakery",
+      "protected": false
+    },
+    "replies": 3,
+    "retweets": 1,
+    "likes": 12,
+    "created_at": "Mon Sep 14 08:30:00 +0000 2026",
+    "created_timestamp": 1789374600,
+    "lang": "en",
+    "media": {
+      "all": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/LoafPhoto.jpg",
+          "width": 2,
+          "height": 2
+        }
+      ],
+      "photos": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/LoafPhoto.jpg",
+          "width": 2,
+          "height": 2
+        }
+      ]
+    },
+    "provider": "twitter"
+  }
+}

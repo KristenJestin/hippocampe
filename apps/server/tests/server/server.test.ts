@@ -897,6 +897,7 @@ describe('the API documentation', () => {
     const { paths, components } = Schema.decodeUnknownSync(Document)(document)
     expect(Object.keys(paths).toSorted()).toEqual([
       '/api/about',
+      '/api/briefing',
       '/api/entries',
       '/api/entries/{entry}',
       '/api/entries/{entry}/history',

@@ -10,6 +10,7 @@ import { mimeOf, sha256Of, storeFile } from '../media/files.ts'
 import { attachMedia } from '../media/operations.ts'
 import { Refused } from '../refused.ts'
 import { sensitivity } from '../sensitive.ts'
+import { keepPostsLater, keepPostsNow, postsIn, postsOf } from './posts.ts'
 import { INBOX } from './store.ts'
 
 const BYTES_LIMIT = 20 * 1024 * 1024
@@ -205,6 +206,7 @@ const clientIdRefusal = (clientId: string) =>
  * whole inbox, so two sends at the same moment keep one item.
  */
 export const addToInbox = Effect.fn('addToInbox')(function* (input: InboxInput, clientId?: string) {
+  const client = yield* SqlClient.SqlClient
   const db = yield* drizzle
   const origin = input.origin ?? ''
   const refused =
@@ -230,12 +232,25 @@ export const addToInbox = Effect.fn('addToInbox')(function* (input: InboxInput, 
         })
       : { kind: input.kind, content: input.kind === 'url' ? url : (input.text ?? ''), origin }
   const values = { ...row, note: input.note ?? null, client_id: clientId ?? null }
-  const [item] = yield* summaries(
-    db
-      .insert(inbox)
-      .values(values)
-      .onConflictDoNothing({ target: inbox.client_id })
-      .returning(SUMMARY),
+  // The posts on X it links to wait for their copy from the moment it is kept.
+  const posts = postsIn(values.content ?? '')
+  const [item] = yield* client.withTransaction(
+    Effect.gen(function* () {
+      const added = yield* summaries(
+        db
+          .insert(inbox)
+          .values(values)
+          .onConflictDoNothing({ target: inbox.client_id })
+          .returning(SUMMARY),
+      )
+      const [first] = added
+      if (first !== undefined && posts.length > 0) {
+        yield* db
+          .insert(tables.inboxPosts)
+          .values(posts.map((post, position) => ({ item_id: first.id, position, url: post })))
+      }
+      return added
+    }),
   )
   if (item !== undefined) return item
   if (clientId === undefined) return yield* Effect.die('an item just added cannot be read')
@@ -495,9 +510,14 @@ const earlierOf = Effect.fn('earlierOf')(function* (item: typeof Full.Type) {
   )
 })
 
-/** An item as an agent reads it: the first part of its text, and what it gave before. */
+/**
+ * An item as an agent reads it: the first part of its text, what it gave before, and, when it
+ * links to posts on X, their `posts`, each with its copy or why it failed.
+ */
 const asRead = Effect.fn('asRead')(function* (item: typeof Full.Type) {
-  return { ...withFirstPart(item), earlier: yield* earlierOf(item) }
+  const read = { ...withFirstPart(item), earlier: yield* earlierOf(item) }
+  const posts = yield* postsOf(item.id)
+  return posts.length === 0 ? read : Object.assign(read, { posts })
 })
 
 /** An item with its content, as it is, without taking it. */
@@ -585,7 +605,7 @@ export const takeItem = Effect.fn('takeItem')(function* (input: { readonly id?: 
   const client = yield* SqlClient.SqlClient
   const db = yield* drizzle
   const actor = yield* currentActor
-  return yield* client.withTransaction(
+  const taken = yield* client.withTransaction(
     Effect.gen(function* () {
       const [next] =
         input.id === undefined
@@ -606,9 +626,12 @@ export const takeItem = Effect.fn('takeItem')(function* (input: { readonly id?: 
         .update(inbox)
         .set({ status: 'taken', taken_by: actor, taken_at: sql`now()` })
         .where(eq(inbox.id, next.id))
-      return yield* asRead({ ...next, status: 'taken', taken_by: actor })
+      return { ...next, status: 'taken' as const, taken_by: actor }
     }),
   )
+  // A post still without its copy, as when the server stopped before making it, is copied now.
+  yield* keepPostsNow(taken.id)
+  return yield* asRead(taken)
 })
 
 /**
@@ -626,7 +649,7 @@ export const takeItems = Effect.fn('takeItems')(function* (ids: ReadonlyArray<st
     return yield* new Refused({
       message: `Give each item once: \`${ids[twice] ?? ''}\` comes twice.`,
     })
-  return yield* client.withTransaction(
+  const taken = yield* client.withTransaction(
     Effect.gen(function* () {
       // Locked in one order whatever the order given: two agents taking the same items never
       // wait for each other in a circle. Answered in the order given.
@@ -643,18 +666,19 @@ export const takeItems = Effect.fn('takeItems')(function* (ids: ReadonlyArray<st
         Result.isFailure(result) ? [result.failure.message] : [],
       )
       if (problems.length > 0) return yield* new Refused({ message: problems.join(' ') })
-      const taken = found.flatMap((result) => (Result.isSuccess(result) ? [result.success.id] : []))
+      const locked = found.flatMap((result) =>
+        Result.isSuccess(result) ? [result.success.id] : [],
+      )
       yield* db
         .update(inbox)
         .set({ status: 'taken', taken_by: actor, taken_at: sql`now()` })
-        .where(inArray(inbox.id, taken))
-      const read = yield* items(db.select(FULL).from(inbox).where(inArray(inbox.id, taken)))
-      return yield* Effect.forEach(
-        canonical.flatMap((id) => read.filter((item) => item.id === id)),
-        asRead,
-      )
+        .where(inArray(inbox.id, locked))
+      const read = yield* items(db.select(FULL).from(inbox).where(inArray(inbox.id, locked)))
+      return canonical.flatMap((id) => read.filter((item) => item.id === id))
     }),
   )
+  yield* Effect.forEach(taken, ({ id }) => keepPostsNow(id), { discard: true })
+  return yield* Effect.forEach(taken, asRead)
 })
 
 export const FinishInput = Schema.Struct({
@@ -858,6 +882,7 @@ export const sendToInbox = Effect.fn('sendToInbox')(function* (
 ) {
   const db = yield* drizzle
   const { id } = yield* addToInbox(input, clientId)
+  yield* keepPostsLater(id)
   const [sent] = yield* withEntries(
     yield* sentRows(db.select(SENT).from(inbox).where(eq(inbox.id, id))),
   )
