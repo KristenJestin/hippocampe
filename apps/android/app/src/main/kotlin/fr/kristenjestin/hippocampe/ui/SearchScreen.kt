@@ -163,7 +163,8 @@ fun SearchScreen(model: SearchModel, open: (String) -> Unit, modifier: Modifier 
 /** An excerpt with the words found marked, the server's own marks taken out. */
 @Composable
 private fun excerptOf(excerpt: String): AnnotatedString {
-    val (text, found) = marked(excerpt)
+    // The server joins the title, the summary and the body: on one line, as the desktop viewer shows it.
+    val (text, found) = marked(excerpt.replace(Regex("\\s+"), " "))
     val mark = SpanStyle(
         background = LocalSignals.current.warning.copy(alpha = 0.25f),
         color = MaterialTheme.colorScheme.onSurface,

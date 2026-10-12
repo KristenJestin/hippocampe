@@ -7,9 +7,10 @@ checksum).
 
 ## What it is
 
-The application puts things into the inbox from the phone and shows what each became. It never
-writes an entry and knows nothing of types, bookmarks or X: a shared link is a link, the server and
-its agents do the rest.
+The application puts things into the inbox from the phone and shows what each became; and it reads:
+search, an entry, browsing the tree. It never writes an entry and knows nothing of bookmarks or X: a
+shared link is a link, the server and its agents do the rest. Of types it knows only what the read API
+says (`/api/types`: a label, the kind of each field), never a type by name.
 
 ```
 app/src/main/kotlin/fr/kristenjestin/hippocampe/
@@ -18,8 +19,11 @@ app/src/main/kotlin/fr/kristenjestin/hippocampe/
   settings/        the address and the key (DataStore; the key sealed by the Android Keystore),
                    checked against /api/about, and the right write without writing anything
   outbox/          what waits to be sent (Room), the share intents, the sending (WorkManager)
+  read/            reading: the calls of the read API as a `Load` (`Reading`), the tree from its
+                   entries (`treeOf`, a port of the desktop viewer's), a body in Markdown
+                   (`parseMarkdown`), the words found in an excerpt (`marked`)
   sent/            what each item sent from the phone became, from GET /api/inbox
-  ui/              the screens, the share sheet, the theme
+  ui/              the screens (search, browse, an entry, sent, add, settings), the share sheet, the theme
   Graph.kt         what the application is made of, built once; WorkManager's configuration
 ```
 
@@ -33,8 +37,22 @@ app/src/main/kotlin/fr/kristenjestin/hippocampe/
 - **The key is never shown again** once saved, nor printed: `Server.toString()` leaves it out.
 - **Screens** take their words from `res/values/strings.xml`, in English, and their colours from
   `ui/theme/Theme.kt`, which follows `apps/desktop/crates/ui/src/theme.json`, dark and light, as
-  the phone is set. The bottom bar holds the destinations; reading and the home screen join it
-  when their issues come, as new routes of the `NavHost` in `ui/MainActivity.kt`.
+  the phone is set. The bottom bar holds the destinations (Search, Browse, Add, Sent; the home screen
+  joins it first when its issue comes), as routes of the `NavHost` in `ui/MainActivity.kt`; an entry
+  is a route of its own, `entry/{entry}`, opened over whichever destination led to it, by its slug or
+  id, with its own back stack.
+- **A screen is a ViewModel and a composable.** The model (`SearchModel`, `BrowseModel`,
+  `EntryModel`) asks `Reading` and holds the `Load` the screen draws: reading, ready, or the one
+  sentence that says why it failed, which the screen shows with *Try again*. What is only supposed
+  (provenance `inferred`, or `ambiguous`) is marked apart, as the desktop viewer does; a value the
+  key may not read comes as `[hidden]` and is said to be hidden.
+- **Markdown is read by a small renderer of ours** (`read/Markdown.kt`, drawn by `ui/MarkdownView.kt`):
+  headings, paragraphs, lists, quotes, code, rules; emphasis, code, links, images and `[[references]]`
+  (which open the entry they name, or are plain text while it does not exist). No library: none of
+  the maintained Compose renderers lets an image be fetched with the key, nor a reference open an
+  entry, without replacing most of it, and a library is one more thing to pin and to follow. A table
+  is shown as written; the heading of `[[slug#heading]]` is not followed. Only an image that is a
+  medium of the entry is fetched; any other address is a link.
 
 ## Build types
 
