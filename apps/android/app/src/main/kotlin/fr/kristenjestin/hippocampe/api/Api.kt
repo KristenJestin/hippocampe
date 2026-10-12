@@ -158,6 +158,15 @@ class Api(engine: HttpClientEngine) {
             }
         }
 
+    /** What is coming and what waits: the heads-ups, and the occurrences of the coming [period] (`today`, `week` or `weekend`). */
+    suspend fun briefing(server: Server, period: String): Answer<Briefing> =
+        call(server) {
+            http.get(url(server, "/api/briefing")) {
+                bearerAuth(server.key)
+                parameter("period", period)
+            }
+        }
+
     /** Every entry the key may see, each with the places it is part of: the whole tree. */
     suspend fun tree(server: Server): Answer<EntryList> =
         call(server) { http.get(url(server, "/api/entries")) { bearerAuth(server.key) } }

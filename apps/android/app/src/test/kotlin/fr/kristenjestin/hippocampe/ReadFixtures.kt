@@ -1,6 +1,13 @@
 package fr.kristenjestin.hippocampe
 
 import android.util.Base64
+import fr.kristenjestin.hippocampe.api.Briefing
+import fr.kristenjestin.hippocampe.api.BriefingOccurrence
+import fr.kristenjestin.hippocampe.api.BriefingOccurrenceEntry
+import fr.kristenjestin.hippocampe.api.BriefingWaiting
+import fr.kristenjestin.hippocampe.api.BriefingWaitingInbox
+import fr.kristenjestin.hippocampe.api.BriefingWaitingPendingReferences
+import fr.kristenjestin.hippocampe.api.BriefingWaitingSupposed
 import fr.kristenjestin.hippocampe.api.FieldDefinition
 import fr.kristenjestin.hippocampe.api.FieldDefinitionKind
 import fr.kristenjestin.hippocampe.api.SearchResult
@@ -135,3 +142,39 @@ fun FakeServer.stockRecipes() {
     media["/media/aa11"] = PIXEL
     media["/media/bb22"] = CARD
 }
+
+/** One time a date comes back, as the briefing gives it: its `id` is the entry, the field and the date. */
+fun occurrence(slug: String, title: String, type: String, field: String, date: String, daysLeft: Long?, deadline: Boolean = true) =
+    BriefingOccurrence(
+        id = "id-$slug:$field:$date",
+        entry = BriefingOccurrenceEntry("id-$slug", slug, title, type),
+        field = field,
+        date = date,
+        period = date,
+        daysLeft = daysLeft,
+        age = null,
+        deadline = deadline,
+    )
+
+/** What the briefing says, with [inbox] items pending in the inbox. */
+fun briefingOf(
+    upcoming: List<BriefingOccurrence> = emptyList(),
+    headsUp: List<BriefingOccurrence> = emptyList(),
+    overdue: List<BriefingOccurrence> = emptyList(),
+    inbox: Long = 0,
+) = Briefing(
+    from = "2026-10-12",
+    to = "2026-10-18",
+    upcoming = upcoming,
+    overdue = overdue,
+    headsUp = headsUp,
+    waiting = BriefingWaiting(
+        BriefingWaitingInbox(inbox, emptyList()),
+        BriefingWaitingSupposed(0, emptyList()),
+        BriefingWaitingPendingReferences(0, emptyList()),
+    ),
+)
+
+val internetPlanEnds = occurrence("internet-plan", "Internet plan", "contract", "end", "2026-11-20", 39)
+val camilleBirthday = occurrence("camille-test", "Camille Test", "person", "birthday", "2026-10-18", 6, deadline = false)
+val warrantyEnds = occurrence("washing-machine", "Washing machine", "appliance", "warranty_end", "2026-10-14", 2)

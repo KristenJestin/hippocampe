@@ -10,6 +10,8 @@ import androidx.work.WorkManager
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import fr.kristenjestin.hippocampe.api.Api
+import fr.kristenjestin.hippocampe.home.Home
+import fr.kristenjestin.hippocampe.home.HomeStore
 import fr.kristenjestin.hippocampe.outbox.Outbox
 import fr.kristenjestin.hippocampe.outbox.OutboxDatabase
 import fr.kristenjestin.hippocampe.outbox.SendWorker
@@ -22,6 +24,7 @@ import io.ktor.client.engine.okhttp.OkHttp
 import java.io.File
 
 private val Context.preferences by preferencesDataStore("settings")
+private val Context.briefings by preferencesDataStore("briefing")
 
 /** What the application is made of, built once. */
 class Graph(context: Context) {
@@ -29,6 +32,7 @@ class Graph(context: Context) {
     val settings = SettingsStore(context.preferences, KeystoreCipher())
     val check = SettingsCheck(api)
     val reading = Reading(api, settings::server)
+    val home = Home(reading, HomeStore(context.briefings), settings::server)
     private val database = Room.databaseBuilder(context, OutboxDatabase::class.java, "outbox").build()
     val work: WorkManager by lazy { WorkManager.getInstance(context) }
     val outbox = Outbox(database.outgoing(), File(context.filesDir, "outbox"), { SendWorker.schedule(work) })

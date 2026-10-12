@@ -49,10 +49,11 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * The destinations of the bottom bar, in order. The home screen takes the first place when it comes.
+ * The destinations of the bottom bar, in order; the first is where the application opens.
  * An entry is not one of them: it opens over whichever destination led to it.
  */
 private enum class Destination(val route: String, val label: Int, val icon: Int) {
+    Home("home", R.string.nav_home, R.drawable.ic_home),
     Search("search", R.string.nav_search, R.drawable.ic_search),
     Browse("browse", R.string.nav_browse, R.drawable.ic_browse),
     Add("add", R.string.nav_add, R.drawable.ic_add),
@@ -121,7 +122,10 @@ private fun Main(graph: Graph, settings: Settings) {
             }
         },
     ) { padding ->
-        NavHost(navigation, Destination.Search.route, Modifier.padding(padding)) {
+        NavHost(navigation, Destination.Home.route, Modifier.padding(padding)) {
+            composable(Destination.Home.route) {
+                HomeScreen(viewModel { HomeModel(graph.home) }, ::openEntry, { go(Destination.Sent.route) })
+            }
             composable(Destination.Search.route) { SearchScreen(viewModel { SearchModel(graph.reading) }, ::openEntry) }
             composable(Destination.Browse.route) { BrowseScreen(viewModel { BrowseModel(graph.reading) }, ::openEntry) }
             composable(
