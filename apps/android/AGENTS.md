@@ -12,7 +12,7 @@ writes an entry and knows nothing of types, bookmarks or X: a shared link is a l
 its agents do the rest.
 
 ```
-app/src/main/kotlin/io/github/kristenjestin/hippocampe/
+app/src/main/kotlin/fr/kristenjestin/hippocampe/
   api/Types.kt     the types of the API, generated (never edited by hand)
   api/Api.kt       the read API and the inbox, Ktor on OkHttp; refusals keep the server's sentence
   settings/        the address and the key (DataStore; the key sealed by the Android Keystore),

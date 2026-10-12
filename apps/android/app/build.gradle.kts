@@ -13,11 +13,11 @@ val hippocampeVersion: String = providers.environmentVariable("HIPPOCAMPE_VERSIO
 val keystore: String? = providers.environmentVariable("ANDROID_KEYSTORE_FILE").orNull
 
 android {
-    namespace = "io.github.kristenjestin.hippocampe"
+    namespace = "fr.kristenjestin.hippocampe"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "io.github.kristenjestin.hippocampe"
+        applicationId = "fr.kristenjestin.hippocampe"
         minSdk = 26
         targetSdk = 37
         versionName = hippocampeVersion
