@@ -41,7 +41,8 @@ app/src/main/kotlin/fr/kristenjestin/hippocampe/
 `release` is the application of the owner's real instance (`fr.kristenjestin.hippocampe`). `beta`
 is installed beside it, for the development instance: `applicationIdSuffix = ".beta"`, named
 "Hippocampe Beta" and with another launcher background (`src/beta/res`), signed with the same key.
-`debug` is for trying a pull request. The release refuses plain HTTP and the other two allow it,
+`debug` is for trying a pull request, installed beside both: `applicationIdSuffix = ".debug"`, named
+"Hippocampe Debug" (`src/debug/res`). The release refuses plain HTTP and the other two allow it,
 through a network security config per build type (`src/main/res/xml/` for the release, `src/beta/`
 and `src/debug/` for the others), never `usesCleartextTraffic`. `BuildTypesTest` checks both on
 each variant, which is why `bun run test` runs it on `testDebugUnitTest`, `testBetaUnitTest` and

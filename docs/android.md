@@ -9,15 +9,15 @@ link, a photo from the camera, a file), even offline. Agents then turn each item
 
 | | Release | Beta | Debug |
 |---|---|---|---|
-| Application id | `fr.kristenjestin.hippocampe` | `fr.kristenjestin.hippocampe.beta` | `fr.kristenjestin.hippocampe` |
-| Name, launcher | Hippocampe | Hippocampe Beta, another background colour | Hippocampe |
+| Application id | `fr.kristenjestin.hippocampe` | `fr.kristenjestin.hippocampe.beta` | `fr.kristenjestin.hippocampe.debug` |
+| Name, launcher | Hippocampe | Hippocampe Beta, another background colour | Hippocampe Debug |
 | For | the real instance (production) | the development instance | trying a pull request |
 | Where | the release, `hippocampe-android-<version>.apk` | the pre-release `android-beta`, `hippocampe-android-beta.apk`, replaced at each push to `dev` | the artifact `hippocampe-android-debug` of a CI run |
 | Signed with | the release key | the same release key | the debug key of the machine that built it |
 | Plain HTTP | refused: the server is reached over HTTPS | allowed | allowed |
 
-The release and the beta are two applications: they are installed side by side, each with its own
-settings and its own queue, and one never replaces the other.
+The release, the beta and the debug build are three applications: they are installed side by side,
+each with its own settings and its own queue, and one never replaces another.
 
 ## Install it
 

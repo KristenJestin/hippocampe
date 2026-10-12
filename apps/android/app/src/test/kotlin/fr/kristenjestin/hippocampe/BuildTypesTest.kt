@@ -17,15 +17,16 @@ class BuildTypesTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun `the release and the beta have their own application ids`() {
+    fun `the release, the beta and the debug build have their own application ids`() {
         val id = mapOf(
             "release" to "fr.kristenjestin.hippocampe",
             "beta" to "fr.kristenjestin.hippocampe.beta",
-            "debug" to "fr.kristenjestin.hippocampe",
+            "debug" to "fr.kristenjestin.hippocampe.debug",
         ).getValue(BuildConfig.BUILD_TYPE)
         assertEquals(id, context.packageName)
         assertEquals(id, BuildConfig.APPLICATION_ID)
-        val name = if (BuildConfig.BUILD_TYPE == "beta") "Hippocampe Beta" else "Hippocampe"
+        val name = mapOf("release" to "Hippocampe", "beta" to "Hippocampe Beta", "debug" to "Hippocampe Debug")
+            .getValue(BuildConfig.BUILD_TYPE)
         assertEquals(name, context.getString(R.string.app_name))
         assertEquals(
             "the beta looks other than the release in the launcher",
