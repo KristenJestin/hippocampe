@@ -52,7 +52,8 @@
         "$TURBO_ROOT$/.env"
       ],
       "outputs": [],
-      "env": ["DATABASE_URL", "SEARCH_LANGUAGE"]
+      "env": ["DATABASE_URL", "SEARCH_LANGUAGE"],
+      "passThroughEnv": ["ANDROID_HOME", "ANDROID_SDK_ROOT", "JAVA_HOME", "GRADLE_USER_HOME"]
     },
     "@hippocampe/server#openapi": {
       "inputs": ["src/openapi.ts", "$TURBO_ROOT$/packages/api/src/**"],
