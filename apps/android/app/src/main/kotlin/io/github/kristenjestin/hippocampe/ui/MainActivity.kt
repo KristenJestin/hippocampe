@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,7 +62,7 @@ private fun Hippocampe(graph: Graph) {
     Surface(Modifier.fillMaxSize()) {
         val settings = loaded?.let { it.settings } ?: run {
             // The first start: nothing can be sent before the phone knows its server.
-            if (loaded != null) SettingsScreen(graph, null, Modifier.fillMaxSize())
+            if (loaded != null) SettingsScreen(graph, null, Modifier.fillMaxSize().safeDrawingPadding())
             return@Surface
         }
         Main(graph, settings)
