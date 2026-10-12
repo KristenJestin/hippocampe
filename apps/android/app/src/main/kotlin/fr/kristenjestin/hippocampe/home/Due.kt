@@ -6,7 +6,7 @@ import fr.kristenjestin.hippocampe.api.BriefingOccurrence
 import fr.kristenjestin.hippocampe.read.dateInWords
 import fr.kristenjestin.hippocampe.read.labelOf
 
-/** What is due and when, in a line: `End: in 39 days (20 November 2026)`. */
+/** What is due and when, in a line: `End: in 39 days (20 November 2026)`, or `End: 3 days ago (9 October 2026)` once past. */
 fun dueLine(resources: Resources, occurrence: BriefingOccurrence): String {
     val label = labelOf(occurrence.field)
     val date = dateInWords(occurrence.date)
@@ -14,7 +14,12 @@ fun dueLine(resources: Resources, occurrence: BriefingOccurrence): String {
     val left = when (days) {
         0L -> resources.getString(R.string.due_today)
         1L -> resources.getString(R.string.due_tomorrow)
-        else -> resources.getQuantityString(R.plurals.due_in_days, days.toInt(), days.toInt())
+        -1L -> resources.getString(R.string.due_yesterday)
+        else -> if (days < 0) {
+            resources.getQuantityString(R.plurals.due_days_ago, (-days).toInt(), (-days).toInt())
+        } else {
+            resources.getQuantityString(R.plurals.due_in_days, days.toInt(), days.toInt())
+        }
     }
     return resources.getString(R.string.due_line, label, left, date)
 }

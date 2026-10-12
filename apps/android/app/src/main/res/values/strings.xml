@@ -55,9 +55,12 @@
     <string name="sent_remove">Remove</string>
     <string name="sent_unfollowed">What became of each item is not known now: %1$s</string>
 
+    <string name="home_overdue">Overdue</string>
     <string name="home_heads_up">Heads-up</string>
     <string name="home_week">This week</string>
     <string name="home_nothing">Nothing is due this week, and nothing waits.</string>
+    <string name="home_recent">Recently changed</string>
+    <string name="home_recent_by">by %1$s</string>
     <string name="home_last_read">Last read %1$s</string>
     <plurals name="home_inbox">
         <item quantity="one">%1$d item waits in the inbox</item>
@@ -68,6 +71,11 @@
     <string name="due_on">%1$s: %2$s</string>
     <string name="due_today">today</string>
     <string name="due_tomorrow">tomorrow</string>
+    <string name="due_yesterday">yesterday</string>
+    <plurals name="due_days_ago">
+        <item quantity="one">%1$d day ago</item>
+        <item quantity="other">%1$d days ago</item>
+    </plurals>
     <plurals name="due_in_days">
         <item quantity="one">in %1$d day</item>
         <item quantity="other">in %1$d days</item>

@@ -62,6 +62,9 @@ class FakeServer {
     /** What the read API holds: the entries found by a search, the tree, the types. */
     var found = listOf<SearchResult>()
     var tree = listOf<TreeEntry>()
+
+    /** The entries changed most recently, newest first: what `/api/entries?sort=updated` lists. */
+    var recent = listOf<TreeEntry>()
     var types = listOf<TypeDefinition>()
     var briefing = briefingOf()
 
@@ -98,7 +101,10 @@ class FakeServer {
             }
             "/api/briefing" -> answer(json.encodeToString(Briefing.serializer(), briefing))
             "/api/types" -> answer(json.encodeToString(TypeList.serializer(), TypeList(types)))
-            "/api/entries" -> answer(json.encodeToString(EntryList.serializer(), EntryList(tree)))
+            "/api/entries" -> {
+                val listed = if (request.url.parameters["sort"] == "updated") recent.take(request.url.parameters["limit"]?.toInt() ?: 50) else tree
+                answer(json.encodeToString(EntryList.serializer(), EntryList(listed)))
+            }
             else -> readEntry(request.url.encodedPath)
         }
     }
