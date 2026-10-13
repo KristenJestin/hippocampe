@@ -1,5 +1,4 @@
-import { Match, Predicate, Schema, SchemaIssue } from 'effect'
-import type { SchemaAST } from 'effect'
+import { Match, Predicate, Schema, SchemaAST, SchemaIssue } from 'effect'
 import type { StandardSchemaV1 } from 'effect/StandardSchema'
 
 /**
@@ -43,8 +42,28 @@ const mustBe = (ast: SchemaAST.AST): string =>
     Match.orElse(() => 'is not valid'),
   )
 
+/**
+ * The fields an object accepts, in the order its schema declares them, the required ones marked:
+ * "`query` (required), `type`, `limit`". Read from the schema that refused, never written by hand.
+ */
+const acceptedBy = (ast: SchemaAST.AST): string | undefined =>
+  Predicate.isTagged(ast, 'Objects') && ast.propertySignatures.length > 0
+    ? ast.propertySignatures
+        .map(
+          ({ name, type }) =>
+            `\`${String(name)}\`${SchemaAST.isOptional(type) ? '' : ' (required)'}`,
+        )
+        .join(', ')
+    : undefined
+
+/** An agent that sends a field not expected is told what to send instead, in the same sentence. */
+const problemNamingAccepted: SchemaIssue.LeafHook = (issue) => {
+  const accepted = Predicate.isTagged(issue, 'UnexpectedKey') ? acceptedBy(issue.ast) : undefined
+  return accepted === undefined ? problemOf(issue) : `is not expected; it takes ${accepted}`
+}
+
 const problems = SchemaIssue.makeFormatterStandardSchemaV1({
-  leafHook: problemOf,
+  leafHook: problemNamingAccepted,
   checkHook: problemOfCheck,
 })
 
