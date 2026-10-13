@@ -389,3 +389,138 @@ describe('a post on X that reaches the inbox', () => {
     expect(asked).toHaveLength(before)
   })
 })
+
+describe('a long post on X', () => {
+  const FX_URL = `${FXTWITTER}harbour_bakery/status/1834567890123456789`
+  const FX_QUOTING_URL = `${FXTWITTER}valley_mill/status/1834567890123450001`
+  const QUOTING = 'https://x.com/valley_mill/status/1834567890123450001'
+  const WHOLE = JSON.parse(fixture('fxtwitter-long.json')).tweet.text
+  const CUT = JSON.parse(fixture('syndication-long.json')).text
+
+  const answerRow = (itemId: string) =>
+    run(
+      Effect.flatMap(
+        SqlClient.SqlClient,
+        (sql) =>
+          sql<{
+            source: string
+            answer: string
+          }>`SELECT source, answer FROM inbox_posts WHERE item_id = ${itemId}`,
+      ),
+    )
+
+  test('the copy holds the whole text from fxtwitter and the images from syndication', async () => {
+    const { fetch, asked } = recorded((url) =>
+      url.startsWith(SYNDICATION)
+        ? fixture('syndication-long.json')
+        : url === FX_URL
+          ? fixture('fxtwitter-long.json')
+          : undefined,
+    )
+    const item = await run(
+      withPosts(fetch)(
+        Effect.tap(addToInbox({ kind: 'url', url: POST }), ({ id }) => keepPosts(id)),
+      ),
+    )
+    expect(asked.filter((url) => url.startsWith(FXTWITTER))).toEqual([FX_URL])
+    const read = await run(withPosts(fetch)(peekItem(item.id)))
+    expect(read).toMatchObject({
+      posts: [
+        {
+          status: 'kept',
+          copy: {
+            author: { name: 'Harbour Bakery', handle: 'harbour_bakery' },
+            created_at: '2026-09-14T08:30:00.000Z',
+            text: WHOLE,
+            truncated: false,
+            images: [{ url: LOAF, mime: 'image/png' }],
+            quoted: null,
+          },
+        },
+      ],
+    })
+    expect(WHOLE).not.toBe(CUT)
+    // The row says where each part came from, and keeps both answers as they came.
+    const [row] = await answerRow(item.id)
+    expect(row?.source).toBe('syndication+fxtwitter')
+    expect(JSON.parse(row?.answer ?? '')).toEqual({
+      syndication: fixture('syndication-long.json'),
+      fxtwitter: fixture('fxtwitter-long.json'),
+    })
+  })
+
+  test('the copy keeps the syndication text and says it is cut when fxtwitter fails', async () => {
+    const { fetch } = recorded(syndicationOnly(fixture('syndication-long.json')))
+    const item = await run(
+      withPosts(fetch)(
+        Effect.tap(addToInbox({ kind: 'url', url: POST }), ({ id }) => keepPosts(id)),
+      ),
+    )
+    expect(await run(withPosts(fetch)(peekItem(item.id)))).toMatchObject({
+      posts: [{ status: 'kept', source: 'syndication', copy: { text: CUT, truncated: true } }],
+    })
+    const [row] = await answerRow(item.id)
+    expect(row).toEqual({ source: 'syndication', answer: fixture('syndication-long.json') })
+  })
+
+  test('a long quoted post is given whole from the post that quotes it', async () => {
+    const { fetch } = recorded((url) =>
+      url.startsWith(SYNDICATION)
+        ? fixture('syndication-long-quote.json')
+        : url === FX_QUOTING_URL
+          ? fixture('fxtwitter-long-quote.json')
+          : undefined,
+    )
+    const item = await run(
+      withPosts(fetch)(
+        Effect.tap(addToInbox({ kind: 'url', url: QUOTING }), ({ id }) => keepPosts(id)),
+      ),
+    )
+    expect(await run(withPosts(fetch)(peekItem(item.id)))).toMatchObject({
+      posts: [
+        {
+          status: 'kept',
+          copy: {
+            text: 'Our flour went into this one.',
+            truncated: false,
+            quoted: { text: WHOLE, truncated: false },
+          },
+        },
+      ],
+    })
+  })
+
+  test('a long quoted post is said to be cut when fxtwitter fails', async () => {
+    const { fetch } = recorded(syndicationOnly(fixture('syndication-long-quote.json')))
+    const item = await run(
+      withPosts(fetch)(
+        Effect.tap(addToInbox({ kind: 'url', url: QUOTING }), ({ id }) => keepPosts(id)),
+      ),
+    )
+    expect(await run(withPosts(fetch)(peekItem(item.id)))).toMatchObject({
+      posts: [
+        {
+          status: 'kept',
+          copy: { truncated: false, quoted: { text: CUT, truncated: true } },
+        },
+      ],
+    })
+  })
+
+  test('a short post does not ask fxtwitter and is not cut', async () => {
+    const { fetch, asked } = recorded(syndicationOnly(fixture('syndication-post.json')))
+    const item = await run(
+      withPosts(fetch)(
+        Effect.tap(addToInbox({ kind: 'url', url: POST }), ({ id }) => keepPosts(id)),
+      ),
+    )
+    expect(asked.filter((url) => url.startsWith(FXTWITTER))).toEqual([])
+    expect(await run(withPosts(fetch)(peekItem(item.id)))).toMatchObject({
+      posts: [{ source: 'syndication', copy: { truncated: false } }],
+    })
+  })
+
+  test('the description of the posts says what truncated means', () => {
+    expect(inboxTakeTool.description).toContain('`truncated`')
+  })
+})
