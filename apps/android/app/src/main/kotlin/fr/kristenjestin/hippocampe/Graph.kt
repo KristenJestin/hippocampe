@@ -29,7 +29,8 @@ import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.okhttp.OkHttp
 import java.io.File
 
-private val Context.preferences by preferencesDataStore("settings")
+/** Internal so that a test can empty the settings: one DataStore outlives every test of a JVM. */
+internal val Context.preferences by preferencesDataStore("settings")
 private val Context.briefings by preferencesDataStore("briefing")
 
 /** What the application is made of, built once. */

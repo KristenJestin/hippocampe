@@ -1,0 +1,15 @@
+{
+  "__typename": "Tweet",
+  "lang": "en",
+  "created_at": "2026-09-14T08:30:00.000Z",
+  "id_str": "1834567890123456789",
+  "text": "Why the rye loaf is back on Saturdays: the old oven holds its heat longer, the crust sets slowly and the crumb stays moist for days, which is also why we bake it at night while https://t.co/AbCdEf1234",
+  "user": { "id_str": "4100", "name": "Harbour Bakery", "screen_name": "harbour_bakery" },
+  "mediaDetails": [
+    { "type": "photo", "media_url_https": "https://pbs.twimg.com/media/LoafPhoto.jpg" }
+  ],
+  "note_tweet": { "id": "Tm90ZVR3ZWV0OjE4MzQ1Njc4OTAxMjM0NTY3ODk=" },
+  "isEdited": false,
+  "isStaleEdit": false,
+  "conversation_count": 3
+}

@@ -1,0 +1,16 @@
+{
+  "code": 200,
+  "message": "OK",
+  "tweet": {
+    "id": "1834567890123450001",
+    "text": "Our flour went into this one.",
+    "author": { "screen_name": "valley_mill", "id": "4200", "name": "Valley Mill" },
+    "created_timestamp": 1789495500,
+    "quote": {
+      "id": "1834567890123456789",
+      "text": "Why the rye loaf is back on Saturdays: the old oven holds its heat longer, the crust sets slowly and the crumb stays moist for days, which is also why we bake it at night while the town sleeps.\n\nThe flour comes from the valley mill, stone-ground every Thursday.",
+      "author": { "screen_name": "harbour_bakery", "id": "4100", "name": "Harbour Bakery" },
+      "created_timestamp": 1789374600
+    }
+  }
+}

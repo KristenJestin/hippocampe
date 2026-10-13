@@ -6,9 +6,10 @@ import { ConfigProvider, Effect, Latch, Schedule, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
-import { writeEntry } from '../../src/core/entries/index.ts'
+import { readEntry, writeEntry } from '../../src/core/entries/index.ts'
 import {
   addToInbox,
+  finishItem,
   keepPosts,
   peekItem,
   PostFetch,
@@ -19,7 +20,7 @@ import { attachMedia, readMedia } from '../../src/core/media/index.ts'
 import { incomingPath, sha256Of } from '../../src/core/media/files.ts'
 import { Refused } from '../../src/core/refused.ts'
 import { defineType } from '../../src/core/types/index.ts'
-import { inboxAddTool, inboxTakeTool } from '../../src/mcp/tools/inbox.ts'
+import { inboxAddTool, inboxFinishTool, inboxTakeTool } from '../../src/mcp/tools/inbox.ts'
 import { useScratchDatabase } from './scratch-database.ts'
 
 const run = useScratchDatabase()
@@ -113,6 +114,14 @@ beforeAll(async () => {
   images.set(POSTER, await imageOf('#3b3b3b'))
   await run(defineType({ name: 'bake', label: 'Bake', description: 'A loaf baked.', fields: [] }))
 })
+
+/** The sentence a refused effect fails with. */
+const refusalOf = <A, E, R>(effect: Effect.Effect<A, E | Refused, R>) =>
+  effect.pipe(
+    Effect.flip,
+    Effect.map((error) => (error instanceof Refused ? error.message : `not a refusal: ${error}`)),
+  )
+
 afterAll(() => rmSync(directory, { recursive: true, force: true }))
 
 describe('a post on X that reaches the inbox', () => {
@@ -387,5 +396,211 @@ describe('a post on X that reaches the inbox', () => {
     )
     expect(media).toMatchObject({ kind: 'image', mime: 'image/png', sha256: loaf.sha256 })
     expect(asked).toHaveLength(before)
+  })
+})
+
+describe('closing a link to a post with attach', () => {
+  /** The item taken, then closed with `attach` on an entry; what the refusal says, and what stayed. */
+  const finishedWithAttach = async (body: string, url: string) => {
+    const { fetch } = recorded(syndicationOnly(body))
+    const item = await run(withPosts(fetch)(addToInbox({ kind: 'url', url })))
+    const taken = await run(withPosts(fetch)(takeItem({ id: item.id })))
+    await run(writeEntry({ type: 'bake', title: `Bake of ${item.id}`, slug: `bake-${item.id}` }))
+    const refused = await run(
+      withPosts(fetch)(
+        refusalOf(
+          finishItem({
+            id: item.id,
+            entries: [{ entry: `bake-${item.id}`, attach: { alt: 'A loaf' } }],
+          }),
+        ),
+      ),
+    )
+    const after = await run(withPosts(fetch)(peekItem(item.id)))
+    const entry = await run(readEntry(`bake-${item.id}`))
+    return { id: item.id, taken, refused, after, entry }
+  }
+
+  test('a link whose post holds images is refused with attach_media, the item and each sha256', async () => {
+    const { id, taken, refused, after, entry } = await finishedWithAttach(
+      fixture('syndication-post.json'),
+      POST,
+    )
+    const hashes = (decodeKept(taken).posts[0]?.copy?.images ?? []).map(({ sha256 }) => sha256)
+    expect(hashes).toHaveLength(2)
+    expect(refused).toBe(
+      `The item \`${id}\` holds no file to attach. Attach the images of its posts with \`attach_media\`: \`item\` \`${id}\` and \`sha256\` ${hashes.map((hash) => `\`${hash}\``).join(' or ')}.`,
+    )
+    expect(after).toMatchObject({ status: 'taken' })
+    expect(entry.entry.sources).not.toContainEqual({ source: 'inbox', item: id })
+    expect(entry.media).toEqual([])
+  })
+
+  test('the images of a quoted post are named too', async () => {
+    const { id, refused } = await finishedWithAttach(
+      fixture('syndication-quote.json'),
+      'https://x.com/valley_mill/status/1834567890123450001',
+    )
+    expect(refused).toContain(`\`attach_media\``)
+    expect(refused).toContain(`\`item\` \`${id}\``)
+    expect(refused).toMatch(/`sha256` `[0-9a-f]{64}`\.$/)
+  })
+
+  test('a link whose post holds no image is refused, saying only a file item can be attached', async () => {
+    const { id, refused, after } = await finishedWithAttach(
+      fixture('syndication-text-only.json'),
+      'https://x.com/harbour_bakery/status/1834567890123450002',
+    )
+    expect(refused).toBe(
+      `The item \`${id}\` holds no file to attach: only a file item can be attached this way.`,
+    )
+    expect(after).toMatchObject({ status: 'taken' })
+  })
+
+  test('a link whose post could not be copied is refused, saying only a file item can be attached', async () => {
+    const { id, refused } = await finishedWithAttach(fixture('syndication-tombstone.json'), POST)
+    expect(refused).toBe(
+      `The item \`${id}\` holds no file to attach: only a file item can be attached this way.`,
+    )
+  })
+
+  test('the description of inbox_finish says attach is for a file item and points to attach_media', () => {
+    expect(inboxFinishTool.description).toContain('an item that is a file')
+    expect(inboxFinishTool.description).toContain('`attach_media`')
+  })
+})
+
+describe('a long post on X', () => {
+  const FX_URL = `${FXTWITTER}harbour_bakery/status/1834567890123456789`
+  const FX_QUOTING_URL = `${FXTWITTER}valley_mill/status/1834567890123450001`
+  const QUOTING = 'https://x.com/valley_mill/status/1834567890123450001'
+  const WHOLE = JSON.parse(fixture('fxtwitter-long.json')).tweet.text
+  const CUT = JSON.parse(fixture('syndication-long.json')).text
+
+  const answerRow = (itemId: string) =>
+    run(
+      Effect.flatMap(
+        SqlClient.SqlClient,
+        (sql) =>
+          sql<{
+            source: string
+            answer: string
+          }>`SELECT source, answer FROM inbox_posts WHERE item_id = ${itemId}`,
+      ),
+    )
+
+  test('the copy holds the whole text from fxtwitter and the images from syndication', async () => {
+    const { fetch, asked } = recorded((url) =>
+      url.startsWith(SYNDICATION)
+        ? fixture('syndication-long.json')
+        : url === FX_URL
+          ? fixture('fxtwitter-long.json')
+          : undefined,
+    )
+    const item = await run(
+      withPosts(fetch)(
+        Effect.tap(addToInbox({ kind: 'url', url: POST }), ({ id }) => keepPosts(id)),
+      ),
+    )
+    expect(asked.filter((url) => url.startsWith(FXTWITTER))).toEqual([FX_URL])
+    const read = await run(withPosts(fetch)(peekItem(item.id)))
+    expect(read).toMatchObject({
+      posts: [
+        {
+          status: 'kept',
+          copy: {
+            author: { name: 'Harbour Bakery', handle: 'harbour_bakery' },
+            created_at: '2026-09-14T08:30:00.000Z',
+            text: WHOLE,
+            truncated: false,
+            images: [{ url: LOAF, mime: 'image/png' }],
+            quoted: null,
+          },
+        },
+      ],
+    })
+    expect(WHOLE).not.toBe(CUT)
+    // The row says where each part came from, and keeps both answers as they came.
+    const [row] = await answerRow(item.id)
+    expect(row?.source).toBe('syndication+fxtwitter')
+    expect(JSON.parse(row?.answer ?? '')).toEqual({
+      syndication: fixture('syndication-long.json'),
+      fxtwitter: fixture('fxtwitter-long.json'),
+    })
+  })
+
+  test('the copy keeps the syndication text and says it is cut when fxtwitter fails', async () => {
+    const { fetch } = recorded(syndicationOnly(fixture('syndication-long.json')))
+    const item = await run(
+      withPosts(fetch)(
+        Effect.tap(addToInbox({ kind: 'url', url: POST }), ({ id }) => keepPosts(id)),
+      ),
+    )
+    expect(await run(withPosts(fetch)(peekItem(item.id)))).toMatchObject({
+      posts: [{ status: 'kept', source: 'syndication', copy: { text: CUT, truncated: true } }],
+    })
+    const [row] = await answerRow(item.id)
+    expect(row).toEqual({ source: 'syndication', answer: fixture('syndication-long.json') })
+  })
+
+  test('a long quoted post is given whole from the post that quotes it', async () => {
+    const { fetch } = recorded((url) =>
+      url.startsWith(SYNDICATION)
+        ? fixture('syndication-long-quote.json')
+        : url === FX_QUOTING_URL
+          ? fixture('fxtwitter-long-quote.json')
+          : undefined,
+    )
+    const item = await run(
+      withPosts(fetch)(
+        Effect.tap(addToInbox({ kind: 'url', url: QUOTING }), ({ id }) => keepPosts(id)),
+      ),
+    )
+    expect(await run(withPosts(fetch)(peekItem(item.id)))).toMatchObject({
+      posts: [
+        {
+          status: 'kept',
+          copy: {
+            text: 'Our flour went into this one.',
+            truncated: false,
+            quoted: { text: WHOLE, truncated: false },
+          },
+        },
+      ],
+    })
+  })
+
+  test('a long quoted post is said to be cut when fxtwitter fails', async () => {
+    const { fetch } = recorded(syndicationOnly(fixture('syndication-long-quote.json')))
+    const item = await run(
+      withPosts(fetch)(
+        Effect.tap(addToInbox({ kind: 'url', url: QUOTING }), ({ id }) => keepPosts(id)),
+      ),
+    )
+    expect(await run(withPosts(fetch)(peekItem(item.id)))).toMatchObject({
+      posts: [
+        {
+          status: 'kept',
+          copy: { truncated: false, quoted: { text: CUT, truncated: true } },
+        },
+      ],
+    })
+  })
+
+  test('a short post does not ask fxtwitter and is not cut', async () => {
+    const { fetch, asked } = recorded(syndicationOnly(fixture('syndication-post.json')))
+    const item = await run(
+      withPosts(fetch)(
+        Effect.tap(addToInbox({ kind: 'url', url: POST }), ({ id }) => keepPosts(id)),
+      ),
+    )
+    expect(asked.filter((url) => url.startsWith(FXTWITTER))).toEqual([])
+    expect(await run(withPosts(fetch)(peekItem(item.id)))).toMatchObject({
+      posts: [{ source: 'syndication', copy: { truncated: false } }],
+    })
+  })
+
+  test('the description of the posts says what truncated means', () => {
+    expect(inboxTakeTool.description).toContain('`truncated`')
   })
 })

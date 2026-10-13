@@ -81,6 +81,22 @@ const owned = rowsOf(
   }),
 )
 
+const hashes = rowsOf(Schema.Struct({ sha256: Schema.String }))
+
+/** The `sha256` of every image kept from the posts of an item, in the post and the one it quotes. */
+const keptHashesOf = Effect.fn('keptHashesOf')(function* (id: string) {
+  const db = yield* drizzle
+  const { inboxPosts } = tables
+  const kept = yield* hashes(
+    db
+      .select({ sha256: sql<string>`jsonb_path_query(${inboxPosts.copy}, '$.**.sha256') #>> '{}'` })
+      .from(inboxPosts)
+      .where(eq(inboxPosts.item_id, id))
+      .orderBy(inboxPosts.position),
+  )
+  return [...new Set(kept.map(({ sha256 }) => sha256))]
+})
+
 /**
  * The bytes of the file of an item the caller has taken, or has just marked processed, or of the
  * image `sha256` kept from a post it links to: what an agent attaches to an entry without sending
@@ -118,8 +134,15 @@ const itemFile = Effect.fn('itemFile')(function* (id: string, sha256: string | u
       })
     return new Uint8Array(yield* readFileOf(sha256))
   }
-  if (item.kind !== 'file')
-    return yield* new Refused({ message: `The item \`${id}\` holds no file to attach.` })
+  if (item.kind !== 'file') {
+    const kept = yield* keptHashesOf(id)
+    return yield* new Refused({
+      message:
+        kept.length === 0
+          ? `The item \`${id}\` holds no file to attach: only a file item can be attached this way.`
+          : `The item \`${id}\` holds no file to attach. Attach the images of its posts with \`attach_media\`: \`item\` \`${id}\` and \`sha256\` ${kept.map((hash) => `\`${hash}\``).join(' or ')}.`,
+    })
+  }
   return item.sha256 === null
     ? new Uint8Array(Buffer.from(item.content ?? '', 'utf8'))
     : new Uint8Array(yield* readFileOf(item.sha256))

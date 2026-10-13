@@ -472,7 +472,8 @@ export const inboxPosts = pgTable(
     position: integer().notNull(),
     url: text().notNull(),
     status: text().notNull().default('pending'),
-    // `syndication` or `fxtwitter`: the endpoint that answered.
+    // `syndication`, `fxtwitter`, or `syndication+fxtwitter` (a long post: the text from the second,
+    // the rest from the first, `answer` then holding both bodies as a JSON object).
     source: text(),
     answer: text(),
     copy: jsonb(),
