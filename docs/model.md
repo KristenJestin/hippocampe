@@ -645,7 +645,12 @@ text may name several posts, each kept once, five at most; any other link is lef
 server keeps; it decides nothing: it writes no entry and chooses no type. The post is read without
 any account, never through the owner's session or the paid API: first from the endpoint behind the
 posts X embeds (`cdn.syndication.twimg.com/tweet-result`, with the token computed from the id as
-Vercel's `react-tweet` does), then from `api.fxtwitter.com` when the first fails. What is kept: the
+Vercel's `react-tweet` does), then from `api.fxtwitter.com` when the first fails. The first cuts a
+long post (more than 280 characters) short and marks it with a `note_tweet`: the whole text, and
+that of a long post it quotes, then comes from `api.fxtwitter.com`, the rest staying from the first
+(`source` is `syndication+fxtwitter`, and the answer holds both bodies as they came, in a JSON object);
+if fxtwitter does not answer, the copy keeps the cut text and is `truncated: true` (so is a quoted
+post cut the same way), so that an agent knows it read only the beginning. What is kept: the
 answer as it came, and what an agent reads of it, its text, author, date, the post it quotes, and
 each image (a photo, a video's poster), kept on disk by its hash like a medium. The add answers at
 once: the copy is made beside it, a minute at most; a copy that fails (both endpoints down, a post

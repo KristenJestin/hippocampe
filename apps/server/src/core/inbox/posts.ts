@@ -1,6 +1,6 @@
 import { rm } from 'node:fs/promises'
 import { and, asc, eq, sql, type SQL } from 'drizzle-orm'
-import { Context, Effect, Schema } from 'effect'
+import { Context, Effect, Option, Schema } from 'effect'
 import { drizzle } from '../database/client.ts'
 import { rowsOf } from '../database/rows.ts'
 import * as tables from '../database/schema.ts'
@@ -75,6 +75,8 @@ const SyndicationFields = {
   user: Schema.Struct({ name: Schema.String, screen_name: Schema.String }),
   // A photo, or the poster of a video or a GIF.
   mediaDetails: Schema.optionalKey(Schema.Array(Schema.Struct({ media_url_https: Schema.String }))),
+  // Marks a long post (a "note"): its `text` stops mid-sentence, and the whole of it is not here.
+  note_tweet: Schema.optionalKey(Schema.Struct({ id: Schema.String })),
 }
 
 /** What `cdn.syndication.twimg.com` answers of a post, as far as a copy needs it. */
@@ -115,15 +117,22 @@ interface Read {
   readonly name: string
   readonly created_at: string
   readonly text: string
+  /** The text is only the beginning of a long post. */
+  readonly truncated: boolean
   readonly images: ReadonlyArray<string>
 }
 
-const fromSyndication = (post: Schema.Struct<typeof SyndicationFields>['Type']): Read => ({
+/** `whole` is the full text of a long post, from fxtwitter, when it could be had. */
+const fromSyndication = (
+  post: Schema.Struct<typeof SyndicationFields>['Type'],
+  whole: string | undefined,
+): Read => ({
   id: post.id_str,
   handle: post.user.screen_name,
   name: post.user.name,
   created_at: new Date(post.created_at).toISOString(),
-  text: post.text,
+  text: whole ?? post.text,
+  truncated: post.note_tweet !== undefined && whole === undefined,
   images: (post.mediaDetails ?? []).map(({ media_url_https }) => media_url_https),
 })
 
@@ -133,6 +142,7 @@ const fromFx = (post: Schema.Struct<typeof FxFields>['Type']): Read => ({
   name: post.author.name,
   created_at: new Date(post.created_timestamp * 1000).toISOString(),
   text: post.text,
+  truncated: false,
   images: [
     ...(post.media?.photos ?? []).map(({ url }) => url),
     ...(post.media?.videos ?? []).map(({ thumbnail_url }) => thumbnail_url),
@@ -157,6 +167,8 @@ const CopyFields = {
   author: Schema.Struct({ name: Schema.String, handle: Schema.String }),
   created_at: Schema.String,
   text: Schema.String,
+  // Absent from the copies made before it existed.
+  truncated: Schema.optionalKey(Schema.Boolean),
   images: Schema.Array(KeptImage),
 }
 
@@ -188,6 +200,7 @@ const copyOfRead = Effect.fn('copyOfRead')(function* (read: Read) {
     author: { name: read.name, handle: read.handle },
     created_at: read.created_at,
     text: read.text,
+    truncated: read.truncated,
     images: yield* Effect.forEach(read.images, keptImage),
   }
 })
@@ -209,27 +222,52 @@ const answered = <S extends Schema.Top & { readonly DecodingServices: never }>(
  * The copy of a post: asked first of the endpoint behind the embedded posts of X, then of
  * fxtwitter when it fails; the answer as it came, and what an agent reads of it, its images kept.
  * Refused, with what each endpoint did, when neither gives the post.
+ *
+ * Syndication cuts a long post (a `note_tweet`) short: its whole text, and that of a long post it
+ * quotes, is then taken from fxtwitter, the rest staying from syndication. The row says it
+ * (`source` is `syndication+fxtwitter`, `answer` holds both bodies, as they came); when fxtwitter
+ * does not answer, the text stays the cut one and the copy is `truncated`.
  */
 const copyOf = Effect.fn('copyOf')(function* (url: string) {
   const fetch = yield* PostFetch
   const [, handle = '', id = ''] = /^https:\/\/x\.com\/(\w+)\/status\/(\d+)$/.exec(url) ?? []
+  const fromFxtwitter = answered(
+    fetch.page(`https://api.fxtwitter.com/${handle}/status/${id}`),
+    Fx,
+    'api.fxtwitter.com',
+  )
   const read = yield* answered(
     fetch.page(`https://cdn.syndication.twimg.com/tweet-result?id=${id}&token=${tokenOf(id)}`),
     Syndication,
     'cdn.syndication.twimg.com',
   ).pipe(
-    Effect.map(({ answer, post }) => ({
-      source: 'syndication',
-      answer,
-      read: fromSyndication(post),
-      quoted: post.quoted_tweet === undefined ? undefined : fromSyndication(post.quoted_tweet),
-    })),
+    Effect.flatMap(({ answer, post }) => {
+      const long = post.note_tweet !== undefined || post.quoted_tweet?.note_tweet !== undefined
+      return Effect.map(long ? Effect.option(fromFxtwitter) : Effect.succeedNone, (whole) => {
+        const full = Option.getOrUndefined(whole)
+        const quote = full?.post.tweet.quote
+        return {
+          source: full === undefined ? 'syndication' : 'syndication+fxtwitter',
+          answer:
+            full === undefined
+              ? answer
+              : JSON.stringify({ syndication: answer, fxtwitter: full.answer }),
+          read: fromSyndication(
+            post,
+            post.note_tweet === undefined ? undefined : full?.post.tweet.text,
+          ),
+          quoted:
+            post.quoted_tweet === undefined
+              ? undefined
+              : fromSyndication(
+                  post.quoted_tweet,
+                  post.quoted_tweet.note_tweet === undefined ? undefined : quote?.text,
+                ),
+        }
+      })
+    }),
     Effect.catch((first) =>
-      answered(
-        fetch.page(`https://api.fxtwitter.com/${handle}/status/${id}`),
-        Fx,
-        'api.fxtwitter.com',
-      ).pipe(
+      fromFxtwitter.pipe(
         Effect.map(({ answer, post: { tweet } }) => ({
           source: 'fxtwitter',
           answer,
@@ -311,7 +349,7 @@ export const keepPostsLater = (itemId: string) =>
 const Post = Schema.Struct({
   url: Schema.String,
   status: Schema.Literals(['pending', 'kept', 'failed']),
-  source: Schema.NullOr(Schema.Literals(['syndication', 'fxtwitter'])),
+  source: Schema.NullOr(Schema.Literals(['syndication', 'fxtwitter', 'syndication+fxtwitter'])),
   copy: Schema.NullOr(PostCopy),
   reason: Schema.NullOr(Schema.String),
 })
