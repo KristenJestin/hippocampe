@@ -134,11 +134,13 @@ Keep the keystore and its passwords safe: an APK signed with another key cannot 
 installed one.
 
 The beta is built by `.github/workflows/android-beta.yml` at each push to `dev`, with the same
-secrets: `assembleBeta` with `HIPPOCAMPE_VERSION` (`<last tag>-beta.<run>+<short commit>`) and
-`HIPPOCAMPE_BETA_RUN` (the run number of the workflow, which is the version code, so it always
-grows), then it deletes the pre-release `android-beta` and makes it again on that commit with
-`hippocampe-android-beta.apk` and its `.sha256`. It is a pre-release, never the latest, and its tag
-is not a version, so semantic-release never reads it. One beta job runs at a time per branch, the
+secrets: `assembleBeta` with `HIPPOCAMPE_VERSION` (`<next patch>-beta.<run>`, such as `0.14.2-beta.21` after `v0.14.1`, from
+`tools/android-beta-version.ts`) and `HIPPOCAMPE_BETA_RUN` (the run number of the workflow, which is
+the version code, so it always grows), then it deletes every previous beta pre-release with its tag
+(`v*-beta.*`) and makes `v<version>` on that commit, titled the same, with
+`hippocampe-android-beta.apk` and its `.sha256`. It is a pre-release, never the latest, and it sorts
+after the release it was built on; semantic-release takes the last release of `main` among the
+`v*` tags without the pre-releases, so the beta tags do not disturb it. One beta job runs at a time per branch, the
 newest push wins. Without the secrets, it says so in one line and publishes nothing. The release
 and the beta are two applications, so their version codes never meet.
 
