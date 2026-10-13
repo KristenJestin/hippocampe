@@ -313,6 +313,22 @@ describe('an unknown key in a call is refused', () => {
     })
   })
 
+  test('a key a tool does not take is refused naming the fields it takes, the required ones marked', async () => {
+    expect(await mcp().call('read', { slug: 'orchard-plan' })).toEqual({
+      error:
+        'The field `slug` is not expected; it takes `entry` (required), `headings`, `section`, `parts`, `depth`, `field`, `limit`, `cursor`. ' +
+        'The field `entry` is missing.',
+    })
+  })
+
+  test('a key unknown in a nested object is refused naming the fields of that object', async () => {
+    expect(
+      await mcp().call('write', { entry: 'orchard-plan', archive: { why: 'duplicate' } }),
+    ).toEqual({
+      error: 'The field `archive.why` is not expected; it takes `reason`.',
+    })
+  })
+
   test('a limit that is not an integer is refused', async () => {
     expect(
       await mcp().call('read', { entry: 'orchard-plan', parts: ['history'], limit: 1.5 }),

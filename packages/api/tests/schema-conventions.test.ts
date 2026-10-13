@@ -195,6 +195,14 @@ describe('Standard Schema for forms', () => {
     })
     expect(fieldErrors(toFormSchema(Settings), { name: 'hippocampe', port: '4321' })).toEqual({})
   })
+
+  test('the messages of a form are unchanged: one short sentence per field, no list of the others', () => {
+    const Settings = Schema.Struct({ name: Schema.String, port: Schema.Number })
+    expect(fieldErrors(toFormSchema(Settings), { port: 'x' })).toEqual({
+      name: 'This field is missing.',
+      port: 'This field must be a number.',
+    })
+  })
 })
 
 describe('Property tests', () => {
@@ -247,6 +255,45 @@ describe('Messages shown to people', () => {
     const result = Schema.decodeUnknownResult(Range)({ low: 2, high: 1 })
     if (Result.isSuccess(result)) throw new Error('the input was expected to fail')
     expect(formatSchemaError(result.failure)).toBe('The field `high` must not be below `low`.')
+  })
+})
+
+describe('A field that is not expected', () => {
+  const Search = Schema.Struct({
+    query: Schema.String,
+    type: Schema.optionalKey(Schema.String),
+    limit: Schema.optionalKey(Schema.Number),
+    archive: Schema.optionalKey(Schema.Struct({ reason: Schema.optionalKey(Schema.String) })),
+  })
+  const refusal = (
+    schema: typeof Search,
+    input: Readonly<Record<string, string | Readonly<Record<string, string>>>>,
+  ) => {
+    const result = Schema.decodeUnknownResult(schema)(input, {
+      errors: 'all',
+      onExcessProperty: 'error',
+    })
+    if (Result.isSuccess(result)) throw new Error('the input was expected to fail')
+    return formatSchemaError(result.failure)
+  }
+
+  test('is refused naming the fields the schema accepts, the required ones marked', () => {
+    expect(refusal(Search, { query: 'orchard', q: 'orchard' })).toBe(
+      'The field `q` is not expected; it takes `query` (required), `type`, `limit`, `archive`.',
+    )
+  })
+
+  test('in a nested object names the fields of that object', () => {
+    expect(refusal(Search, { query: 'orchard', archive: { why: 'duplicate' } })).toBe(
+      'The field `archive.why` is not expected; it takes `reason`.',
+    )
+  })
+
+  test('and a required field missing in the same call are both said', () => {
+    expect(refusal(Search, { q: 'orchard' })).toBe(
+      'The field `q` is not expected; it takes `query` (required), `type`, `limit`, `archive`. ' +
+        'The field `query` is missing.',
+    )
   })
 })
 
