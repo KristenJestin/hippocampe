@@ -78,16 +78,24 @@ const SyndicationFields = {
   // Marks a long post (a "note"): its `text` stops mid-sentence, and the whole of it is not here.
   note_tweet: Schema.optionalKey(Schema.Struct({ id: Schema.String })),
   // The links of the text, each a `t.co` address (`url`) and the address it leads to. The photos
-  // of the post are in `entities.media`, not here.
+  // of the post are in `entities.media`, not here. Every key is optional: a link is a bonus, and
+  // an answer of another shape must never cost the copy.
   entities: Schema.optionalKey(
     Schema.Struct({
       urls: Schema.optionalKey(
-        Schema.Array(Schema.Struct({ url: Schema.String, expanded_url: Schema.String })),
+        Schema.Array(
+          Schema.Struct({
+            url: Schema.optionalKey(Schema.String),
+            expanded_url: Schema.optionalKey(Schema.String),
+          }),
+        ),
       ),
     }),
   ),
-  // The link card: the `t.co` address of the page it shows.
-  card: Schema.optionalKey(Schema.NullOr(Schema.Struct({ url: Schema.String }))),
+  // The link card: the `t.co` address of the page it shows; a card of another kind (a poll) has none.
+  card: Schema.optionalKey(
+    Schema.NullOr(Schema.Struct({ url: Schema.optionalKey(Schema.String) })),
+  ),
 }
 
 /** What `cdn.syndication.twimg.com` answers of a post, as far as a copy needs it. */
@@ -109,7 +117,7 @@ const FxFields = {
       facets: Schema.optionalKey(
         Schema.Array(
           Schema.Struct({
-            type: Schema.String,
+            type: Schema.optionalKey(Schema.String),
             original: Schema.optionalKey(Schema.String),
             replacement: Schema.optionalKey(Schema.String),
           }),
@@ -117,8 +125,11 @@ const FxFields = {
       ),
     }),
   ),
-  // The link card, `null` when the post has none: `url` is the address of its page.
-  card: Schema.optionalKey(Schema.NullOr(Schema.Struct({ url: Schema.String }))),
+  // The link card, `null` when the post has none: `url` is the address of its page, absent from a
+  // card of another kind (a poll).
+  card: Schema.optionalKey(
+    Schema.NullOr(Schema.Struct({ url: Schema.optionalKey(Schema.String) })),
+  ),
   media: Schema.optionalKey(
     Schema.NullOr(
       Schema.Struct({
@@ -177,7 +188,7 @@ const linksIn = (addresses: ReadonlyArray<string>, quoted: string | undefined) =
  * it is given by the address its endpoint gives, expanded when the text says it.
  */
 const linksOf = (
-  links: ReadonlyArray<readonly [string, string]>,
+  links: ReadonlyArray<readonly [string | undefined, string]>,
   card: string | undefined,
   quoted: string | undefined,
 ) =>
@@ -209,7 +220,9 @@ const fromSyndication = (
     ...new Set([
       ...(whole?.links ?? []),
       ...linksOf(
-        (post.entities?.urls ?? []).map(({ url, expanded_url }) => [url, expanded_url]),
+        (post.entities?.urls ?? []).flatMap(({ url, expanded_url }) =>
+          expanded_url === undefined ? [] : [[url, expanded_url] as const],
+        ),
         post.card?.url,
         quoted,
       ),
@@ -230,9 +243,7 @@ const fromFx = (post: Schema.Struct<typeof FxFields>['Type'], quoted?: string): 
   ],
   links: linksOf(
     (post.raw_text?.facets ?? []).flatMap(({ type, original, replacement }) =>
-      type === 'url' && original !== undefined && replacement !== undefined
-        ? [[original, replacement] as const]
-        : [],
+      type === 'url' && replacement !== undefined ? [[original, replacement] as const] : [],
     ),
     post.card?.url,
     quoted,

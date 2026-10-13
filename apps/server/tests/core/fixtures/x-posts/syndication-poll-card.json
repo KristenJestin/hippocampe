@@ -1,0 +1,27 @@
+{
+  "__typename": "Tweet",
+  "lang": "en",
+  "favorite_count": 7,
+  "created_at": "2026-09-16T08:00:00.000Z",
+  "display_text_range": [0, 24],
+  "entities": {
+    "urls": [{ "display_url": "example.org", "indices": [0, 23] }]
+  },
+  "id_str": "1834567890123450008",
+  "text": "Which loaf on Saturday?",
+  "user": {
+    "id_str": "4100",
+    "name": "Harbour Bakery",
+    "screen_name": "harbour_bakery",
+    "is_blue_verified": false
+  },
+  "card": {
+    "name": "poll2choice_text_only",
+    "binding_values": {
+      "choice1_label": { "type": "STRING", "string_value": "Rye" },
+      "choice2_label": { "type": "STRING", "string_value": "Spelt" }
+    }
+  },
+  "conversation_count": 0,
+  "isEdited": false
+}

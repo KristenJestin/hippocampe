@@ -1,0 +1,25 @@
+{
+  "code": 200,
+  "message": "OK",
+  "tweet": {
+    "url": "https://x.com/harbour_bakery/status/1834567890123450008",
+    "id": "1834567890123450008",
+    "text": "Which loaf on Saturday?",
+    "raw_text": {
+      "text": "Which loaf on Saturday?",
+      "facets": [{ "type": "url", "indices": [0, 5] }, { "indices": [6, 9] }]
+    },
+    "author": {
+      "screen_name": "harbour_bakery",
+      "url": "https://x.com/harbour_bakery",
+      "id": "4100",
+      "name": "Harbour Bakery",
+      "protected": false
+    },
+    "created_at": "Wed Sep 16 08:00:00 +0000 2026",
+    "created_timestamp": 1789545600,
+    "lang": "en",
+    "card": { "card_name": "poll2choice_text_only", "title": "Which loaf?" },
+    "provider": "twitter"
+  }
+}

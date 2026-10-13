@@ -538,6 +538,16 @@ describe('the links of a post on X', () => {
     expect(post?.copy?.links).toEqual(['https://t.co/C4rdLink02'])
   })
 
+  test('a card without an address still gives the copy, with no card link, from syndication', async () => {
+    const post = await copied(POST_ID(8), fromSyndication('syndication-poll-card.json'))
+    expect(post).toMatchObject({ source: 'syndication', copy: { links: [] } })
+  })
+
+  test('a card without an address still gives the copy, with no card link, from fxtwitter', async () => {
+    const post = await copied(POST_ID(8), fromFxtwitter('fxtwitter-poll-card.json', 8))
+    expect(post).toMatchObject({ source: 'fxtwitter', copy: { links: [] } })
+  })
+
   test('a post with only an image keeps no link, from syndication', async () => {
     const post = await copied(POST_ID(6), fromSyndication('syndication-image-only.json'))
     expect(post).toMatchObject({ source: 'syndication', copy: { links: [] } })
