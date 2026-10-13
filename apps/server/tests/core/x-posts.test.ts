@@ -6,9 +6,10 @@ import { ConfigProvider, Effect, Latch, Schedule, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
-import { writeEntry } from '../../src/core/entries/index.ts'
+import { readEntry, writeEntry } from '../../src/core/entries/index.ts'
 import {
   addToInbox,
+  finishItem,
   keepPosts,
   peekItem,
   PostFetch,
@@ -19,7 +20,7 @@ import { attachMedia, readMedia } from '../../src/core/media/index.ts'
 import { incomingPath, sha256Of } from '../../src/core/media/files.ts'
 import { Refused } from '../../src/core/refused.ts'
 import { defineType } from '../../src/core/types/index.ts'
-import { inboxAddTool, inboxTakeTool } from '../../src/mcp/tools/inbox.ts'
+import { inboxAddTool, inboxFinishTool, inboxTakeTool } from '../../src/mcp/tools/inbox.ts'
 import { useScratchDatabase } from './scratch-database.ts'
 
 const run = useScratchDatabase()
@@ -113,6 +114,14 @@ beforeAll(async () => {
   images.set(POSTER, await imageOf('#3b3b3b'))
   await run(defineType({ name: 'bake', label: 'Bake', description: 'A loaf baked.', fields: [] }))
 })
+
+/** The sentence a refused effect fails with. */
+const refusalOf = <A, E, R>(effect: Effect.Effect<A, E | Refused, R>) =>
+  effect.pipe(
+    Effect.flip,
+    Effect.map((error) => (error instanceof Refused ? error.message : `not a refusal: ${error}`)),
+  )
+
 afterAll(() => rmSync(directory, { recursive: true, force: true }))
 
 describe('a post on X that reaches the inbox', () => {
@@ -387,6 +396,77 @@ describe('a post on X that reaches the inbox', () => {
     )
     expect(media).toMatchObject({ kind: 'image', mime: 'image/png', sha256: loaf.sha256 })
     expect(asked).toHaveLength(before)
+  })
+})
+
+describe('closing a link to a post with attach', () => {
+  /** The item taken, then closed with `attach` on an entry; what the refusal says, and what stayed. */
+  const finishedWithAttach = async (body: string, url: string) => {
+    const { fetch } = recorded(syndicationOnly(body))
+    const item = await run(withPosts(fetch)(addToInbox({ kind: 'url', url })))
+    const taken = await run(withPosts(fetch)(takeItem({ id: item.id })))
+    await run(writeEntry({ type: 'bake', title: `Bake of ${item.id}`, slug: `bake-${item.id}` }))
+    const refused = await run(
+      withPosts(fetch)(
+        refusalOf(
+          finishItem({
+            id: item.id,
+            entries: [{ entry: `bake-${item.id}`, attach: { alt: 'A loaf' } }],
+          }),
+        ),
+      ),
+    )
+    const after = await run(withPosts(fetch)(peekItem(item.id)))
+    const entry = await run(readEntry(`bake-${item.id}`))
+    return { id: item.id, taken, refused, after, entry }
+  }
+
+  test('a link whose post holds images is refused with attach_media, the item and each sha256', async () => {
+    const { id, taken, refused, after, entry } = await finishedWithAttach(
+      fixture('syndication-post.json'),
+      POST,
+    )
+    const hashes = (decodeKept(taken).posts[0]?.copy?.images ?? []).map(({ sha256 }) => sha256)
+    expect(hashes).toHaveLength(2)
+    expect(refused).toBe(
+      `The item \`${id}\` holds no file to attach. Attach the images of its posts with \`attach_media\`: \`item\` \`${id}\` and \`sha256\` ${hashes.map((hash) => `\`${hash}\``).join(' or ')}.`,
+    )
+    expect(after).toMatchObject({ status: 'taken' })
+    expect(entry.entry.sources).not.toContainEqual({ source: 'inbox', item: id })
+    expect(entry.media).toEqual([])
+  })
+
+  test('the images of a quoted post are named too', async () => {
+    const { id, refused } = await finishedWithAttach(
+      fixture('syndication-quote.json'),
+      'https://x.com/valley_mill/status/1834567890123450001',
+    )
+    expect(refused).toContain(`\`attach_media\``)
+    expect(refused).toContain(`\`item\` \`${id}\``)
+    expect(refused).toMatch(/`sha256` `[0-9a-f]{64}`\.$/)
+  })
+
+  test('a link whose post holds no image is refused, saying only a file item can be attached', async () => {
+    const { id, refused, after } = await finishedWithAttach(
+      fixture('syndication-text-only.json'),
+      'https://x.com/harbour_bakery/status/1834567890123450002',
+    )
+    expect(refused).toBe(
+      `The item \`${id}\` holds no file to attach: only a file item can be attached this way.`,
+    )
+    expect(after).toMatchObject({ status: 'taken' })
+  })
+
+  test('a link whose post could not be copied is refused, saying only a file item can be attached', async () => {
+    const { id, refused } = await finishedWithAttach(fixture('syndication-tombstone.json'), POST)
+    expect(refused).toBe(
+      `The item \`${id}\` holds no file to attach: only a file item can be attached this way.`,
+    )
+  })
+
+  test('the description of inbox_finish says attach is for a file item and points to attach_media', () => {
+    expect(inboxFinishTool.description).toContain('an item that is a file')
+    expect(inboxFinishTool.description).toContain('`attach_media`')
   })
 })
 

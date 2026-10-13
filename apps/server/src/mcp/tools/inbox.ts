@@ -97,7 +97,7 @@ export const inboxTakeTool = defineTool({
 export const inboxFinishTool = defineTool({
   name: 'inbox_finish',
   description:
-    "Closes an item you took, with an `outcome`. `done`: it is processed, with the `entries` (slugs or ids) it produced or updated: each of them then cites the item in its sources. Give an entry as `{ entry, attach: { alt } }` to attach the item's file to it, with what it shows as `alt`; all of it is written, or nothing. `dismissed`: it gives no entry; say why in `reason`. `released`: you cannot finish it, and it waits again, for another agent or a later session.",
+    "Closes an item you took, with an `outcome`. `done`: it is processed, with the `entries` (slugs or ids) it produced or updated: each of them then cites the item in its sources. Give an entry as `{ entry, attach: { alt } }` to attach the item's file to it, with what it shows as `alt`: `attach` is for an item that is a file; the images of a post a link holds are attached with `attach_media`, giving the `item` and the `sha256` of each (in its `posts`). All of it is written, or nothing. `dismissed`: it gives no entry; say why in `reason`. `released`: you cannot finish it, and it waits again, for another agent or a later session.",
   input: Schema.Struct({
     id: Schema.String.annotate({ description: 'The id of the item you took.' }),
     outcome: Schema.Literals(['done', 'dismissed', 'released']).annotate({

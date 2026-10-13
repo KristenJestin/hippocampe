@@ -1,0 +1,19 @@
+{
+  "__typename": "Tweet",
+  "lang": "en",
+  "favorite_count": 12,
+  "created_at": "2026-09-14T08:30:00.000Z",
+  "display_text_range": [0, 31],
+  "entities": {},
+  "id_str": "1834567890123450002",
+  "text": "The oven is cleaned on Mondays.",
+  "user": {
+    "id_str": "4100",
+    "name": "Harbour Bakery",
+    "screen_name": "harbour_bakery",
+    "is_blue_verified": false,
+    "profile_image_url_https": "https://pbs.twimg.com/profile_images/4100/oven_normal.jpg"
+  },
+  "conversation_count": 3,
+  "isEdited": false
+}

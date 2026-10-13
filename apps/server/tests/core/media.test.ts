@@ -468,7 +468,9 @@ describe("inbox_done names, per entry, whether the item's file is attached to it
         }),
       ),
     )
-    expect(refused).toBe(`The item \`${id}\` holds no file to attach.`)
+    expect(refused).toBe(
+      `The item \`${id}\` holds no file to attach: only a file item can be attached this way.`,
+    )
     expect(await run(peekItem(id))).toMatchObject({ status: 'taken' })
     expect((await run(readEntry('barn'))).entry.sources).not.toContainEqual({
       source: 'inbox',
