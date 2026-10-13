@@ -45,5 +45,5 @@ On Windows, unpack the archive anywhere and run `hippocampe-desktop.exe`.
 
 It puts links, texts, photos and files into the inbox from the phone's share menu, even offline,
 and shows what each became; it opens on what is due and what waits, can warn before a due date, and searches, reads and browses the entries. Each release carries `hippocampe-android-<version>.apk`, and a beta
-for the development instance is published at each push to `dev` (the pre-release `android-beta`);
+for the development instance is published at each push to `dev` (a pre-release tagged by its version, such as `v0.14.2-beta.21`);
 installing one and pairing it with a server: [`docs/android.md`](docs/android.md).
