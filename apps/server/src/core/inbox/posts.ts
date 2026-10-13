@@ -77,6 +77,17 @@ const SyndicationFields = {
   mediaDetails: Schema.optionalKey(Schema.Array(Schema.Struct({ media_url_https: Schema.String }))),
   // Marks a long post (a "note"): its `text` stops mid-sentence, and the whole of it is not here.
   note_tweet: Schema.optionalKey(Schema.Struct({ id: Schema.String })),
+  // The links of the text, each a `t.co` address (`url`) and the address it leads to. The photos
+  // of the post are in `entities.media`, not here.
+  entities: Schema.optionalKey(
+    Schema.Struct({
+      urls: Schema.optionalKey(
+        Schema.Array(Schema.Struct({ url: Schema.String, expanded_url: Schema.String })),
+      ),
+    }),
+  ),
+  // The link card: the `t.co` address of the page it shows.
+  card: Schema.optionalKey(Schema.NullOr(Schema.Struct({ url: Schema.String }))),
 }
 
 /** What `cdn.syndication.twimg.com` answers of a post, as far as a copy needs it. */
@@ -91,6 +102,23 @@ const FxFields = {
   text: Schema.String,
   created_timestamp: Schema.Number,
   author: Schema.Struct({ name: Schema.String, screen_name: Schema.String }),
+  // The text as written, with its links as facets: a `url` facet leads from the `t.co` address
+  // (`original`) to the page (`replacement`); a `media` facet is a photo, not a link.
+  raw_text: Schema.optionalKey(
+    Schema.Struct({
+      facets: Schema.optionalKey(
+        Schema.Array(
+          Schema.Struct({
+            type: Schema.String,
+            original: Schema.optionalKey(Schema.String),
+            replacement: Schema.optionalKey(Schema.String),
+          }),
+        ),
+      ),
+    }),
+  ),
+  // The link card, `null` when the post has none: `url` is the address of its page.
+  card: Schema.optionalKey(Schema.NullOr(Schema.Struct({ url: Schema.String }))),
   media: Schema.optionalKey(
     Schema.NullOr(
       Schema.Struct({
@@ -120,23 +148,76 @@ interface Read {
   /** The text is only the beginning of a long post. */
   readonly truncated: boolean
   readonly images: ReadonlyArray<string>
+  /** The addresses the post links to, each once. */
+  readonly links: ReadonlyArray<string>
 }
 
-/** `whole` is the full text of a long post, from fxtwitter, when it could be had. */
+/** A photo of the post lives at a `pic.x.com` address: an image, not a link. */
+const MEDIA_LINK = /^(?:https?:\/\/)?pic\.(?:x|twitter)\.com\//i
+
+/**
+ * The addresses a post links to, each once and in order, `quoted` being the id of the post it
+ * quotes: neither the post's own photos nor the quoted post are links, they are `images` and
+ * `quoted`.
+ */
+const linksIn = (addresses: ReadonlyArray<string>, quoted: string | undefined) => [
+  ...new Set(
+    addresses.filter(
+      (address) =>
+        !MEDIA_LINK.test(address) &&
+        (quoted === undefined ||
+          !postsIn(address).some((post) => post.endsWith(`/status/${quoted}`))),
+    ),
+  ),
+]
+
+/**
+ * The addresses the links of a post lead to, then its card's, each once: `links` pairs a `t.co`
+ * address with the page it leads to. A card shows the page of a link of the text, or another page:
+ * it is given by the address its endpoint gives, expanded when the text says it.
+ */
+const linksOf = (
+  links: ReadonlyArray<readonly [string, string]>,
+  card: string | undefined,
+  quoted: string | undefined,
+) =>
+  linksIn(
+    [
+      ...links.map(([, page]) => page),
+      ...(card === undefined ? [] : [new Map(links).get(card) ?? card]),
+    ],
+    quoted,
+  )
+
+/**
+ * `whole` is the full text of a long post, from fxtwitter, when it could be had: its links come
+ * first, those of the cut text after. `quoted` is the id of the post it quotes.
+ */
 const fromSyndication = (
   post: Schema.Struct<typeof SyndicationFields>['Type'],
-  whole: string | undefined,
+  whole: Read | undefined,
+  quoted?: string,
 ): Read => ({
   id: post.id_str,
   handle: post.user.screen_name,
   name: post.user.name,
   created_at: new Date(post.created_at).toISOString(),
-  text: whole ?? post.text,
+  text: whole?.text ?? post.text,
   truncated: post.note_tweet !== undefined && whole === undefined,
   images: (post.mediaDetails ?? []).map(({ media_url_https }) => media_url_https),
+  links: [
+    ...new Set([
+      ...(whole?.links ?? []),
+      ...linksOf(
+        (post.entities?.urls ?? []).map(({ url, expanded_url }) => [url, expanded_url]),
+        post.card?.url,
+        quoted,
+      ),
+    ]),
+  ],
 })
 
-const fromFx = (post: Schema.Struct<typeof FxFields>['Type']): Read => ({
+const fromFx = (post: Schema.Struct<typeof FxFields>['Type'], quoted?: string): Read => ({
   id: post.id,
   handle: post.author.screen_name,
   name: post.author.name,
@@ -147,6 +228,15 @@ const fromFx = (post: Schema.Struct<typeof FxFields>['Type']): Read => ({
     ...(post.media?.photos ?? []).map(({ url }) => url),
     ...(post.media?.videos ?? []).map(({ thumbnail_url }) => thumbnail_url),
   ],
+  links: linksOf(
+    (post.raw_text?.facets ?? []).flatMap(({ type, original, replacement }) =>
+      type === 'url' && original !== undefined && replacement !== undefined
+        ? [[original, replacement] as const]
+        : [],
+    ),
+    post.card?.url,
+    quoted,
+  ),
 })
 
 /** An image of a post: kept by its hash, or why it could not be. */
@@ -170,6 +260,8 @@ const CopyFields = {
   // Absent from the copies made before it existed.
   truncated: Schema.optionalKey(Schema.Boolean),
   images: Schema.Array(KeptImage),
+  // The addresses the post links to; absent from the copies made before it existed.
+  links: Schema.optionalKey(Schema.Array(Schema.String)),
 }
 
 /** What an agent reads of a post kept: the post, and the one it quotes. */
@@ -202,6 +294,7 @@ const copyOfRead = Effect.fn('copyOfRead')(function* (read: Read) {
     text: read.text,
     truncated: read.truncated,
     images: yield* Effect.forEach(read.images, keptImage),
+    links: read.links,
   }
 })
 
@@ -254,14 +347,21 @@ const copyOf = Effect.fn('copyOf')(function* (url: string) {
               : JSON.stringify({ syndication: answer, fxtwitter: full.answer }),
           read: fromSyndication(
             post,
-            post.note_tweet === undefined ? undefined : full?.post.tweet.text,
+            post.note_tweet === undefined || full === undefined
+              ? undefined
+              : fromFx(full.post.tweet, post.quoted_tweet?.id_str),
+            post.quoted_tweet?.id_str,
           ),
           quoted:
             post.quoted_tweet === undefined
               ? undefined
               : fromSyndication(
                   post.quoted_tweet,
-                  post.quoted_tweet.note_tweet === undefined ? undefined : quote?.text,
+                  post.quoted_tweet.note_tweet === undefined ||
+                    quote === undefined ||
+                    quote === null
+                    ? undefined
+                    : fromFx(quote),
                 ),
         }
       })
@@ -271,7 +371,7 @@ const copyOf = Effect.fn('copyOf')(function* (url: string) {
         Effect.map(({ answer, post: { tweet } }) => ({
           source: 'fxtwitter',
           answer,
-          read: fromFx(tweet),
+          read: fromFx(tweet, tweet.quote?.id),
           quoted:
             tweet.quote === undefined || tweet.quote === null ? undefined : fromFx(tweet.quote),
         })),

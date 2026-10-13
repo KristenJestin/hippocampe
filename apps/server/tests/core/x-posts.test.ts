@@ -470,6 +470,145 @@ describe('closing a link to a post with attach', () => {
   })
 })
 
+describe('the links of a post on X', () => {
+  const POST_ID = (n: number) => `https://x.com/harbour_bakery/status/183456789012345000${n}`
+  const FX_LONG = `${FXTWITTER}harbour_bakery/status/1834567890123456789`
+  const FX = (n: number) => `${FXTWITTER}harbour_bakery/status/183456789012345000${n}`
+
+  const Linked = Schema.Struct({
+    status: Schema.String,
+    source: Schema.NullOr(Schema.String),
+    copy: Schema.NullOr(
+      Schema.Struct({
+        links: Schema.optionalKey(Schema.Array(Schema.String)),
+        quoted: Schema.NullOr(
+          Schema.Struct({ links: Schema.optionalKey(Schema.Array(Schema.String)) }),
+        ),
+      }),
+    ),
+  })
+
+  /** The post at `url` copied from what `pageOf` answers, then read as an agent takes it. */
+  const copied = async (url: string, pageOf: (url: string) => string | undefined) => {
+    const { fetch } = recorded(pageOf)
+    const item = await run(
+      withPosts(fetch)(Effect.tap(addToInbox({ kind: 'url', url }), ({ id }) => keepPosts(id))),
+    )
+    const taken = await run(withPosts(fetch)(takeItem({ id: item.id })))
+    const [post] = Schema.decodeUnknownSync(Schema.Struct({ posts: Schema.Array(Linked) }))(
+      taken,
+    ).posts
+    expect(post?.status).toBe('kept')
+    return post
+  }
+
+  const fromSyndication = (name: string) => syndicationOnly(fixture(name))
+  const fromFxtwitter = (name: string, n: number) => (url: string) =>
+    url === FX(n) ? fixture(name) : undefined
+
+  test('a link in the text of a post is kept with its expanded address, from syndication', async () => {
+    const post = await copied(POST_ID(3), fromSyndication('syndication-link.json'))
+    expect(post).toMatchObject({
+      source: 'syndication',
+      copy: { links: ['https://kneader.example.org/pro'] },
+    })
+  })
+
+  test('a link in the text of a post is kept with its expanded address, from fxtwitter', async () => {
+    const post = await copied(POST_ID(3), fromFxtwitter('fxtwitter-link.json', 3))
+    expect(post).toMatchObject({
+      source: 'fxtwitter',
+      copy: { links: ['https://kneader.example.org/pro'] },
+    })
+  })
+
+  test('the link card of a post is kept with its address, from syndication', async () => {
+    const post = await copied(POST_ID(4), fromSyndication('syndication-card.json'))
+    // The card and the text name the same page: kept once, by its expanded address.
+    expect(post?.copy?.links).toEqual(['https://dough-timer.example.org/'])
+  })
+
+  test('the link card of a post is kept with its address, from fxtwitter', async () => {
+    const post = await copied(POST_ID(4), fromFxtwitter('fxtwitter-card.json', 4))
+    expect(post?.copy?.links).toEqual(['https://dough-timer.example.org/'])
+  })
+
+  test('a card whose address the text does not expand is kept as the card gives it', async () => {
+    const post = await copied(POST_ID(5), fromSyndication('syndication-card-only.json'))
+    expect(post?.copy?.links).toEqual(['https://t.co/C4rdLink02'])
+  })
+
+  test('a post with only an image keeps no link, from syndication', async () => {
+    const post = await copied(POST_ID(6), fromSyndication('syndication-image-only.json'))
+    expect(post).toMatchObject({ source: 'syndication', copy: { links: [] } })
+  })
+
+  test('a post with only an image keeps no link, from fxtwitter', async () => {
+    const post = await copied(POST_ID(6), fromFxtwitter('fxtwitter-image-only.json', 6))
+    expect(post).toMatchObject({ source: 'fxtwitter', copy: { links: [] } })
+  })
+
+  test('the quoted post is not a link of the post that quotes it, and keeps its own links', async () => {
+    const post = await copied(
+      'https://x.com/valley_mill/status/1834567890123450007',
+      fromSyndication('syndication-quote-link.json'),
+    )
+    expect(post?.copy).toMatchObject({
+      links: ['https://valley-mill.example.org/flour'],
+      quoted: { links: ['https://oven.example.org/old'] },
+    })
+  })
+
+  test('a long post keeps the links of the whole text and of the cut one', async () => {
+    const cut = {
+      ...JSON.parse(fixture('syndication-long.json')),
+      entities: {
+        urls: [{ url: 'https://t.co/Th1sOne001', expanded_url: 'https://mill.example.org/' }],
+      },
+    }
+    const whole = JSON.parse(fixture('fxtwitter-long.json'))
+    whole.tweet.raw_text = {
+      facets: [
+        {
+          type: 'url',
+          original: 'https://t.co/Th4tOne001',
+          replacement: 'https://stone.example.org/',
+        },
+        {
+          type: 'url',
+          original: 'https://t.co/Th1sOne001',
+          replacement: 'https://mill.example.org/',
+        },
+      ],
+    }
+    const post = await copied(POST, (url) =>
+      url.startsWith(SYNDICATION)
+        ? JSON.stringify(cut)
+        : url === FX_LONG
+          ? JSON.stringify(whole)
+          : undefined,
+    )
+    expect(post).toMatchObject({ source: 'syndication+fxtwitter' })
+    expect(post?.copy?.links).toEqual(['https://stone.example.org/', 'https://mill.example.org/'])
+  })
+
+  test('a copy kept before the links were, still reads, without links', async () => {
+    const { fetch } = recorded(fromSyndication('syndication-post.json'))
+    const item = await run(withPosts(fetch)(addToInbox({ kind: 'url', url: POST })))
+    await run(withPosts(fetch)(takeItem({ id: item.id })))
+    // The copy as it was kept before: no `links`.
+    await run(
+      Effect.flatMap(
+        SqlClient.SqlClient,
+        (sql) => sql`UPDATE inbox_posts SET copy = copy - 'links' WHERE item_id = ${item.id}`,
+      ),
+    )
+    const read = await run(withPosts(fetch)(peekItem(item.id)))
+    expect(JSON.stringify(read)).not.toContain('"links"')
+    expect(read).toMatchObject({ posts: [{ status: 'kept', copy: { text: expect.any(String) } }] })
+  })
+})
+
 describe('a long post on X', () => {
   const FX_URL = `${FXTWITTER}harbour_bakery/status/1834567890123456789`
   const FX_QUOTING_URL = `${FXTWITTER}valley_mill/status/1834567890123450001`

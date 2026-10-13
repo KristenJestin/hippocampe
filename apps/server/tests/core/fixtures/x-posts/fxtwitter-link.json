@@ -1,0 +1,33 @@
+{
+  "code": 200,
+  "message": "OK",
+  "tweet": {
+    "url": "https://x.com/harbour_bakery/status/1834567890123450003",
+    "id": "1834567890123450003",
+    "text": "The Kneader Pro finally has a dough hook that works https://kneader.example.org/pro",
+    "raw_text": {
+      "text": "The Kneader Pro finally has a dough hook that works https://t.co/Kn3adEr001",
+      "facets": [
+        {
+          "type": "url",
+          "indices": [52, 75],
+          "original": "https://t.co/Kn3adEr001",
+          "replacement": "https://kneader.example.org/pro",
+          "display": "kneader.example.org/pro"
+        }
+      ]
+    },
+    "author": {
+      "screen_name": "harbour_bakery",
+      "url": "https://x.com/harbour_bakery",
+      "id": "4100",
+      "name": "Harbour Bakery",
+      "protected": false
+    },
+    "created_at": "Wed Sep 16 07:10:00 +0000 2026",
+    "created_timestamp": 1789542600,
+    "lang": "en",
+    "card": null,
+    "provider": "twitter"
+  }
+}

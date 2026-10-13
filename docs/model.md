@@ -651,8 +651,11 @@ that of a long post it quotes, then comes from `api.fxtwitter.com`, the rest sta
 (`source` is `syndication+fxtwitter`, and the answer holds both bodies as they came, in a JSON object);
 if fxtwitter does not answer, the copy keeps the cut text and is `truncated: true` (so is a quoted
 post cut the same way), so that an agent knows it read only the beginning. What is kept: the
-answer as it came, and what an agent reads of it, its text, author, date, the post it quotes, and
-each image (a photo, a video's poster), kept on disk by its hash like a medium. The add answers at
+answer as it came, and what an agent reads of it, its text, author, date, the post it quotes, its
+`links` (the address each link of the text leads to, and the address of its link card, each once;
+the post's own photos and the quoted post are not links, and a card whose address the text does not
+expand stays as the endpoint gives it), and each image (a photo, a video's poster), kept on disk by
+its hash like a medium. A copy kept before `links` existed has none, and is read as it was. The add answers at
 once: the copy is made beside it, a minute at most; a copy that fails (both endpoints down, a post
 deleted or protected) is noted with its reason, and the link stays. The posts of an item are given
 with it as `posts` (`inbox_take`, `inbox_list` with an `id`), each `kept` with its `copy`, `failed`

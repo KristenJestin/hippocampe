@@ -465,6 +465,17 @@ describe('agents keep each thing that happened at a time as an entry of its own'
     expect(told).toContain('Ask only when you cannot reach it, and say what you could not read')
   })
 
+  test('an agent looks up what a kept post names when the post carries no link', () => {
+    // The paragraph is wrapped: compared on one line.
+    const told = instructionsFor(types, development, null, true).replace(/\s+/g, ' ')
+    expect(told).toContain('open the links it carries, otherwise search the web for what it names')
+    expect(told).toContain('The item alone is rarely the reason it was kept')
+    // Said of what was kept, whatever it came from: no site is named.
+    expect(told).not.toMatch(/\bX\b|twitter/i)
+    // Said once.
+    expect(told.match(/search the web/g)).toHaveLength(1)
+  })
+
   test("an agent follows what it opened as far as it helps, and keeps what serves the user's reason", () => {
     // The paragraph is wrapped: compared on one line.
     const told = instructionsFor(types, development).replace(/\s+/g, ' ')

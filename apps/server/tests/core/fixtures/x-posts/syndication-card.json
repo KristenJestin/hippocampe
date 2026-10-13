@@ -1,0 +1,39 @@
+{
+  "__typename": "Tweet",
+  "lang": "en",
+  "favorite_count": 7,
+  "created_at": "2026-09-16T07:20:00.000Z",
+  "display_text_range": [0, 46],
+  "entities": {
+    "hashtags": [],
+    "urls": [
+      {
+        "display_url": "dough-timer.example.org",
+        "expanded_url": "https://dough-timer.example.org/",
+        "indices": [23, 46],
+        "url": "https://t.co/C4rdLink01"
+      }
+    ],
+    "user_mentions": [],
+    "symbols": []
+  },
+  "id_str": "1834567890123450004",
+  "text": "A timer for the dough https://t.co/C4rdLink01",
+  "user": {
+    "id_str": "4100",
+    "name": "Harbour Bakery",
+    "screen_name": "harbour_bakery",
+    "is_blue_verified": false
+  },
+  "card": {
+    "name": "summary_large_image",
+    "url": "https://t.co/C4rdLink01",
+    "card_platform": { "platform": { "audience": { "name": "production" } } },
+    "binding_values": {
+      "title": { "type": "STRING", "string_value": "Dough Timer" },
+      "domain": { "type": "STRING", "string_value": "dough-timer.example.org" }
+    }
+  },
+  "conversation_count": 0,
+  "isEdited": false
+}

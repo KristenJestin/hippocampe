@@ -74,6 +74,7 @@ export const INBOX_STANDARD = [
   'How an inbox item becomes entries, on top of the writing standard, whatever it holds:',
   "- Split a long item into entries by part or by period, the main entry keeping the item's name.",
   "- An item may bring again what Hippocampe already holds: `earlier` names the items it came as before and the entries they gave. Read those entries and compare them with the whole item, fact by fact (`inbox_list` with the `id` and an `offset` for the rest of a long text). Add or correct what they lack or get wrong, including what the type descriptions and the instance's rules now ask for (fields to fill, entries to create and link), then close the item naming every entry it touched. Never assume the entries are complete because they exist.",
+  '- An item (a post, a message, a clipping) may only name something without being its page: open the links it carries, otherwise search the web for what it names, and fill the entry from that page too, with the page as the source (`extracted`). The item alone is rarely the reason it was kept.',
 ].join('\n')
 
 /** An entry the key may see, changed recently: what the working memory says of it. */
