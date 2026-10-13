@@ -1,0 +1,42 @@
+{
+  "__typename": "Tweet",
+  "lang": "en",
+  "created_at": "2026-09-15T17:05:00.000Z",
+  "entities": {
+    "urls": [
+      {
+        "display_url": "x.com/harbour_bakery/…",
+        "expanded_url": "https://x.com/harbour_bakery/status/1834567890123456789",
+        "indices": [30, 53],
+        "url": "https://t.co/Qu0teLink1"
+      },
+      {
+        "display_url": "valley-mill.example.org",
+        "expanded_url": "https://valley-mill.example.org/flour",
+        "indices": [54, 77],
+        "url": "https://t.co/F1ourLink1"
+      }
+    ]
+  },
+  "id_str": "1834567890123450007",
+  "text": "Our flour went into this one. https://t.co/Qu0teLink1 https://t.co/F1ourLink1",
+  "user": { "id_str": "4200", "name": "Valley Mill", "screen_name": "valley_mill" },
+  "quoted_tweet": {
+    "lang": "en",
+    "created_at": "2026-09-14T08:30:00.000Z",
+    "entities": {
+      "urls": [
+        {
+          "display_url": "oven.example.org",
+          "expanded_url": "https://oven.example.org/old",
+          "indices": [0, 23],
+          "url": "https://t.co/0venLink01"
+        }
+      ]
+    },
+    "id_str": "1834567890123456789",
+    "text": "The old oven https://t.co/0venLink01",
+    "user": { "id_str": "4100", "name": "Harbour Bakery", "screen_name": "harbour_bakery" }
+  },
+  "conversation_count": 0
+}

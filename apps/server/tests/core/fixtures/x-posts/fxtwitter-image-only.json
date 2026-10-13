@@ -1,0 +1,51 @@
+{
+  "code": 200,
+  "message": "OK",
+  "tweet": {
+    "url": "https://x.com/harbour_bakery/status/1834567890123450006",
+    "id": "1834567890123450006",
+    "text": "Meet the Kneader Pro",
+    "raw_text": {
+      "text": "Meet the Kneader Pro https://t.co/PicOnly001",
+      "facets": [
+        {
+          "type": "media",
+          "indices": [21, 44],
+          "original": "https://t.co/PicOnly001",
+          "replacement": "https://pbs.twimg.com/media/LoafPhoto.jpg",
+          "display": "pic.x.com/PicOnly001"
+        }
+      ]
+    },
+    "author": {
+      "screen_name": "harbour_bakery",
+      "url": "https://x.com/harbour_bakery",
+      "id": "4100",
+      "name": "Harbour Bakery",
+      "protected": false
+    },
+    "created_at": "Wed Sep 16 07:40:00 +0000 2026",
+    "created_timestamp": 1789544400,
+    "lang": "en",
+    "media": {
+      "all": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/LoafPhoto.jpg",
+          "width": 2,
+          "height": 2
+        }
+      ],
+      "photos": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/LoafPhoto.jpg",
+          "width": 2,
+          "height": 2
+        }
+      ]
+    },
+    "card": null,
+    "provider": "twitter"
+  }
+}

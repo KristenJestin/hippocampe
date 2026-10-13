@@ -1,12 +1,16 @@
 # The beta of the Android app: every push to `dev` builds it and publishes it as a GitHub
-# pre-release with one fixed tag, `android-beta`, replaced each time.
+# pre-release, tagged and titled by its version like every other release (`v0.14.2-beta.21`): the
+# patch after the last released version, numbered by the run of this workflow, so that it sorts
+# after the release it was built on (`tools/android-beta-version.ts`). The previous betas, their
+# tags too, are deleted first: there is one beta at a time, and the released versions are never
+# touched.
 #
-# The tag does not look like a version (no `v`), so semantic-release never reads it, and a
-# pre-release is never the latest release. The beta is signed with the release key of the
-# repository's secrets, under its own application id (`fr.kristenjestin.hippocampe.beta`), so it is
-# installed beside the release and each beta updates the one before it: its version code is the run
-# number of this workflow, which only grows. Until the secrets are set, the job says so in one line
-# and publishes nothing, without failing.
+# semantic-release reads the `v*` tags but looks only for the last release of `main`, and a
+# pre-release is never one; a pre-release is never the latest release either. The beta is signed
+# with the release key of the repository's secrets, under its own application id
+# (`fr.kristenjestin.hippocampe.beta`), so it is installed beside the release and each beta updates
+# the one before it: its version code is the run number of this workflow, which only grows. Until
+# the secrets are set, the job says so in one line and publishes nothing, without failing.
 
 name: android-beta
 
@@ -45,28 +49,30 @@ jobs:
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
+      - uses: oven-sh/setup-bun@v2
+        if: steps.signing.outputs.ready == 'true'
+        with:
+          bun-version: 1.4.2
       - uses: actions/setup-java@v4
         if: steps.signing.outputs.ready == 'true'
         with:
           distribution: temurin
           java-version: 21.0.12+8.0.LTS
           cache: gradle
-      # The version name says what the beta was built from: the last released version, this run
-      # and this commit, such as 0.9.0-beta.57+3f2a1bc.
+      # The version name says what the beta was built from: the release before it and this run,
+      # such as 0.9.1-beta.57; the commit is in the notes of the pre-release.
       - name: Build the beta APK, signed
         id: build
         if: steps.signing.outputs.ready == 'true'
         working-directory: apps/android
         run: |
-          last=$(git tag --list 'v*' --sort=-version:refname | head -n 1)
-          version="${last#v}"
-          version="${version:-0.0.0}-beta.${GITHUB_RUN_NUMBER}+$(git rev-parse --short HEAD)"
+          version=$(bun "$GITHUB_WORKSPACE/tools/android-beta-version.ts" "$GITHUB_RUN_NUMBER")
           echo "version=$version" >> "$GITHUB_OUTPUT"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
           ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/release.jks" HIPPOCAMPE_VERSION="$version" HIPPOCAMPE_BETA_RUN="$GITHUB_RUN_NUMBER" ./gradlew assembleBeta
           rm "$RUNNER_TEMP/release.jks"
-      # The pre-release is deleted with its tag and made again on this commit, so that it always
-      # holds the newest beta and nothing else. A pre-release is never marked latest.
+      # The previous betas are deleted with their tags, then this one is made on this commit, so
+      # that the releases hold the newest beta and no other. A pre-release is never marked latest.
       - name: Replace the pre-release
         if: steps.signing.outputs.ready == 'true'
         working-directory: apps/android
@@ -78,5 +84,11 @@ jobs:
           cp app/build/outputs/apk/beta/app-beta.apk "$apk"
           sha256sum "$apk" > "$apk.sha256"
           printf 'Hippocampe Beta %s, built from `%s` on `dev`. It is installed beside the release, for the development instance, and replaced at each push to `dev`.\n' "$VERSION" "${GITHUB_SHA::7}" > "$RUNNER_TEMP/notes.md"
-          if gh release view android-beta >/dev/null 2>&1; then gh release delete android-beta --cleanup-tag --yes; fi
-          gh release create android-beta "$apk" "$apk.sha256" --prerelease --latest=false --target "$GITHUB_SHA" --title "Android beta" --notes-file "$RUNNER_TEMP/notes.md"
+          for tag in $(git tag --list 'v*-beta.*'); do
+            if gh release view "$tag" >/dev/null 2>&1; then
+              gh release delete "$tag" --cleanup-tag --yes
+            else
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag"
+            fi
+          done
+          gh release create "v$VERSION" "$apk" "$apk.sha256" --prerelease --latest=false --target "$GITHUB_SHA" --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"

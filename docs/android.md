@@ -14,7 +14,7 @@ due. It needs Android 8 or later. There is no Play Store version.
 | Application id | `fr.kristenjestin.hippocampe` | `fr.kristenjestin.hippocampe.beta` | `fr.kristenjestin.hippocampe.debug` |
 | Name, launcher | Hippocampe | Hippocampe Beta, another background colour | Hippocampe Debug |
 | For | the real instance (production) | the development instance | trying a pull request |
-| Where | the release, `hippocampe-android-<version>.apk` | the pre-release `android-beta`, `hippocampe-android-beta.apk`, replaced at each push to `dev` | the artifact `hippocampe-android-debug` of a CI run |
+| Where | the release, `hippocampe-android-<version>.apk` | a pre-release `v<version>-beta.<run>`, `hippocampe-android-beta.apk`, replaced at each push to `dev` | the artifact `hippocampe-android-debug` of a CI run |
 | Signed with | the release key | the same release key | the debug key of the machine that built it |
 | Plain HTTP | refused: the server is reached over HTTPS | allowed | allowed |
 
@@ -26,9 +26,10 @@ each with its own settings and its own queue, and one never replaces another.
 - **A release**: each release of Hippocampe carries `hippocampe-android-<version>.apk` and its
   `.sha256`, once the owner has set the signing key (see `apps/android/AGENTS.md`). A newer APK
   installs over the older one.
-- **The beta**: the [pre-release `android-beta`](https://github.com/KristenJestin/hippocampe/releases/tag/android-beta)
-  holds `hippocampe-android-beta.apk` and its `.sha256`, built from the last push to `dev` (its
-  version says from which release, which run and which commit: `0.9.0-beta.57+3f2a1bc`). Its version
+- **The beta**: the one [pre-release](https://github.com/KristenJestin/hippocampe/releases) tagged
+  and titled `v<version>-beta.<run>` holds `hippocampe-android-beta.apk` and its `.sha256`, built
+  from the last push to `dev` (its version is the patch after the last release and the run: after
+  `v0.9.0`, `0.9.1-beta.57`; its notes say the commit). Its version
   code is the number of the run, so each beta installs over the one before it, with the same key.
   Until the signing secrets are set, nothing is published.
 - **A build of a pull request or a branch**: the `verify` job of CI uploads the debug APK as the

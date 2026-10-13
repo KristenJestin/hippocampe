@@ -1,0 +1,31 @@
+{
+  "code": 200,
+  "message": "OK",
+  "tweet": {
+    "url": "https://x.com/harbour_bakery/status/1834567890123450004",
+    "id": "1834567890123450004",
+    "text": "A timer for the dough",
+    "raw_text": {
+      "text": "A timer for the dough https://t.co/C4rdLink01",
+      "facets": []
+    },
+    "author": {
+      "screen_name": "harbour_bakery",
+      "url": "https://x.com/harbour_bakery",
+      "id": "4100",
+      "name": "Harbour Bakery",
+      "protected": false
+    },
+    "created_at": "Wed Sep 16 07:20:00 +0000 2026",
+    "created_timestamp": 1789543200,
+    "lang": "en",
+    "card": {
+      "url": "https://dough-timer.example.org/",
+      "title": "Dough Timer",
+      "description": "Times the dough.",
+      "domain": "dough-timer.example.org",
+      "card_name": "summary_large_image"
+    },
+    "provider": "twitter"
+  }
+}

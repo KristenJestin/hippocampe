@@ -180,7 +180,7 @@ describe('a write that breaks the rules is refused with one sentence naming the 
   test('an unknown field', async () => {
     const fields = { ...contract.fields, colour: 'blue' }
     expect(await run(refusalOf(writeEntry({ ...contract, fields })))).toBe(
-      'The field `fields.colour` is not expected.',
+      'The field `fields.colour` is not expected; it takes `provider` (required), `start` (required), `end`, `renewal`, `monthly_cost`, `seats`, `portal`, `holder`.',
     )
   })
 
@@ -398,7 +398,7 @@ describe('several problems in one write are all reported in one refusal', () => 
         ),
       ),
     ).toBe(
-      'The field `fields.colour` is not expected. The field `fields.provider` is missing. ' +
+      'The field `fields.colour` is not expected; it takes `provider` (required), `start` (required), `end`, `renewal`, `monthly_cost`, `seats`, `portal`, `holder`. The field `fields.provider` is missing. ' +
         'The field `provenance.seats` is required with `fields.seats`: say `extracted` (known, read in a source), `inferred` (supposed by you) or `ambiguous` (sources disagree).',
     )
   })
