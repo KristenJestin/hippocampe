@@ -1,4 +1,12 @@
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll, describe, expect, test } from 'vitest'
@@ -33,8 +41,8 @@ const snapshot = (root: string) => {
     }
   }
   for (const path of WRITTEN) {
-    if (path.endsWith('.ts')) files.set(path, readFileSync(join(root, path)).toString('base64'))
-    else walk(path)
+    if (statSync(join(root, path)).isDirectory()) walk(path)
+    else files.set(path, readFileSync(join(root, path)).toString('base64'))
   }
   return files
 }
@@ -100,5 +108,47 @@ describe('the logo has one source and every other file is generated from it', ()
     }
     expect(read('icon-full.svg')).toContain('fill="#5ed39a"')
     expect(read('icon-full.svg')).toContain('stroke="#155b3d"')
+  })
+})
+
+describe('the Android launcher shows the horn', () => {
+  const res = (path: string) => readFileSync(join(repository, 'apps/android/app/src', path), 'utf8')
+  const strokes = (xml: string) =>
+    [...xml.matchAll(/android:strokeColor="(#\w+)"/g)].map((m) => m[1])
+
+  test('the foreground is the two paths with round caps and the adaptive transform', () => {
+    const xml = res('main/res/drawable/ic_launcher_foreground.xml')
+    expect(xml).toContain('android:pathData="M34 170 C 18 90, 70 24, 128 30')
+    expect(xml).toContain('android:pathData="M72 96 C 64 150, 120 182, 164 166"')
+    expect(xml.match(/android:strokeLineCap="round"/g)).toHaveLength(2)
+    expect(xml).toContain('android:translateX="21.28"')
+    expect(xml).toContain('android:translateY="22.39"')
+    expect(xml).toContain('android:scaleX="0.3167"')
+    expect(strokes(xml)).toEqual(['#5ed39a', '#ece5d8'])
+  })
+
+  test('the release is on the dark of the icon and the beta on the green of the full icon', () => {
+    expect(res('main/res/values/colors.xml')).toContain('>#14120f<')
+    expect(res('beta/res/values/colors.xml')).toContain('>#5ed39a<')
+    expect(strokes(res('beta/res/drawable/ic_launcher_foreground.xml'))).toEqual([
+      '#0e1913',
+      '#155b3d',
+    ])
+  })
+
+  test('the monochrome layer is the same two paths in one colour', () => {
+    const xml = res('main/res/drawable/ic_launcher_monochrome.xml')
+    expect(xml.match(/android:pathData=/g)).toHaveLength(2)
+    expect(new Set(strokes(xml)).size).toBe(1)
+    expect(res('main/res/mipmap-anydpi-v26/ic_launcher.xml')).toContain(
+      '<monochrome android:drawable="@drawable/ic_launcher_monochrome" />',
+    )
+  })
+
+  test('the notification icon is the horn, white on transparent, in its 24 dp box', () => {
+    const xml = res('main/res/drawable/ic_notification.xml')
+    expect(xml).toContain('android:viewportWidth="24"')
+    expect(xml.match(/android:pathData=/g)).toHaveLength(2)
+    expect(new Set(strokes(xml))).toEqual(new Set(['#ffffff']))
   })
 })
