@@ -111,7 +111,9 @@ on a machine made for the server; with `CI` set, it fails instead.
 
 The tests are unit tests on the JVM, with Robolectric (Android 16: `src/test/resources/robolectric.properties`)
 for Room, WorkManager, DataStore and Compose, and the server simulated by Ktor's mock engine
-(`FakeServer`). Each is named after the scenario it covers. A wait for the application (`AppTest`) is
+(`FakeServer`). Each is named after the scenario it covers. `ScreenshotsTest` is the exception: it takes the README's
+screenshots from a real server under Robolectric's native graphics, and is skipped unless
+`bun run screenshots` (`tools/screenshots.ts`) runs it. A wait for the application (`AppTest`) is
 bounded by a hang, not by what it should take: the application reads on threads Compose's clock does
 not drive, and the first test of a JVM loads everything.
 
