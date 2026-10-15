@@ -49,7 +49,12 @@
         "$TURBO_ROOT$/packages/**/package.json",
         "$TURBO_ROOT$/vitest.config.ts",
         "$TURBO_ROOT$/.githooks/**",
-        "$TURBO_ROOT$/.env"
+        "$TURBO_ROOT$/.env",
+        "$TURBO_ROOT$/assets/**",
+        "$TURBO_ROOT$/README.md",
+        "$TURBO_ROOT$/docs/**",
+        "$TURBO_ROOT$/apps/android/app/src/**",
+        "$TURBO_ROOT$/apps/desktop/assets/**"
       ],
       "outputs": [],
       "env": ["DATABASE_URL", "SEARCH_LANGUAGE"],
@@ -65,7 +70,8 @@
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/vitest.config.ts",
         "$TURBO_ROOT$/.env",
-        "$TURBO_ROOT$/packages/api/openapi.json"
+        "$TURBO_ROOT$/packages/api/openapi.json",
+        "$TURBO_ROOT$/assets/brand/**"
       ],
       "outputs": [],
       "env": ["DATABASE_URL", "SEARCH_LANGUAGE"]
