@@ -5,6 +5,7 @@
 use std::collections::HashSet;
 use std::f32::consts::FRAC_PI_2;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use gpui_kit::assets::IconName;
 use gpui_kit::component::input::{Input, InputEvent, InputState};
@@ -13,11 +14,10 @@ use gpui_kit::component::tooltip::Tooltip;
 use gpui_kit::component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
 use gpui_kit::{
     AnimationExt as _, AnyElement, App, AppContext as _, ClickEvent, ClipboardItem, Context, Div,
-    DragMoveEvent, ElementId, Entity, EventEmitter, FocusHandle, Focusable, FontWeight,
-    InteractiveElement as _, IntoElement, KeyBinding, MouseButton, ParentElement as _, Pixels,
-    Render, ScrollHandle, SharedString, SpringAnimation, StatefulInteractiveElement as _,
-    Styled as _, Subscription, Window, actions, div, linear_color_stop, linear_gradient, point, px,
-    radians,
+    DragMoveEvent, ElementId, Entity, EventEmitter, FocusHandle, Focusable, FontWeight, Image,
+    ImageFormat, InteractiveElement as _, IntoElement, KeyBinding, MouseButton, ParentElement as _,
+    Pixels, Render, ScrollHandle, SharedString, SpringAnimation, StatefulInteractiveElement as _,
+    Styled as _, Subscription, Window, actions, div, img, point, px, radians,
 };
 
 use gpui_kit::prelude::FluentBuilder as _;
@@ -82,6 +82,14 @@ struct Line {
     at: String,
     parent: Option<(SharedString, String)>,
     folder: bool,
+}
+
+/// The horn of the logo, the icon of the application, as the mark of the sidebar.
+fn mark() -> Arc<Image> {
+    Arc::new(Image::from_bytes(
+        ImageFormat::Png,
+        include_bytes!("../../../assets/release/hippocampe.png").to_vec(),
+    ))
 }
 
 /// The viewer, as one screen: sidebar and panel.
@@ -524,7 +532,7 @@ impl Viewer {
 
     fn sidebar(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
-        let (muted, primary, cyan) = (theme.muted_foreground, theme.primary, theme.cyan);
+        let muted = theme.muted_foreground;
         let tree: AnyElement = match &self.tree_load {
             Load::Loading => v_flex()
                 .px(space::M)
@@ -576,11 +584,7 @@ impl Viewer {
                     .h(px(36.))
                     .px(space::S)
                     .gap(space::S)
-                    .child(div().size(px(20.)).rounded(px(6.)).bg(linear_gradient(
-                        135.,
-                        linear_color_stop(primary, 0.),
-                        linear_color_stop(mix(primary, cyan, 0.55), 1.),
-                    )))
+                    .child(img(mark()).size(px(20.)))
                     .child(
                         div()
                             .flex_1()
