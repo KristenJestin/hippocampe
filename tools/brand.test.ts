@@ -152,3 +152,18 @@ describe('the Android launcher shows the horn', () => {
     expect(new Set(strokes(xml))).toEqual(new Set(['#ffffff']))
   })
 })
+
+describe('the desktop viewer is installed with the horn', () => {
+  const read = (path: string) => readFileSync(join(repository, path))
+
+  test('the icon of the archive and its source are the icon of the logo', () => {
+    expect(read('apps/desktop/assets/release/hippocampe.svg')).toEqual(
+      read('assets/brand/icon.svg'),
+    )
+    expect(read('apps/desktop/assets/release/hippocampe.png')).toEqual(
+      read('assets/brand/png/icon-256.png'),
+    )
+    const png = read('apps/desktop/assets/release/hippocampe.png')
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([256, 256])
+  })
+})

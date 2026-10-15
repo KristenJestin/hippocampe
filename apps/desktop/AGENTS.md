@@ -49,7 +49,7 @@ of the sidebar and by `hippocampe-desktop --version`), packs it with `scripts/pa
 the archives and their checksums to the release. `scripts/update.sh` installs or updates it on
 Linux from the latest release; its tests (`crates/app/tests/update_script.rs`) run it against a
 local fake release server. The launcher and the icon of an archive are in `assets/release/` (the
-icon is provisional).
+icon is the horn of the logo, generated from `assets/brand` by `bun run brand`: never edited by hand).
 
 The dispatch of `release.yml` (`workflow_dispatch`) is a dry run of the viewer's build: it builds
 the tag it is given and attaches the archives to that tag's release, and tags nothing. A tag

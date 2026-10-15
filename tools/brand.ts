@@ -1,6 +1,7 @@
 /**
  * Generates every file derived from the logo, from the SVGs of `assets/brand` (the one source):
- * the PNGs and `favicon.ico` there, and the vector drawables and colours of the Android launcher.
+ * the PNGs and `favicon.ico` there, the vector drawables and colours of the Android launcher, and
+ * the icon of the desktop viewer.
  *
  *   bun tools/brand.ts        (or `bun run brand` at the root)
  *
@@ -9,7 +10,7 @@
  * which a private fontconfig names, so no font of the machine is used.
  */
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -23,6 +24,8 @@ export const WRITTEN: ReadonlyArray<string> = [
   `${ANDROID}/main/res/values/colors.xml`,
   `${ANDROID}/beta/res/drawable/ic_launcher_foreground.xml`,
   `${ANDROID}/beta/res/values/colors.xml`,
+  'apps/desktop/assets/release/hippocampe.svg',
+  'apps/desktop/assets/release/hippocampe.png',
 ]
 
 const FONTS = 'apps/desktop/assets/fonts'
@@ -233,6 +236,15 @@ export const generate = (root: string, options: { render?: boolean } = {}) => {
   if (options.render ?? hasRenderer()) renderRasters(root)
   else console.log('brand: rsvg-convert not found, the PNGs and favicon.ico are left as committed.')
   generateAndroid(root)
+  // The icon of the viewer's archive and of its launcher, installed as 256x256 by update.sh.
+  copyFileSync(
+    join(root, 'assets/brand/icon.svg'),
+    join(root, 'apps/desktop/assets/release/hippocampe.svg'),
+  )
+  copyFileSync(
+    join(root, 'assets/brand/png/icon-256.png'),
+    join(root, 'apps/desktop/assets/release/hippocampe.png'),
+  )
 }
 
 if (import.meta.main) {
