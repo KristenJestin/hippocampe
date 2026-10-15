@@ -19,7 +19,8 @@ It puts `hippocampe-desktop` in `~/.local/bin`, its launcher in `~/.local/share/
 icon beside it; `sh update.sh --check` only says whether a newer viewer exists. It never touches
 `~/.config/hippocampe/`, where the viewer reads its server and its key (see
 [Pointing the viewer at a server](../apps/desktop/AGENTS.md#pointing-the-viewer-at-a-server)).
-`hippocampe-desktop --version` prints the version.
+`hippocampe-desktop --version` prints the version; `hippocampe-desktop --open <slug>` opens an entry at
+start, and `--search <words>` a search.
 
 Between a release and the end of its builds, or when a build failed, the latest release has no
 archive yet: the script says so and changes nothing; run it again later. A viewer that says a
