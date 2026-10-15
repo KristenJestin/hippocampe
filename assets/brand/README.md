@@ -14,7 +14,7 @@ redrawn by a tool.
 | `icon-full.svg` | the full icon, a green square with dark strokes: tells a second build apart (the Android beta) |
 | `favicon.svg` | the favicon, drawn for 16 to 64 pixels |
 | `android-foreground.svg` | the foreground of the Android adaptive icon, inside its 66 dp safe zone |
-| `social-preview.svg` | the social preview of the repository |
+| `social-preview.svg` | the social preview of the repository and the banner of the README: the mark, the name, the tagline, and an agent writing an entry through MCP, drawn (no capture) |
 
 ## What is generated
 
@@ -26,8 +26,9 @@ redrawn by a tool.
 
 The PNGs are rendered by `rsvg-convert` (librsvg); without it, `bun run brand` leaves them as
 committed and generates the rest. The text of the social preview is drawn with the fonts of the
-desktop viewer (Peace Sans and Open Sauce Sans, `apps/desktop/assets/fonts`), found through a
-fontconfig made for the run: no font of the machine is used.
+desktop viewer (Peace Sans and Open Sauce Sans, `apps/desktop/assets/fonts`) and its tool calls
+with JetBrains Mono (`fonts/`, with its licence and origin), found through a fontconfig made for
+the run: no font of the machine is used.
 
 `png/social-preview.png` is the social preview of the repository: it is uploaded by hand in the
 repository's settings on GitHub (Settings, General, Social preview), as GitHub offers no other way.

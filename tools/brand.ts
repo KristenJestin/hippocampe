@@ -6,8 +6,9 @@
  *   bun tools/brand.ts        (or `bun run brand` at the root)
  *
  * The PNGs are rendered by `rsvg-convert`; without it they are left as committed and the rest is
- * still generated. The text of the social preview is drawn with the fonts of the desktop viewer,
- * which a private fontconfig names, so no font of the machine is used.
+ * still generated. The text of the social preview is drawn with the fonts of the desktop viewer and
+ * the monospace of `assets/brand/fonts`, which a private fontconfig names, so no font of the machine
+ * is used.
  */
 import { spawnSync } from 'node:child_process'
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -29,7 +30,8 @@ export const WRITTEN: ReadonlyArray<string> = [
   'apps/server/src/brand.ts',
 ]
 
-const FONTS = 'apps/desktop/assets/fonts'
+/** The fonts of the viewer, and those only the brand draws with (the monospace). */
+const FONTS = ['apps/desktop/assets/fonts', 'assets/brand/fonts']
 
 /** The PNGs: the source SVG, the size of the square side (the social preview keeps its own), the name. */
 const RENDERINGS: ReadonlyArray<readonly [string, number | undefined, string]> = [
@@ -56,7 +58,8 @@ const renderer = (root: string) => {
   writeFileSync(
     config,
     `<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig>` +
-      `<dir>${join(root, FONTS)}</dir><cachedir>${join(folder, 'cache')}</cachedir></fontconfig>`,
+      FONTS.map((fonts) => `<dir>${join(root, fonts)}</dir>`).join('') +
+      `<cachedir>${join(folder, 'cache')}</cachedir></fontconfig>`,
   )
   const render = (svg: string, side: number | undefined) => {
     const result = spawnSync(
