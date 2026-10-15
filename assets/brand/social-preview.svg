@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+<rect width="1280" height="640" fill="#14120f"/>
+<g transform="translate(110 170) scale(1.8) translate(-18 -16)"><path d="M34 170 C 18 90, 70 24, 128 30 C 182 36, 190 112, 152 132 C 124 146, 98 124, 108 100" fill="none" stroke="#5ed39a" stroke-width="26" stroke-linecap="round"/><path d="M72 96 C 64 150, 120 182, 164 166" fill="none" stroke="#ece5d8" stroke-width="22" stroke-linecap="round"/></g>
+<text x="500" y="300" font-family="Peace Sans" font-size="96" fill="#ece5d8">Hippocampe</text>
+<text x="504" y="372" font-family="Open Sauce Sans" font-weight="500" font-size="34" fill="#5ed39a">A personal knowledge system</text>
+<text x="504" y="420" font-family="Open Sauce Sans" font-size="28" fill="#a39b8c">managed by AI.</text>
+</svg>

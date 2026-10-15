@@ -13,6 +13,7 @@
     "lint": "turbo run lint",
     "fmt": "oxfmt .",
     "generate": "turbo run generate",
+    "brand": "bun tools/brand.ts",
     "fmt:check": "turbo run fmt:check",
     "test": "turbo run test",
     "check": "bun run typecheck && bun run lint && bun run fmt:check && bun run test"
