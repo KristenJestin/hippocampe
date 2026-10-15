@@ -20,6 +20,7 @@ import { commandPostgres } from '../local/postgres.ts'
 import { Config, Effect, Layer, Logger, Schema } from 'effect'
 import { McpServer } from 'effect/ai'
 import { instructions } from './instructions.ts'
+import { ICONS } from './icons.ts'
 import { PROTOCOLS } from './protocols.ts'
 import { HippocampeServer } from './tools.ts'
 
@@ -65,6 +66,7 @@ const program = Effect.gen(function* () {
       Effect.provideService(Rights, rights),
       Effect.provideService(Actor, actor),
     ),
+    icons: ICONS,
     protocols: PROTOCOLS,
   }).pipe(Layer.provide(BunStdio.layer))
   return yield* Layer.launch(HippocampeServer.pipe(Layer.provide(server))).pipe(
