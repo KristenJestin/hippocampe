@@ -85,12 +85,15 @@ jobs:
         run: bunx turbo run build --filter=@hippocampe/desktop
       - name: Build the Android app
         run: bunx turbo run build --filter=@hippocampe/android
-      # The debug APK of the pull request, to try it on a phone before it is merged.
-      - uses: actions/upload-artifact@v4
+      # The debug APK of the pull request, to try it on a phone before it is merged: only on a pull
+      # request (main and dev have their releases), for a day (the Actions storage is small).
+      - if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
         with:
           name: hippocampe-android-debug
           path: apps/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 1
 
   # The desktop app on Windows, its other platform: both binaries built (rustup installs the Rust
   # of rust-toolchain.toml).
