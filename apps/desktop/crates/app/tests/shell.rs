@@ -6,7 +6,7 @@ use std::net::TcpListener;
 use std::thread;
 
 use app::client::{Client, Key};
-use app::shell::Shell;
+use app::shell::{Shell, Start};
 use gpui_kit::{Entity, Modifiers, TestAppContext, VisualTestContext};
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -233,6 +233,14 @@ fn answer(mut stream: std::net::TcpStream) {
 }
 
 fn viewer_on(server: String, cx: &mut TestAppContext) -> (Entity<Viewer>, &mut VisualTestContext) {
+    let (_, viewer, cx) = shell_on(server, cx);
+    (viewer, cx)
+}
+
+fn shell_on(
+    server: String,
+    cx: &mut TestAppContext,
+) -> (Entity<Shell>, Entity<Viewer>, &mut VisualTestContext) {
     cx.update(|cx| {
         gpui_kit::init(cx);
         ui::viewer::init(cx);
@@ -246,7 +254,7 @@ fn viewer_on(server: String, cx: &mut TestAppContext) -> (Entity<Viewer>, &mut V
         )
     });
     let viewer = shell.read_with(cx, |shell, _| shell.viewer().clone());
-    (viewer, cx)
+    (shell, viewer, cx)
 }
 
 fn ask(viewer: &Entity<Viewer>, intent: Intent, cx: &mut VisualTestContext) {
@@ -651,4 +659,41 @@ fn an_entry_with_suppositions_says_so_and_lists_those_that_do(cx: &mut TestAppCo
         _ => (false, Vec::new()),
     });
     assert_eq!(listed, (true, vec!["Harbor".to_string()]));
+}
+
+#[test]
+fn the_command_line_names_what_opens_at_start_an_entry_or_a_search() {
+    let start = |args: &[&str]| Start::from_args(args.iter().map(|arg| arg.to_string()));
+    assert_eq!(
+        start(&["--open", "plum-tart"]),
+        Some(Start::Entry("plum-tart".into()))
+    );
+    assert_eq!(
+        start(&["--search", "plum tart"]),
+        Some(Start::Search("plum tart".into()))
+    );
+    assert_eq!(start(&[]), None);
+    assert_eq!(start(&["--open"]), None);
+}
+
+#[gpui_kit::test]
+fn the_viewer_opens_at_start_the_entry_or_the_search_it_is_given(cx: &mut TestAppContext) {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("a free port");
+    let server = format!("http://{}", listener.local_addr().expect("an address"));
+    serve(listener);
+    let (shell, viewer, cx) = shell_on(server, cx);
+    cx.update(|window, cx| {
+        shell.update(cx, |shell, cx| {
+            shell.start(Start::Entry("plum-tart".into()), window, cx)
+        })
+    });
+    cx.run_until_parked();
+    assert_eq!(opened(&viewer, cx).as_deref(), Some("plum-tart"));
+    cx.update(|window, cx| {
+        shell.update(cx, |shell, cx| {
+            shell.start(Start::Search("plum".into()), window, cx)
+        })
+    });
+    cx.run_until_parked();
+    assert!(viewer.read_with(cx, |viewer, _| matches!(viewer.pane(), Pane::Search(_))));
 }

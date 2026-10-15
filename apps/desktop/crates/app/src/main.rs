@@ -1,11 +1,12 @@
 //! The Hippocampe desktop viewer: `cargo run -p app`, pointed at a server by its configuration
-//! (see `app::config`); `--version` prints its version. Errors are logged on standard error,
-//! and more with `RUST_LOG` (`RUST_LOG=debug`).
+//! (see `app::config`); `--version` prints its version, `--open <entry>` and `--search <query>`
+//! name what it opens at start. Errors are logged on standard error, and more with `RUST_LOG`
+//! (`RUST_LOG=debug`).
 
 // A release build on Windows opens no console beside its window.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use app::shell::Shell;
+use app::shell::{Shell, Start};
 use gpui_kit::{AppContext as _, WindowAppearance, WindowOptions};
 use ui::theme::ThemeChoice;
 
@@ -41,7 +42,13 @@ fn main() {
                 },
                 cx,
                 |window, cx| {
-                    cx.new(|cx| Shell::new(app::config::client(), &preferences, window, cx))
+                    cx.new(|cx| {
+                        let mut shell = Shell::new(app::config::client(), &preferences, window, cx);
+                        if let Some(start) = Start::from_args(std::env::args().skip(1)) {
+                            shell.start(start, window, cx);
+                        }
+                        shell
+                    })
                 },
             )
             .expect("the window opens");

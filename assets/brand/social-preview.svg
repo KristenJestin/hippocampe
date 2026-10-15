@@ -1,8 +1,34 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
 <rect width="1280" height="640" fill="#14120f"/>
-<g transform="translate(110 170) scale(1.8) translate(-18 -16)"><path d="M34 170 C 18 90, 70 24, 128 30 C 182 36, 190 112, 152 132 C 124 146, 98 124, 108 100" fill="none" stroke="#5ed39a" stroke-width="26" stroke-linecap="round"/><path d="M72 96 C 64 150, 120 182, 164 166" fill="none" stroke="#ece5d8" stroke-width="22" stroke-linecap="round"/></g>
-<text x="500" y="300" font-family="Peace Sans" font-size="96" fill="#ece5d8">Hippocampe</text>
-<text x="504" y="372" font-family="Open Sauce Sans" font-weight="500" font-size="34" fill="#5ed39a">A personal knowledge system</text>
-<text x="504" y="420" font-family="Open Sauce Sans" font-size="28" fill="#a39b8c">managed by AI agents through MCP,</text>
-<text x="504" y="458" font-family="Open Sauce Sans" font-size="28" fill="#a39b8c">read and kept by you.</text>
+<g transform="translate(211 40) scale(0.8) translate(-18 -16)"><path d="M34 170 C 18 90, 70 24, 128 30 C 182 36, 190 112, 152 132 C 124 146, 98 124, 108 100" fill="none" stroke="#5ed39a" stroke-width="26" stroke-linecap="round"/><path d="M72 96 C 64 150, 120 182, 164 166" fill="none" stroke="#ece5d8" stroke-width="22" stroke-linecap="round"/></g>
+<text x="387" y="146" font-family="Peace Sans" font-size="104" fill="#ece5d8">Hippocampe</text>
+<text x="640" y="236" text-anchor="middle" font-family="Open Sauce Sans" font-size="25" fill="#a39b8c">A personal knowledge system managed by AI agents through MCP, read and kept by you.</text>
+<rect x="96" y="290" width="1088" height="400" rx="18" fill="#1c1915" stroke="#2e2a24" stroke-width="2"/>
+<line x1="97" y1="334" x2="1183" y2="334" stroke="#2e2a24" stroke-width="2"/>
+<circle cx="124" cy="312" r="6" fill="#3a352d"/><circle cx="146" cy="312" r="6" fill="#3a352d"/><circle cx="168" cy="312" r="6" fill="#3a352d"/>
+<text x="640" y="318" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#7d7567">an agent, writing to Hippocampe through MCP</text>
+<text x="128" y="376" font-family="Open Sauce Sans" font-weight="500" font-size="15" fill="#7d7567">YOU</text>
+<rect x="128" y="388" width="636" height="44" rx="12" fill="#2a261f"/>
+<text x="146" y="417" font-family="Open Sauce Sans" font-size="19" fill="#ece5d8">Keep this recipe, Claire gave it to me: recipes.example/lemon-tart</text>
+<text x="128" y="466" font-family="Open Sauce Sans" font-weight="500" font-size="15" fill="#7d7567">AGENT</text>
+<g font-family="JetBrains Mono" font-size="17" xml:space="preserve">
+<text x="128" y="500"><tspan fill="#5ed39a">search</tspan><tspan fill="#ece5d8"> "lemon tart"</tspan></text>
+<text x="760" y="500" text-anchor="end" fill="#7d7567">nothing yet</text>
+<text x="128" y="534"><tspan fill="#5ed39a">write</tspan><tspan fill="#ece5d8"> recipe lemon-tart</tspan></text>
+<text x="760" y="534" text-anchor="end" fill="#5ed39a">created</text>
+<text x="128" y="568"><tspan fill="#5ed39a">link</tspan><tspan fill="#ece5d8"> lemon-tart → person:claire "from"</tspan></text>
+<text x="760" y="568" text-anchor="end" fill="#5ed39a">linked</text>
+</g>
+<text x="128" y="612" font-family="Open Sauce Sans" font-size="19" fill="#a39b8c">Kept as a recipe, linked to Claire who gave it to you.</text>
+<rect x="808" y="362" width="344" height="300" rx="14" fill="#14120f" stroke="#2e2a24" stroke-width="2"/>
+<text x="836" y="398" font-family="Open Sauce Sans" font-weight="600" font-size="14" letter-spacing="1.5" fill="#5ed39a">RECIPE</text>
+<text x="836" y="440" font-family="Peace Sans" font-size="32" fill="#ece5d8">Lemon tart</text>
+<g font-family="Open Sauce Sans" font-size="17">
+<text x="836" y="484" fill="#7d7567">Serves</text><text x="960" y="484" fill="#ece5d8">6</text>
+<text x="836" y="514" fill="#7d7567">Time</text><text x="960" y="514" fill="#ece5d8">1 h 10 min</text>
+</g>
+<line x1="836" y1="538" x2="1124" y2="538" stroke="#2e2a24" stroke-width="2"/>
+<text x="836" y="572" font-family="Open Sauce Sans" font-size="17" fill="#7d7567">from</text>
+<rect x="958" y="551" width="104" height="30" rx="15" fill="#1d3a2b"/>
+<text x="1010" y="572" text-anchor="middle" font-family="Open Sauce Sans" font-weight="500" font-size="17" fill="#5ed39a">Claire</text>
 </svg>

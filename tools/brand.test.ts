@@ -111,6 +111,33 @@ describe('the logo has one source and every other file is generated from it', ()
   })
 })
 
+describe('the social preview shows the core at work, drawn and never captured', () => {
+  const svg = readFileSync(join(repository, 'assets/brand/social-preview.svg'), 'utf8')
+
+  test('it is the mark, the name and the tagline over an agent writing through MCP', () => {
+    expect(svg).toContain('width="1280" height="640"')
+    expect(svg).not.toContain('<image')
+    expect(svg).toContain('>Hippocampe</text>')
+    expect(svg).toContain(
+      'A personal knowledge system managed by AI agents through MCP, read and kept by you.',
+    )
+    for (const call of ['>search<', '>write<', '>link<']) expect(svg, call).toContain(call)
+  })
+
+  test('its tool calls are in a monospace vendored with its licence', () => {
+    expect(svg).toContain('font-family="JetBrains Mono"')
+    const fonts = join(repository, 'assets/brand/fonts')
+    expect(readdirSync(fonts).sort()).toEqual([
+      'JetBrainsMono-Regular.ttf',
+      'OFL-JetBrainsMono.txt',
+      'README.md',
+    ])
+    expect(readFileSync(join(fonts, 'OFL-JetBrainsMono.txt'), 'utf8')).toContain(
+      'SIL Open Font License, Version 1.1',
+    )
+  })
+})
+
 describe('the Android launcher shows the horn', () => {
   const res = (path: string) => readFileSync(join(repository, 'apps/android/app/src', path), 'utf8')
   const strokes = (xml: string) =>
