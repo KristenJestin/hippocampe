@@ -92,6 +92,8 @@ bun run test                     # Vitest under Bun, per package (turbo run test
 bun run check                    # typecheck, lint, fmt:check and test, in that order
 bun run generate                 # the OpenAPI document, then the Rust and Kotlin types, from the schemas
 bun run brand                    # every file derived from the logo (assets/brand), from its SVGs
+bun run screenshots              # docs/screenshots: a throwaway server, filled through MCP, read by
+                                 # the viewer in a headless Weston and the Android screens in Robolectric
 ```
 
 Turborepo caches every task: a second `bun run check` with nothing changed answers from the

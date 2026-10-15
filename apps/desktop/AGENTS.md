@@ -110,4 +110,6 @@ On Hyprland, capture only the story's window, never the whole screen: open the s
 window by the process id in `hyprctl clients -j`, and give its geometry to `grim -g "x,y wxh"`.
 On Windows, open the story and capture the window with the Snipping Tool (window mode,
 `Win+Shift+S`) or `Alt+PrtScn`. Screenshots are reviewed outside the repository; commit none
-unless a document needs it.
+unless a document needs it. The README's screenshots are taken by `bun run screenshots` at the root
+(`tools/screenshots.ts`): the viewer in a Weston of its own (`--backend=headless --fake-seat`),
+never on the session's display, opened on what to show with `--open` or `--search`.
