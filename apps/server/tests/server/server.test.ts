@@ -1166,10 +1166,42 @@ describe('the server knows which instance it is', () => {
 
   test('over MCP, the development instance announces itself as hippocampe-dev with its version', async () => {
     const client = await connect(`${base}/mcp`, bearer(writer))
-    expect(client.serverInfo).toEqual({ name: 'hippocampe-dev', version: '1.2.3-test' })
+    expect(client.serverInfo).toMatchObject({ name: 'hippocampe-dev', version: '1.2.3-test' })
     expect(
       client.instructions?.startsWith('This is the shared DEVELOPMENT instance of Hippocampe'),
     ).toBe(true)
+  })
+})
+
+describe('the server shows the horn', () => {
+  const brand = (file: string) =>
+    readFileSync(new URL(`../../../../assets/brand/${file}`, import.meta.url))
+
+  test('GET /favicon.svg answers the favicon of the logo without a key', async () => {
+    const response = await fetch(`${base}/favicon.svg`)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/svg+xml')
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(brand('favicon.svg'))
+  })
+
+  test('GET /favicon.ico answers the favicon of the logo without a key', async () => {
+    const response = await fetch(`${base}/favicon.ico`)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/x-icon')
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(brand('favicon.ico'))
+  })
+
+  const icon = `data:image/svg+xml;base64,${brand('icon.svg').toString('base64')}`
+
+  test('the MCP initialize answer of 2025-11-25 carries the icon of the logo as a data URI', async () => {
+    const client = await connect(`${base}/mcp`, bearer(writer), '2025-11-25')
+    expect(client.serverInfo.icons).toEqual([{ src: icon, mimeType: 'image/svg+xml' }])
+  })
+
+  test('the answers of the stateless protocol carry the icon in the server information', async () => {
+    const stateless = connectStateless(`${base}/mcp`, bearer(writer))
+    const { result } = await stateless.request('tools/list', {})
+    expect(JSON.stringify(result)).toContain(icon)
   })
 })
 

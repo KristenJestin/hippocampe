@@ -1,5 +1,6 @@
 import { HippocampeApi } from '@hippocampe/api/http'
 import { ApiRoutes, MAY_NOT_READ } from './api.ts'
+import { FAVICON_ICO_BASE64, FAVICON_SVG } from './brand.ts'
 import { Auth, Rights } from './core/auth/index.ts'
 import { databaseReachable, databaseServices } from './core/database/index.ts'
 import { Actor } from './core/events/index.ts'
@@ -65,6 +66,30 @@ const health = HttpRouter.use((router) =>
       ),
     )
   }),
+)
+
+/** The favicon of the logo, for a browser on the server and for `/api/docs`: no key is asked. */
+const favicons = Layer.mergeAll(
+  HttpRouter.add(
+    'GET',
+    '/favicon.svg',
+    Effect.succeed(
+      HttpServerResponse.text(FAVICON_SVG, {
+        contentType: 'image/svg+xml',
+        headers: { 'cache-control': 'public, max-age=86400' },
+      }),
+    ),
+  ),
+  HttpRouter.add(
+    'GET',
+    '/favicon.ico',
+    Effect.succeed(
+      HttpServerResponse.uint8Array(Buffer.from(FAVICON_ICO_BASE64, 'base64'), {
+        contentType: 'image/x-icon',
+        headers: { 'cache-control': 'public, max-age=86400' },
+      }),
+    ),
+  ),
 )
 
 /**
@@ -202,12 +227,13 @@ const auth = HttpRouter.add('*', '/api/auth/*', (request) =>
 )
 
 /**
- * Every route of the server on one router: `/health`, `/mcp`, `/media/<hash>`, Better Auth under
+ * Every route of the server on one router: `/health`, `/favicon.svg` and `/favicon.ico`, `/mcp`, `/media/<hash>`, Better Auth under
  * `/api/auth`, the read API under `/api` with its OpenAPI document and its documentation page at
  * `/api/docs`. They run on the authentication and the database the server provides once.
  */
 export const HippocampeRoutes = Layer.mergeAll(
   health,
+  favicons,
   mcp,
   media,
   auth,

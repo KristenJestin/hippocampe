@@ -82,7 +82,8 @@ app/src/main/kotlin/fr/kristenjestin/hippocampe/
 
 `release` is the application of the owner's real instance (`fr.kristenjestin.hippocampe`). `beta`
 is installed beside it, for the development instance: `applicationIdSuffix = ".beta"`, named
-"Hippocampe Beta" and with another launcher background (`src/beta/res`), signed with the same key.
+"Hippocampe Beta" and with the full icon of the logo, a green launcher background and dark strokes (`src/beta/res`), signed with the same key.
+The launcher icons, the notification icon and `launcher_background` are generated from `assets/brand` by `bun run brand` at the root: never edited by hand.
 `debug` is for trying a pull request, installed beside both: `applicationIdSuffix = ".debug"`, named
 "Hippocampe Debug" (`src/debug/res`). The release refuses plain HTTP and the other two allow it,
 through a network security config per build type (`src/main/res/xml/` for the release, `src/beta/`

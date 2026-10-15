@@ -1,9 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <!-- Provisional: an attic under its roof, in the colours of the viewer's theme. -->
-  <rect width="256" height="256" rx="56" fill="#121212"/>
-  <path d="M40 132 L128 56 L216 132" fill="none" stroke="#5ed39a" stroke-width="20"
-    stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="76" y="132" width="104" height="72" rx="10" fill="none" stroke="#ededed"
-    stroke-width="14"/>
-  <path d="M76 168 H180" stroke="#ededed" stroke-width="10"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><title>Hippocampe</title><rect width="256" height="256" rx="56" fill="#14120f"/><g transform="translate(28.74 32.10) scale(0.9609)"><path d="M34 170 C 18 90, 70 24, 128 30 C 182 36, 190 112, 152 132 C 124 146, 98 124, 108 100" fill="none" stroke="#5ed39a" stroke-width="26" stroke-linecap="round"/><path d="M72 96 C 64 150, 120 182, 164 166" fill="none" stroke="#ece5d8" stroke-width="22" stroke-linecap="round"/></g></svg>

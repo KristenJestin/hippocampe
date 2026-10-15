@@ -91,6 +91,7 @@ bun run fmt                      # oxfmt (fmt:check in CI)
 bun run test                     # Vitest under Bun, per package (turbo run test)
 bun run check                    # typecheck, lint, fmt:check and test, in that order
 bun run generate                 # the OpenAPI document, then the Rust and Kotlin types, from the schemas
+bun run brand                    # every file derived from the logo (assets/brand), from its SVGs
 ```
 
 Turborepo caches every task: a second `bun run check` with nothing changed answers from the
@@ -99,7 +100,8 @@ On a machine without an Android SDK or Java, the Gradle tasks of `apps/android` 
 and are skipped; in CI they never are.
 
 The server, in development, on `PORT` (3000 by default): `/mcp` (MCP, protocol 2026-07-28 and
-the older revisions), `/health`, `/media/<hash>`, and the API (`GET /api/about`,
+the older revisions, and the icon of the logo in its server information), `/health`, `/favicon.ico` and
+`/favicon.svg` (no key), `/media/<hash>`, and the API (`GET /api/about`,
 `/api/types`, `/api/entries/{slug or id}`, `/api/entries?sort=updated` (the entries by their last
 change, each saying when and by which key), `/api/search?q=…`, `/api/briefing?period=today|week|weekend`
 (what is due, the heads-ups and what waits), and the inbox: `POST /api/inbox` to
