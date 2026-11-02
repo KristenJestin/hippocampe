@@ -149,7 +149,7 @@ describe('JSON Schema for MCP tools', () => {
     }
   })
 
-  test('a tool that restates its list item describes it once, under $defs, and refers to it', () => {
+  test('a tool that restates its list item gives every root key its type and its items a reference', () => {
     const Entry = Schema.Struct({
       title: Schema.String.annotate({ description: 'Title of the entry.' }),
       body: Schema.optionalKey(Schema.String).annotate({ description: 'Body of the entry.' }),
@@ -159,13 +159,13 @@ describe('JSON Schema for MCP tools', () => {
       entries: Schema.optionalKey(Schema.Array(Entry)).annotate({ description: 'Several.' }),
     })
     const input = toToolInputSchema(Write, { property: 'entries', as: 'Entry' })
-    expect(JSON.stringify(input).match(/Title of the entry/g)).toHaveLength(1)
-    expect(input.$defs).toHaveProperty(['Entry', 'properties', 'title', 'description'])
     expect(input.properties).toMatchObject({
-      title: { $ref: '#/$defs/Entry/properties/title' },
-      body: { $ref: '#/$defs/Entry/properties/body' },
+      title: { type: 'string', description: 'Title of the entry.' },
+      body: { type: 'string', description: 'Body of the entry.' },
       entries: { type: 'array', description: 'Several.', items: { $ref: '#/$defs/Entry' } },
     })
+    expect(input.$defs).toHaveProperty(['Entry', 'properties', 'title', 'description'])
+    expect(JSON.stringify(input.properties).match(/\$ref/g)).toHaveLength(1)
     expect(input.additionalProperties).toBe(false)
   })
 

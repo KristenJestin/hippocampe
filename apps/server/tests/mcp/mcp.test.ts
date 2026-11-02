@@ -725,6 +725,42 @@ describe('an agent adds a part at the top of a body', () => {
   })
 })
 
+describe('an agent writes with provenance, sources, edits and prepend', () => {
+  test('a write with these keys as JSON values succeeds, alone or in entries', async () => {
+    await mcp().call('write', {
+      type: 'note',
+      title: 'Pond notes',
+      body: 'Water lilies.',
+      provenance: { body: 'inferred' },
+      sources: [{ url: 'https://example.org/ponds', note: 'A page on ponds.' }],
+    })
+    await mcp().call('write', {
+      entry: 'pond-notes',
+      edits: [{ find: 'lilies', replace: 'irises' }],
+      provenance: { body: 'inferred' },
+    })
+    await mcp().call('write', {
+      entries: [
+        {
+          entry: 'pond-notes',
+          body: 'Reeds.',
+          prepend: true,
+          provenance: { body: 'inferred' },
+          sources: [{ identifier: 'POND-1', label: 'ticket' }],
+        },
+      ],
+    })
+    expect(await mcp().call('read', { entry: 'pond-notes', parts: ['body'] })).toMatchObject({
+      result: {
+        entry: {
+          body: 'Reeds.\n\nWater irises.',
+          sources: [{ identifier: 'POND-1' }],
+        },
+      },
+    })
+  })
+})
+
 describe('an agent works through the inbox', () => {
   test('it adds an item, takes it, writes the entry it gives, and marks it processed', async () => {
     const added = await mcp().call('inbox_add', { kind: 'text', text: 'Rhubarb crumble.' })
