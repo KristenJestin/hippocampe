@@ -750,7 +750,9 @@ describe('an agent writes with provenance, sources, edits and prepend', () => {
         },
       ],
     })
-    expect(await mcp().call('read', { entry: 'pond-notes', parts: ['body'] })).toMatchObject({
+    expect(
+      await mcp().call('read', { entry: 'pond-notes', parts: ['body', 'fields'] }),
+    ).toMatchObject({
       result: {
         entry: {
           body: 'Reeds.\n\nWater irises.',
