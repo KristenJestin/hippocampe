@@ -91,19 +91,79 @@ describe('every parameter of every tool is described', () => {
   })
 })
 
-describe('a shared schema is described once in the tool that takes it', () => {
-  test('write describes an entry once, under $defs: the flat keys and the items of entries refer to it', () => {
-    const write = schemas.find(({ name }) => name === 'write')
-    const text = JSON.stringify(write?.schema)
-    expect(text.match(/The slug or id of the entry to update/g)).toHaveLength(1)
-    expect(text).toContain('"items":{"$ref":"#/$defs/WriteEntry"}')
-    expect(text).toContain('"title":{"$ref":"#/$defs/WriteEntry/properties/title"}')
+/** Whether a root property says its type itself: a `type`, or every member of an `anyOf`/`oneOf` does. */
+const saysItsType = (property: Schema.Json): boolean =>
+  Option.match(
+    Schema.decodeUnknownOption(
+      Schema.Struct({
+        type: Schema.optionalKey(Schema.String),
+        anyOf: Schema.optionalKey(Schema.Array(Schema.Json)),
+        oneOf: Schema.optionalKey(Schema.Array(Schema.Json)),
+      }),
+    )(property),
+    {
+      onNone: () => false,
+      onSome: ({ type, anyOf, oneOf }) =>
+        type !== undefined ||
+        [anyOf, oneOf].some(
+          (members) => members !== undefined && members.length > 0 && members.every(saysItsType),
+        ),
+    },
+  )
+
+/** Keys that take any JSON value, so name no type: they are not references, and say so. */
+const ANY_VALUE = ['change_type.default']
+
+describe('every root key of a tool input says its type', () => {
+  test('no root property of any tool is a bare reference: a client that does not resolve $ref sends its JSON as a string', () => {
+    const untyped = schemas.flatMap(({ name, schema }) =>
+      Option.match(Schema.decodeUnknownOption(Properties)(schema), {
+        onNone: () => [],
+        onSome: ({ properties }) =>
+          Object.entries(properties)
+            .map(([property, node]) => ({ key: `${name}.${property}`, node }))
+            .filter(({ key, node }) => !saysItsType(node) && !ANY_VALUE.includes(key))
+            .map(({ key }) => key),
+      }),
+    )
+    expect(untyped.toSorted()).toEqual([])
+  })
+})
+
+describe('the items of entries are described once', () => {
+  const write = schemas.find(({ name }) => name === 'write')?.schema ?? null
+  const { properties, $defs } = Schema.decodeUnknownSync(
+    Schema.Struct({
+      properties: Schema.Record(Schema.String, Schema.Json),
+      $defs: Schema.Record(Schema.String, Schema.Json),
+    }),
+  )(write)
+
+  test('write: entries.items refers to $defs.WriteEntry, which holds the item', () => {
+    expect(properties['entries']).toMatchObject({
+      type: 'array',
+      items: { $ref: '#/$defs/WriteEntry' },
+    })
+    expect($defs['WriteEntry']).toMatchObject({
+      type: 'object',
+      properties: { entry: { type: 'string' }, provenance: { type: 'object' } },
+    })
   })
 
-  test('no tool carries the same schema of more than 300 characters twice', () => {
+  test('write: the keys of one entry stay at the root, in full, beside entries', () => {
+    expect(properties['edits']).toMatchObject({ type: 'array' })
+    expect(properties['prepend']).toMatchObject({ type: 'boolean' })
+    expect(properties['provenance']).toMatchObject({ type: 'object' })
+    expect(properties['sources']).toMatchObject({ type: 'array' })
+  })
+
+  test('no tool carries the same schema of more than 300 characters twice outside its $defs', () => {
     const twice = schemas.flatMap(({ name, schema }) => {
+      const { $defs: _definitions, ...root } = Schema.decodeUnknownSync(
+        Schema.Record(Schema.String, Schema.Json),
+      )(schema)
       const seen = new Map<string, number>()
-      for (const node of nested(schema)) {
+      for (const node of nested(root)) {
         const text = JSON.stringify(node)
         if (text.length > 300) seen.set(text, (seen.get(text) ?? 0) + 1)
       }
