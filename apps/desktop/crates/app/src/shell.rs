@@ -31,6 +31,28 @@ enum Location {
     List(ListFilter),
 }
 
+/// What the viewer opens at start, named on its command line (`--open <entry>`, `--search <query>`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Start {
+    Entry(String),
+    Search(String),
+}
+
+impl Start {
+    /// What the arguments after the program's name ask to open, if anything.
+    pub fn from_args(args: impl Iterator<Item = String>) -> Option<Self> {
+        let mut args = args;
+        while let Some(argument) = args.next() {
+            match argument.as_str() {
+                "--open" => return args.next().map(Self::Entry),
+                "--search" => return args.next().map(Self::Search),
+                _ => {}
+            }
+        }
+        None
+    }
+}
+
 pub struct Shell {
     viewer: Entity<Viewer>,
     client: Option<Client>,
@@ -108,6 +130,18 @@ impl Shell {
             }
         }
         shell
+    }
+
+    /// Opens what the command line named.
+    pub fn start(&mut self, start: Start, window: &mut Window, cx: &mut Context<Self>) {
+        let location = match start {
+            Start::Entry(entry) => Location::Entry(entry.into()),
+            Start::Search(query) => Location::Search {
+                query: query.into(),
+                type_name: None,
+            },
+        };
+        self.go(location, window, cx);
     }
 
     /// The viewer it feeds.

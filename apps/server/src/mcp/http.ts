@@ -7,6 +7,7 @@ import { Layer } from 'effect'
 import type { Context } from 'effect'
 import { McpServer } from 'effect/ai'
 import { HttpRouter } from 'effect/http'
+import { ICONS } from './icons.ts'
 import { PROTOCOLS } from './protocols.ts'
 import { HippocampeServer } from './tools.ts'
 
@@ -37,6 +38,7 @@ export function mcpHttpHandlerFor(options: {
         name: mcpServerName(options.instance.name),
         version: options.instance.version,
         instructions: options.instructions,
+        icons: ICONS,
         path: options.path,
         protocols: PROTOCOLS,
       }),

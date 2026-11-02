@@ -7,7 +7,15 @@ const Response = Schema.Struct({
 
 /** The result of `initialize`: what matters here, the server's name and its instructions. */
 const Initialized = Schema.Struct({
-  serverInfo: Schema.Struct({ name: Schema.String, version: Schema.String }),
+  serverInfo: Schema.Struct({
+    name: Schema.String,
+    version: Schema.String,
+    icons: Schema.optionalKey(
+      Schema.Array(
+        Schema.Struct({ src: Schema.String, mimeType: Schema.optionalKey(Schema.String) }),
+      ),
+    ),
+  }),
   instructions: Schema.optionalKey(Schema.String),
 })
 

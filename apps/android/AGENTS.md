@@ -82,7 +82,8 @@ app/src/main/kotlin/fr/kristenjestin/hippocampe/
 
 `release` is the application of the owner's real instance (`fr.kristenjestin.hippocampe`). `beta`
 is installed beside it, for the development instance: `applicationIdSuffix = ".beta"`, named
-"Hippocampe Beta" and with another launcher background (`src/beta/res`), signed with the same key.
+"Hippocampe Beta" and with the full icon of the logo, a green launcher background and dark strokes (`src/beta/res`), signed with the same key.
+The launcher icons, the notification icon and `launcher_background` are generated from `assets/brand` by `bun run brand` at the root: never edited by hand.
 `debug` is for trying a pull request, installed beside both: `applicationIdSuffix = ".debug"`, named
 "Hippocampe Debug" (`src/debug/res`). The release refuses plain HTTP and the other two allow it,
 through a network security config per build type (`src/main/res/xml/` for the release, `src/beta/`
@@ -110,7 +111,9 @@ on a machine made for the server; with `CI` set, it fails instead.
 
 The tests are unit tests on the JVM, with Robolectric (Android 16: `src/test/resources/robolectric.properties`)
 for Room, WorkManager, DataStore and Compose, and the server simulated by Ktor's mock engine
-(`FakeServer`). Each is named after the scenario it covers. A wait for the application (`AppTest`) is
+(`FakeServer`). Each is named after the scenario it covers. `ScreenshotsTest` is the exception: it takes the README's
+screenshots from a real server under Robolectric's native graphics, and is skipped unless
+`bun run screenshots` (`tools/screenshots.ts`) runs it. A wait for the application (`AppTest`) is
 bounded by a hang, not by what it should take: the application reads on threads Compose's clock does
 not drive, and the first test of a JVM loads everything.
 
